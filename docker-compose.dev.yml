@@ -1,0 +1,34 @@
+# 开发环境Docker Compose配置
+# 使用方式: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+
+services:
+  firemail:
+    # 开发环境配置覆盖
+    volumes:
+      # 挂载源代码以支持热重载
+      - ./backend:/app/backend-src:ro
+      - ./frontend:/app/frontend-src:ro
+      # 保持数据和日志卷
+      - firemail_data:/app/data
+      - firemail_logs:/app/logs
+    
+    environment:
+      # 开发环境变量
+      - ENV=development
+      - GIN_MODE=debug
+      - DEBUG=true
+      - LOG_LEVEL=debug
+      
+      # 开发模式下的CORS配置
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:3001,http://localhost:8080
+      
+    # 开发环境端口映射（可选，用于直接访问服务）
+    ports:
+      - "3000:3000"  # Caddy
+      - "3001:3001"  # Frontend (开发模式)
+      - "8080:8080"  # Backend (开发模式)
+    
+    # 开发环境标签
+    labels:
+      - "com.firemail.environment=development"
+      - "com.firemail.mode=dev"

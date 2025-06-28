@@ -1,0 +1,3 @@
+-- 添加文件夹同步字段
+ALTER TABLE folders ADD COLUMN uid_validity INTEGER DEFAULT 0;
+ALTER TABLE folders ADD COLUMN uid_next INTEGER DEFAULT 0;

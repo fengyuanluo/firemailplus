@@ -1,0 +1,269 @@
+/* 邮件HTML内容专用样式 */
+.email-html-content {
+  /* 基础样式重置 */
+  color: inherit;
+  font-family: inherit;
+}
+
+/* 邮件特有标签样式 */
+.email-html-content font {
+  /* 保持字体标签的功能 */
+  font-family: inherit;
+}
+
+.email-html-content center {
+  text-align: center;
+  display: block;
+}
+
+.email-html-content marquee {
+  /* 禁用滚动效果，保持内容可见 */
+  animation: none;
+  display: block;
+}
+
+/* 表格样式优化 */
+.email-html-content table {
+  border-collapse: collapse;
+  width: 100%;
+  max-width: 100%;
+  margin: 1em 0;
+}
+
+.email-html-content table[border] {
+  border: 1px solid #e5e7eb;
+}
+
+.email-html-content td,
+.email-html-content th {
+  padding: 8px 12px;
+  vertical-align: top;
+  border: inherit;
+}
+
+.email-html-content th {
+  font-weight: 600;
+  background-color: #f9fafb;
+}
+
+.email-html-content tr:nth-child(even) {
+  background-color: #f9fafb;
+}
+
+/* 图片样式 */
+.email-html-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+}
+
+/* 链接样式 */
+.email-html-content a {
+  color: #3b82f6;
+  text-decoration: underline;
+  word-break: break-all;
+}
+
+.email-html-content a:hover {
+  color: #1d4ed8;
+}
+
+/* 引用样式 */
+.email-html-content blockquote {
+  border-left: 4px solid #e5e7eb;
+  padding-left: 1rem;
+  margin: 1rem 0;
+  font-style: italic;
+  color: #6b7280;
+}
+
+/* 代码样式 */
+.email-html-content pre {
+  background-color: #f3f4f6;
+  padding: 1rem;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-family: 'Courier New', monospace;
+}
+
+.email-html-content code {
+  background-color: #f3f4f6;
+  padding: 0.2rem 0.4rem;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+}
+
+/* 列表样式 */
+.email-html-content ul,
+.email-html-content ol {
+  padding-left: 2rem;
+  margin: 1rem 0;
+}
+
+.email-html-content li {
+  margin: 0.5rem 0;
+}
+
+/* 标题样式 */
+.email-html-content h1,
+.email-html-content h2,
+.email-html-content h3,
+.email-html-content h4,
+.email-html-content h5,
+.email-html-content h6 {
+  margin: 1.5rem 0 1rem 0;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.email-html-content h1 {
+  font-size: 1.8rem;
+}
+.email-html-content h2 {
+  font-size: 1.6rem;
+}
+.email-html-content h3 {
+  font-size: 1.4rem;
+}
+.email-html-content h4 {
+  font-size: 1.2rem;
+}
+.email-html-content h5 {
+  font-size: 1.1rem;
+}
+.email-html-content h6 {
+  font-size: 1rem;
+}
+
+/* 段落样式 */
+.email-html-content p {
+  margin: 1rem 0;
+  line-height: 1.6;
+}
+
+/* 分隔线样式 */
+.email-html-content hr {
+  border: none;
+  border-top: 1px solid #e5e7eb;
+  margin: 2rem 0;
+}
+
+/* 强调样式 */
+.email-html-content strong,
+.email-html-content b {
+  font-weight: 600;
+}
+
+.email-html-content em,
+.email-html-content i {
+  font-style: italic;
+}
+
+.email-html-content u {
+  text-decoration: underline;
+}
+
+.email-html-content s,
+.email-html-content strike,
+.email-html-content del {
+  text-decoration: line-through;
+}
+
+.email-html-content sub {
+  vertical-align: sub;
+  font-size: 0.8em;
+}
+
+.email-html-content sup {
+  vertical-align: super;
+  font-size: 0.8em;
+}
+
+.email-html-content small {
+  font-size: 0.9em;
+}
+
+.email-html-content big {
+  font-size: 1.1em;
+}
+
+.email-html-content mark {
+  background-color: #fef3c7;
+  padding: 0.1rem 0.2rem;
+  border-radius: 2px;
+}
+
+/* 地址样式 */
+.email-html-content address {
+  font-style: italic;
+  margin: 1rem 0;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .email-html-content {
+    font-size: 16px;
+  }
+
+  .email-html-content table {
+    font-size: 14px;
+  }
+
+  .email-html-content pre {
+    font-size: 12px;
+    padding: 0.5rem;
+  }
+}
+
+/* 暗色主题适配 */
+.dark .email-html-content {
+  color: #e5e7eb;
+}
+
+.dark .email-html-content table[border] {
+  border-color: #374151;
+}
+
+.dark .email-html-content td,
+.dark .email-html-content th {
+  border-color: #374151;
+}
+
+.dark .email-html-content th {
+  background-color: #1f2937;
+}
+
+.dark .email-html-content tr:nth-child(even) {
+  background-color: #1f2937;
+}
+
+.dark .email-html-content blockquote {
+  border-left-color: #374151;
+  color: #9ca3af;
+}
+
+.dark .email-html-content pre {
+  background-color: #1f2937;
+}
+
+.dark .email-html-content code {
+  background-color: #1f2937;
+}
+
+.dark .email-html-content hr {
+  border-top-color: #374151;
+}
+
+.dark .email-html-content mark {
+  background-color: #92400e;
+  color: #fbbf24;
+}
+
+.dark .email-html-content a {
+  color: #60a5fa;
+}
+
+.dark .email-html-content a:hover {
+  color: #93c5fd;
+}

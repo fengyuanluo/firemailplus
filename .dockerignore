@@ -1,0 +1,105 @@
+# Git相关
+.git
+.gitignore
+.gitattributes
+
+# 文档
+README.md
+*.md
+docs/
+
+# 构建产物
+backend/build/
+backend/dist/
+frontend/.next/
+frontend/out/
+frontend/build/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# 测试文件
+backend/test/
+backend/*_test.go
+backend/coverage.out
+backend/coverage.html
+frontend/coverage/
+
+# 开发环境文件
+.env
+.env.local
+.env.development
+.env.test
+backend/.env
+backend/.env.local
+frontend/.env
+frontend/.env.local
+
+# IDE文件
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+
+# 日志文件
+*.log
+logs/
+backend/logs/
+frontend/logs/
+
+# 数据库文件
+*.db
+*.sqlite
+*.sqlite3
+backend/firemail.db
+backend/data/
+
+# 临时文件
+tmp/
+temp/
+
+# 依赖目录
+frontend/node_modules/
+backend/vendor/
+
+# 包管理器文件
+frontend/.pnpm-debug.log*
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+
+# TypeScript
+frontend/*.tsbuildinfo
+frontend/next-env.d.ts
+
+# 部署相关
+.vercel
+.netlify
+
+# Docker相关
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# 备份文件
+backups/
+backend/backups/
+
+# 缓存
+.cache/
+.parcel-cache/
+
+# 其他
+.DS_Store
+*.pem

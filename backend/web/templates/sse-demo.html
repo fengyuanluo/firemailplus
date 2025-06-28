@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FireMail SSE 演示</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #333;
+        }
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            padding: 10px;
+            border-radius: 5px;
+            background-color: #f8f9fa;
+        }
+        .status.connected {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .status.disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn-primary {
+            background-color: #007bff;
+            color: white;
+        }
+        .btn-secondary {
+            background-color: #6c757d;
+            color: white;
+        }
+        .btn-success {
+            background-color: #28a745;
+            color: white;
+        }
+        .btn-danger {
+            background-color: #dc3545;
+            color: white;
+        }
+        .events-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .events-log {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            height: 400px;
+            overflow-y: auto;
+            padding: 10px;
+            background-color: #f8f9fa;
+        }
+        .event-item {
+            margin-bottom: 10px;
+            padding: 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            border-left: 3px solid #007bff;
+        }
+        .event-item.new_email {
+            border-left-color: #28a745;
+            background-color: #d4edda;
+        }
+        .event-item.sync_started {
+            border-left-color: #ffc107;
+            background-color: #fff3cd;
+        }
+        .event-item.sync_completed {
+            border-left-color: #28a745;
+            background-color: #d4edda;
+        }
+        .event-item.notification {
+            border-left-color: #17a2b8;
+            background-color: #d1ecf1;
+        }
+        .event-item.error {
+            border-left-color: #dc3545;
+            background-color: #f8d7da;
+        }
+        .timestamp {
+            color: #666;
+            font-size: 10px;
+        }
+        .test-section {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            box-sizing: border-box;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔥 FireMail SSE 实时通知演示</h1>
+            <p>演示Server-Sent Events实时邮件通知功能</p>
+        </div>
+
+        <div id="connectionStatus" class="status disconnected">
+            <span id="statusIcon">❌</span>
+            <span id="statusText">未连接</span>
+            <span id="clientId"></span>
+        </div>
+
+        <div class="controls">
+            <button id="connectBtn" class="btn-primary">连接</button>
+            <button id="disconnectBtn" class="btn-secondary" disabled>断开连接</button>
+            <button id="requestNotificationBtn" class="btn-success">请求通知权限</button>
+            <button id="clearLogBtn" class="btn-danger">清空日志</button>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-value" id="totalEvents">0</div>
+                <div class="stat-label">总事件数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="newEmails">0</div>
+                <div class="stat-label">新邮件</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="reconnectAttempts">0</div>
+                <div class="stat-label">重连次数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="connectionTime">--</div>
+                <div class="stat-label">连接时长</div>
+            </div>
+        </div>
+
+        <div class="events-container">
+            <div>
+                <h3>📨 事件日志</h3>
+                <div id="eventsLog" class="events-log"></div>
+            </div>
+            <div>
+                <h3>🧪 测试工具</h3>
+                <div class="test-section">
+                    <h4>发送测试事件</h4>
+                    <div class="form-group">
+                        <label for="eventType">事件类型:</label>
+                        <select id="eventType">
+                            <option value="notification">通知</option>
+                            <option value="heartbeat">心跳</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="eventMessage">消息内容:</label>
+                        <textarea id="eventMessage" rows="3" placeholder="输入测试消息...">这是一个测试通知</textarea>
+                    </div>
+                    <button id="sendTestEventBtn" class="btn-primary" disabled>发送测试事件</button>
+                </div>
+
+                <div class="test-section">
+                    <h4>连接信息</h4>
+                    <div class="form-group">
+                        <label for="tokenInput">认证Token:</label>
+                        <input type="password" id="tokenInput" placeholder="输入JWT Token...">
+                    </div>
+                    <button id="updateTokenBtn" class="btn-secondary">更新Token</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/sse-client.js"></script>
+    <script>
+        // 全局变量
+        let sseClient = null;
+        let connectionStartTime = null;
+        let stats = {
+            totalEvents: 0,
+            newEmails: 0,
+            reconnectAttempts: 0
+        };
+
+        // DOM元素
+        const elements = {
+            connectionStatus: document.getElementById('connectionStatus'),
+            statusIcon: document.getElementById('statusIcon'),
+            statusText: document.getElementById('statusText'),
+            clientId: document.getElementById('clientId'),
+            connectBtn: document.getElementById('connectBtn'),
+            disconnectBtn: document.getElementById('disconnectBtn'),
+            requestNotificationBtn: document.getElementById('requestNotificationBtn'),
+            clearLogBtn: document.getElementById('clearLogBtn'),
+            eventsLog: document.getElementById('eventsLog'),
+            sendTestEventBtn: document.getElementById('sendTestEventBtn'),
+            eventType: document.getElementById('eventType'),
+            eventMessage: document.getElementById('eventMessage'),
+            tokenInput: document.getElementById('tokenInput'),
+            updateTokenBtn: document.getElementById('updateTokenBtn'),
+            totalEvents: document.getElementById('totalEvents'),
+            newEmails: document.getElementById('newEmails'),
+            reconnectAttempts: document.getElementById('reconnectAttempts'),
+            connectionTime: document.getElementById('connectionTime')
+        };
+
+        // 初始化
+        function init() {
+            // 绑定事件
+            elements.connectBtn.addEventListener('click', connect);
+            elements.disconnectBtn.addEventListener('click', disconnect);
+            elements.requestNotificationBtn.addEventListener('click', requestNotificationPermission);
+            elements.clearLogBtn.addEventListener('click', clearLog);
+            elements.sendTestEventBtn.addEventListener('click', sendTestEvent);
+            elements.updateTokenBtn.addEventListener('click', updateToken);
+
+            // 从localStorage获取token
+            const savedToken = localStorage.getItem('firemail_token');
+            if (savedToken) {
+                elements.tokenInput.value = savedToken;
+            }
+
+            // 更新连接时间
+            setInterval(updateConnectionTime, 1000);
+
+            logEvent('system', '页面已加载，准备连接SSE服务');
+        }
+
+        // 连接SSE
+        function connect() {
+            const token = elements.tokenInput.value.trim();
+            if (!token) {
+                alert('请先输入认证Token');
+                return;
+            }
+
+            // 保存token
+            localStorage.setItem('firemail_token', token);
+
+            // 创建SSE客户端
+            sseClient = new FireMailSSEClient({
+                baseUrl: '',
+                token: token,
+                autoReconnect: true,
+                reconnectInterval: 3000,
+                maxReconnectAttempts: 10
+            });
+
+            // 注册事件监听器
+            registerEventListeners();
+
+            // 连接
+            sseClient.connect();
+            connectionStartTime = new Date();
+
+            updateUI();
+        }
+
+        // 断开连接
+        function disconnect() {
+            if (sseClient) {
+                sseClient.disconnect();
+                sseClient = null;
+            }
+            connectionStartTime = null;
+            updateUI();
+            logEvent('system', '已断开SSE连接');
+        }
+
+        // 注册事件监听器
+        function registerEventListeners() {
+            sseClient.on('connected', (data) => {
+                logEvent('system', `SSE连接已建立 (客户端ID: ${data.clientId})`);
+                updateUI();
+            });
+
+            sseClient.on('error', (error) => {
+                logEvent('error', `连接错误: ${error.message || '未知错误'}`);
+                updateUI();
+            });
+
+            sseClient.on('newEmail', (data) => {
+                stats.newEmails++;
+                logEvent('new_email', `新邮件: ${data.subject} (来自: ${data.from})`);
+                updateStats();
+            });
+
+            sseClient.on('syncEvent', (data) => {
+                logEvent('sync_' + data.status, `同步事件: ${data.account_name} - ${data.status}`);
+            });
+
+            sseClient.on('notification', (data) => {
+                logEvent('notification', `通知: ${data.title} - ${data.message}`);
+            });
+
+            sseClient.on('heartbeat', (data) => {
+                logEvent('heartbeat', `心跳: ${new Date(data.server_time).toLocaleTimeString()}`);
+            });
+
+            sseClient.on('message', (data) => {
+                stats.totalEvents++;
+                updateStats();
+            });
+        }
+
+        // 更新UI状态
+        function updateUI() {
+            const isConnected = sseClient && sseClient.getConnectionState().isConnected;
+            
+            if (isConnected) {
+                elements.connectionStatus.className = 'status connected';
+                elements.statusIcon.textContent = '✅';
+                elements.statusText.textContent = '已连接';
+                elements.clientId.textContent = `(${sseClient.getConnectionState().clientId})`;
+                elements.connectBtn.disabled = true;
+                elements.disconnectBtn.disabled = false;
+                elements.sendTestEventBtn.disabled = false;
+            } else {
+                elements.connectionStatus.className = 'status disconnected';
+                elements.statusIcon.textContent = '❌';
+                elements.statusText.textContent = '未连接';
+                elements.clientId.textContent = '';
+                elements.connectBtn.disabled = false;
+                elements.disconnectBtn.disabled = true;
+                elements.sendTestEventBtn.disabled = true;
+            }
+
+            if (sseClient) {
+                stats.reconnectAttempts = sseClient.getConnectionState().reconnectAttempts;
+                updateStats();
+            }
+        }
+
+        // 更新统计信息
+        function updateStats() {
+            elements.totalEvents.textContent = stats.totalEvents;
+            elements.newEmails.textContent = stats.newEmails;
+            elements.reconnectAttempts.textContent = stats.reconnectAttempts;
+        }
+
+        // 更新连接时间
+        function updateConnectionTime() {
+            if (connectionStartTime && sseClient && sseClient.getConnectionState().isConnected) {
+                const duration = Math.floor((new Date() - connectionStartTime) / 1000);
+                const minutes = Math.floor(duration / 60);
+                const seconds = duration % 60;
+                elements.connectionTime.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            } else {
+                elements.connectionTime.textContent = '--';
+            }
+        }
+
+        // 记录事件
+        function logEvent(type, message) {
+            const eventItem = document.createElement('div');
+            eventItem.className = `event-item ${type}`;
+            
+            const timestamp = new Date().toLocaleTimeString();
+            eventItem.innerHTML = `
+                <div>${message}</div>
+                <div class="timestamp">${timestamp}</div>
+            `;
+            
+            elements.eventsLog.insertBefore(eventItem, elements.eventsLog.firstChild);
+            
+            // 限制日志条数
+            while (elements.eventsLog.children.length > 100) {
+                elements.eventsLog.removeChild(elements.eventsLog.lastChild);
+            }
+        }
+
+        // 清空日志
+        function clearLog() {
+            elements.eventsLog.innerHTML = '';
+            stats = { totalEvents: 0, newEmails: 0, reconnectAttempts: 0 };
+            updateStats();
+        }
+
+        // 请求通知权限
+        async function requestNotificationPermission() {
+            if (sseClient) {
+                const granted = await sseClient.requestNotificationPermission();
+                if (granted) {
+                    logEvent('system', '桌面通知权限已授予');
+                } else {
+                    logEvent('system', '桌面通知权限被拒绝');
+                }
+            }
+        }
+
+        // 发送测试事件
+        async function sendTestEvent() {
+            const type = elements.eventType.value;
+            const message = elements.eventMessage.value.trim();
+            
+            if (!message) {
+                alert('请输入消息内容');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/v1/sse/test', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${elements.tokenInput.value}`
+                    },
+                    body: JSON.stringify({
+                        type: type,
+                        message: message
+                    })
+                });
+
+                if (response.ok) {
+                    logEvent('system', `测试事件已发送: ${type} - ${message}`);
+                } else {
+                    logEvent('error', `发送测试事件失败: ${response.statusText}`);
+                }
+            } catch (error) {
+                logEvent('error', `发送测试事件错误: ${error.message}`);
+            }
+        }
+
+        // 更新Token
+        function updateToken() {
+            const token = elements.tokenInput.value.trim();
+            if (!token) {
+                alert('请输入有效的Token');
+                return;
+            }
+
+            localStorage.setItem('firemail_token', token);
+            
+            if (sseClient) {
+                sseClient.updateToken(token);
+                logEvent('system', 'Token已更新，重新连接中...');
+            }
+        }
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

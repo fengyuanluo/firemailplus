@@ -1,0 +1,96 @@
+services:
+  firemail:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: luofengyuan/firemailplus:latest
+    container_name: firemail-app
+    ports:
+      - "3000:3000"
+    volumes:
+      - firemail_data:/app/data
+      - firemail_logs:/app/logs
+    environment:
+      # 后端配置
+      - HOST=0.0.0.0
+      - PORT=8080
+      - ENV=production
+      - GIN_MODE=release
+      
+      # 管理员账户配置（必须修改）
+      - ADMIN_USERNAME=admin
+      - ADMIN_PASSWORD=admin123
+      
+      # JWT配置（必须修改）
+      - JWT_SECRET=your_jwt_secret_key_change_this_in_production
+      - JWT_EXPIRY=24h
+      
+      # 数据库配置
+      - DB_PATH=/app/data/firemail.db
+      - DATABASE_URL=/app/data/firemail.db
+      - DB_BACKUP_DIR=/app/data/backups
+      - DB_BACKUP_MAX_COUNT=7
+      - DB_BACKUP_INTERVAL_HOURS=24
+      
+      # 邮件同步配置
+      - ENABLE_REAL_EMAIL_SYNC=true
+      - MOCK_EMAIL_PROVIDERS=false
+      
+      # 性能配置
+      - MAX_CONCURRENCY=10
+      - REQUEST_TIMEOUT=30s
+      
+      # 功能开关
+      - ENABLE_ENHANCED_DEDUP=true
+      - ENABLE_SSE=true
+      - ENABLE_METRICS=false
+      
+      # OAuth配置（可选）
+      - GMAIL_CLIENT_ID=
+      - GMAIL_CLIENT_SECRET=
+      - OUTLOOK_CLIENT_ID=
+      - OUTLOOK_CLIENT_SECRET=
+      - EXTERNAL_OAUTH_SERVER_URL=https://oauth.windyl.de
+      - EXTERNAL_OAUTH_SERVER_ENABLED=true
+      
+      # CORS配置
+      - CORS_ORIGINS=http://localhost:3000
+      
+      # 日志配置
+      - LOG_LEVEL=info
+      - LOG_FORMAT=json
+      
+      # SSE配置
+      - SSE_MAX_CONNECTIONS_PER_USER=5
+      - SSE_CONNECTION_TIMEOUT=30m
+      - SSE_HEARTBEAT_INTERVAL=30s
+      - SSE_CLEANUP_INTERVAL=5m
+      - SSE_BUFFER_SIZE=1024
+      - SSE_ENABLE_HEARTBEAT=true
+      
+      # 前端配置
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_BASE_URL=/api/v1
+      
+    restart: unless-stopped
+    
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    labels:
+      - "com.firemail.description=FireMail Email Client"
+      - "com.firemail.version=1.0.0"
+
+volumes:
+  firemail_data:
+    driver: local
+  firemail_logs:
+    driver: local
+
+networks:
+  default:
+    name: firemail_network
