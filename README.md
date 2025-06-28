@@ -132,6 +132,7 @@ docker run -d \
   -e ADMIN_USERNAME=admin \
   -e ADMIN_PASSWORD=your_secure_password \
   -e JWT_SECRET=your_jwt_secret_key \
+  -e EXTERNAL_OAUTH_SERVER_URL=https://oauth.windyl.de \
   luofengyuan/firemailplus:latest
 
 # 4. 查看容器状态
