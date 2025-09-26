@@ -7,20 +7,19 @@ import (
 	"io"
 	"log"
 	"net"
-	"reflect"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-	"unsafe"
 
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/client"
+	netproxy "golang.org/x/net/proxy"
 
 	"firemail/internal/encoding"
 	"firemail/internal/models"
 	"firemail/internal/parser"
+	"firemail/internal/proxy"
 )
 
 // IMAPClientConfig在interface.go中定义
@@ -58,7 +57,21 @@ func (c *StandardIMAPClient) Connect(ctx context.Context, config IMAPClientConfi
 	connectTimeout := 30 * time.Second
 	readWriteTimeout := 60 * time.Second
 
-	var err error
+	// 创建代理Dialer
+	dialer, err := c.createDialer(config.ProxyConfig, connectTimeout)
+	if err != nil {
+		return fmt.Errorf("failed to create dialer: %w", err)
+	}
+
+	// 添加代理调试信息
+	if config.ProxyConfig != nil {
+		hasAuth := config.ProxyConfig.Username != ""
+		log.Printf("[DEBUG] IMAP connecting via %s proxy: %s:%d (with auth: %v)",
+			config.ProxyConfig.Type, config.ProxyConfig.Host, config.ProxyConfig.Port, hasAuth)
+	} else {
+		log.Printf("[DEBUG] IMAP direct connection (no proxy configured)")
+	}
+
 	var imapClient *client.Client
 
 	// 根据安全类型连接
@@ -69,11 +82,8 @@ func (c *StandardIMAPClient) Connect(ctx context.Context, config IMAPClientConfi
 			ServerName: config.Host,
 		}
 
-		// 使用带超时的连接
-		dialer := &net.Dialer{
-			Timeout: connectTimeout,
-		}
-		conn, err := tls.DialWithDialer(dialer, "tcp", addr, tlsConfig)
+		// 使用代理Dialer进行TLS连接
+		conn, err := c.dialTLS(dialer, addr, tlsConfig)
 		if err != nil {
 			return fmt.Errorf("failed to connect to IMAP server with TLS: %w", err)
 		}
@@ -93,9 +103,6 @@ func (c *StandardIMAPClient) Connect(ctx context.Context, config IMAPClientConfi
 
 	case "STARTTLS":
 		// 先明文连接，然后升级到TLS
-		dialer := &net.Dialer{
-			Timeout: connectTimeout,
-		}
 		conn, err := dialer.Dial("tcp", addr)
 		if err != nil {
 			return fmt.Errorf("failed to connect to IMAP server: %w", err)
@@ -126,9 +133,6 @@ func (c *StandardIMAPClient) Connect(ctx context.Context, config IMAPClientConfi
 
 	case "NONE":
 		// 明文连接
-		dialer := &net.Dialer{
-			Timeout: connectTimeout,
-		}
 		conn, err := dialer.Dial("tcp", addr)
 		if err != nil {
 			return fmt.Errorf("failed to connect to IMAP server: %w", err)
@@ -151,13 +155,9 @@ func (c *StandardIMAPClient) Connect(ctx context.Context, config IMAPClientConfi
 		return fmt.Errorf("unsupported security type: %s", config.Security)
 	}
 
-	if err != nil {
-		return fmt.Errorf("failed to connect to IMAP server: %w", err)
-	}
-
 	// 发送IMAP ID信息（在认证之前）
 	// 这对于163等邮箱的可信部分是必需的
-	if config.IMAPIDInfo != nil && len(config.IMAPIDInfo) > 0 {
+	if len(config.IMAPIDInfo) > 0 {
 		if err := c.sendIMAPID(imapClient, config.IMAPIDInfo); err != nil {
 			log.Printf("Warning: Failed to send IMAP ID: %v", err)
 			// 不要因为IMAP ID失败而中断连接，只记录警告
@@ -171,8 +171,6 @@ func (c *StandardIMAPClient) Connect(ctx context.Context, config IMAPClientConfi
 			Username: config.Username,
 			Token:    config.OAuth2Token.AccessToken,
 		}
-
-
 
 		err = imapClient.Authenticate(auth)
 	} else {
@@ -279,86 +277,6 @@ func (c *StandardIMAPClient) sendIMAPID(imapClient *client.Client, idInfo map[st
 	}
 
 	return nil
-}
-
-// sendRawCommand 发送原始IMAP命令
-func (c *StandardIMAPClient) sendRawCommand(imapClient *client.Client, command string) error {
-	log.Printf("Attempting to send IMAP ID command: %s", command)
-
-	// 使用反射访问go-imap客户端的底层连接
-	// 这是一个变通方法，因为go-imap不直接支持ID扩展
-
-	clientValue := reflect.ValueOf(imapClient).Elem()
-	connField := clientValue.FieldByName("conn")
-
-	if !connField.IsValid() {
-		log.Printf("Warning: Cannot access underlying connection, IMAP ID not sent")
-		return nil // 不要因为这个失败而中断连接
-	}
-
-	// 使用unsafe包访问私有字段
-	connPtr := unsafe.Pointer(connField.UnsafeAddr())
-	conn := (*net.Conn)(connPtr)
-
-	if conn == nil || *conn == nil {
-		log.Printf("Warning: No underlying connection available, IMAP ID not sent")
-		return nil
-	}
-
-	// 生成命令标签
-	tag := "A001"
-
-	// 发送完整的IMAP命令
-	fullCommand := fmt.Sprintf("%s %s\r\n", tag, command)
-
-	// 写入命令
-	_, err := (*conn).Write([]byte(fullCommand))
-	if err != nil {
-		log.Printf("Warning: Failed to write IMAP ID command: %v", err)
-		return nil // 不要因为这个失败而中断连接
-	}
-
-	log.Printf("IMAP ID command sent successfully")
-	return nil
-}
-
-// parseIDArgs 解析ID命令的参数
-func parseIDArgs(argsStr string) []string {
-	var args []string
-	var current strings.Builder
-	inQuotes := false
-
-	for i, r := range argsStr {
-		switch r {
-		case '"':
-			if inQuotes {
-				// 结束引号
-				args = append(args, current.String())
-				current.Reset()
-				inQuotes = false
-			} else {
-				// 开始引号
-				inQuotes = true
-			}
-		case ' ':
-			if !inQuotes {
-				// 跳过引号外的空格
-				continue
-			}
-			current.WriteRune(r)
-		default:
-			if inQuotes {
-				current.WriteRune(r)
-			}
-		}
-
-		// 处理最后一个字符
-		if i == len(argsStr)-1 && inQuotes {
-			args = append(args, current.String())
-		}
-	}
-
-	return args
 }
 
 // IsConnected 检查是否已连接
@@ -1052,17 +970,6 @@ func convertIMAPAddressWithDecoding(addr *imap.Address, encodingHelper *encoding
 	}
 }
 
-// convertIMAPAddresses 转换IMAP地址列表
-func convertIMAPAddresses(addrs []*imap.Address) []*models.EmailAddress {
-	var result []*models.EmailAddress
-	for _, addr := range addrs {
-		if converted := convertIMAPAddress(addr); converted != nil {
-			result = append(result, converted)
-		}
-	}
-	return result
-}
-
 // convertIMAPAddressesWithDecoding 转换IMAP地址列表并解码
 func convertIMAPAddressesWithDecoding(addrs []*imap.Address, encodingHelper *encoding.EmailEncodingHelper) []*models.EmailAddress {
 	var result []*models.EmailAddress
@@ -1180,8 +1087,6 @@ func (c *StandardIMAPClient) GetAttachment(ctx context.Context, folderName strin
 	return io.NopCloser(literal), nil
 }
 
-
-
 // parseEmailBodyUnified 使用统一解析器解析邮件正文
 func parseEmailBodyUnified(body io.Reader) (textBody, htmlBody string, attachments []*AttachmentInfo) {
 	if body == nil {
@@ -1262,43 +1167,49 @@ func convertUnifiedAttachmentsToLegacyFormat(unifiedAttachments []*parser.Attach
 	return legacyAttachments
 }
 
+// createDialer 创建代理Dialer
+func (c *StandardIMAPClient) createDialer(proxyConfig *ProxyConfig, timeout time.Duration) (netproxy.Dialer, error) {
+	// 如果没有代理配置，返回标准Dialer
+	if proxyConfig == nil {
+		return &net.Dialer{
+			Timeout: timeout,
+		}, nil
+	}
 
+	// 转换为proxy包的ProxyConfig
+	proxyConf := proxyConfig.ToProxyConfig()
 
-
-
-// stripHTMLTags 简单的HTML标签移除
-func stripHTMLTags(html string) string {
-	// 这是一个非常简单的实现，实际项目中建议使用专门的HTML解析库
-	re := regexp.MustCompile(`<[^>]*>`)
-	return re.ReplaceAllString(html, "")
+	// 使用proxy包创建Dialer
+	return proxy.CreateDialer(proxyConf)
 }
 
+// dialTLS 使用代理进行TLS连接
+func (c *StandardIMAPClient) dialTLS(dialer netproxy.Dialer, addr string, tlsConfig *tls.Config) (net.Conn, error) {
+	// 先建立到代理的连接
+	conn, err := dialer.Dial("tcp", addr)
+	if err != nil {
+		return nil, err
+	}
 
+	// 如果是直连（非代理），直接进行TLS握手
+	if _, ok := dialer.(*net.Dialer); ok {
+		// 直连情况下，使用tls.Client包装连接
+		tlsConn := tls.Client(conn, tlsConfig)
+		err = tlsConn.Handshake()
+		if err != nil {
+			conn.Close()
+			return nil, err
+		}
+		return tlsConn, nil
+	}
 
+	// 代理连接情况下，也需要进行TLS握手
+	tlsConn := tls.Client(conn, tlsConfig)
+	err = tlsConn.Handshake()
+	if err != nil {
+		conn.Close()
+		return nil, err
+	}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+	return tlsConn, nil
+}

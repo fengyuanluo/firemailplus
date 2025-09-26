@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { useMailboxStore, useComposeStore } from '@/lib/store';
+import { validateEmailForm, showValidationErrors, autoSaveDraft, confirmClose } from '@/lib/compose-utils';
 import { MobileLayout, MobilePage, MobileContent } from './mobile-layout';
 import { ComposeHeader } from './mobile-header';
 import { RecipientInput } from '@/components/compose/recipient-input';
@@ -36,6 +37,8 @@ export function MobileComposePage() {
     clearDraft,
     sendStatus,
     setSendStatus,
+    autoSaveStatus,
+    setAutoSaveStatus,
     initializeReply,
     initializeReplyAll,
     initializeForward,
@@ -46,6 +49,20 @@ export function MobileComposePage() {
   const [showCc, setShowCc] = useState(false);
   const [showBcc, setShowBcc] = useState(false);
   const [isSending, setIsSending] = useState(false);
+
+  // 自动保存草稿
+  const handleAutoSave = useCallback(async () => {
+    await autoSaveDraft(draft, setAutoSaveStatus);
+  }, [draft, setAutoSaveStatus]);
+
+  // 防抖自动保存
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      handleAutoSave();
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [handleAutoSave]);
 
   // 初始化邮件内容（回复、转发等）
   useEffect(() => {
@@ -121,16 +138,11 @@ export function MobileComposePage() {
 
   // 处理发送邮件
   const handleSend = async () => {
-    // 验证必填字段
-    if (!draft.to.length) {
-      toast.warning('请至少添加一个收件人');
+    // 使用统一的表单验证
+    const validation = validateEmailForm(draft);
+    if (!validation.isValid) {
+      showValidationErrors(validation.errors);
       return;
-    }
-
-    if (!draft.subject.trim()) {
-      if (!confirm('邮件主题为空，确定要发送吗？')) {
-        return;
-      }
     }
 
     setIsSending(true);
@@ -199,35 +211,34 @@ export function MobileComposePage() {
 
   // 处理丢弃邮件
   const handleDiscard = () => {
-    const hasContent =
-      draft.to.length > 0 ||
-      draft.subject.trim() ||
-      draft.content.trim() ||
-      draft.htmlContent.trim() ||
-      draft.attachments.length > 0;
-
-    if (hasContent) {
-      if (confirm('确定要丢弃这封邮件吗？未保存的内容将丢失。')) {
-        clearDraft();
-        router.back();
-      }
-    } else {
+    confirmClose(draft, () => {
       clearDraft();
       router.back();
-    }
+    });
   };
 
   return (
     <MobileLayout>
-      <MobilePage>
-        <ComposeHeader
-          onSave={handleSave}
-          onSend={isSending ? undefined : handleSend}
-          onDiscard={handleDiscard}
-        />
+      <MobilePage className="mobile-compose-page">
+        <div className="mobile-compose-header">
+          <ComposeHeader
+            onSave={handleSave}
+            onSend={isSending ? undefined : handleSend}
+            onDiscard={handleDiscard}
+          />
+        </div>
 
-        <MobileContent padding={false} className="flex-1">
-          <div className="flex flex-col h-full">
+        {/* 自动保存状态提示 */}
+        {autoSaveStatus && autoSaveStatus !== 'idle' && (
+          <div className="mobile-autosave-status visible">
+            {autoSaveStatus === 'saving' && '正在保存...'}
+            {autoSaveStatus === 'saved' && '已保存'}
+            {autoSaveStatus === 'error' && '保存失败'}
+          </div>
+        )}
+
+        <MobileContent padding={false} className="mobile-compose-content">
+          <div className="mobile-compose-form">
             {/* 邮件头部信息 */}
             <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4 space-y-4">
               {/* 发件人选择 */}
@@ -316,20 +327,20 @@ export function MobileComposePage() {
                   value={draft.subject}
                   onChange={(e) => updateDraft({ subject: e.target.value })}
                   placeholder="输入邮件主题"
-                  className="w-full"
+                  className="mobile-input-field w-full"
                 />
               </div>
             </div>
 
             {/* 邮件正文编辑器（集成附件功能） */}
-            <div className="flex-1 p-4">
+            <div className="mobile-compose-editor flex-1 p-4">
               <RichTextEditor
                 content={draft.htmlContent}
                 placeholder="输入邮件内容..."
                 onChange={(html, text) => updateContent(html, text)}
                 minHeight="200px"
                 maxHeight="none"
-                className="text-sm"
+                className="text-sm mobile-editor-content"
                 attachments={draft.attachments}
                 onAttachmentsChange={updateAttachments}
                 maxFileSize={25}

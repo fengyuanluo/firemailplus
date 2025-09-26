@@ -19,10 +19,10 @@ export function SearchFilters({ onFiltersChange }: SearchFiltersProps) {
   // 保持对最新回调函数的引用
   onFiltersChangeRef.current = onFiltersChange;
 
-  // 本地筛选状态
+  // 本地筛选状态 - 改为单选模式
   const [localFilters, setLocalFilters] = useState({
-    account_ids: [] as number[],
-    folder_ids: [] as number[],
+    account_id: undefined as number | undefined,
+    folder_id: undefined as number | undefined,
     is_read: undefined as boolean | undefined,
     is_starred: undefined as boolean | undefined,
     is_important: undefined as boolean | undefined,
@@ -46,8 +46,8 @@ export function SearchFilters({ onFiltersChange }: SearchFiltersProps) {
     }
 
     const filters = {
-      account_id: localFilters.account_ids.length === 1 ? localFilters.account_ids[0] : undefined,
-      folder_id: localFilters.folder_ids.length === 1 ? localFilters.folder_ids[0] : undefined,
+      account_id: localFilters.account_id,
+      folder_id: localFilters.folder_id,
       is_read: localFilters.is_read,
       is_starred: localFilters.is_starred,
       is_important: localFilters.is_important,
@@ -87,20 +87,20 @@ export function SearchFilters({ onFiltersChange }: SearchFiltersProps) {
     }
   };
 
-  // 邮箱账户选项
+  // 邮箱账户选项 - 单选模式
   const accountOptions = accounts.map((account) => ({
     id: account.id.toString(),
     label: `${account.name} (${account.email})`,
     count: account.total_emails,
-    checked: localFilters.account_ids.includes(account.id),
+    checked: localFilters.account_id === account.id,
   }));
 
-  // 文件夹选项（按账户分组）
+  // 文件夹选项 - 单选模式
   const folderOptions = folders.map((folder) => ({
     id: folder.id.toString(),
     label: `${folder.display_name || folder.name}`,
     count: folder.total_emails,
-    checked: localFilters.folder_ids.includes(folder.id),
+    checked: localFilters.folder_id === folder.id,
   }));
 
   // 状态选项
@@ -132,23 +132,21 @@ export function SearchFilters({ onFiltersChange }: SearchFiltersProps) {
     },
   ];
 
-  // 处理账户筛选
+  // 处理账户筛选 - 单选模式（点击已选中的选项会取消选择）
   const handleAccountChange = (accountId: string, checked: boolean) => {
     const id = parseInt(accountId);
     setLocalFilters((prev) => ({
       ...prev,
-      account_ids: checked
-        ? [...prev.account_ids, id]
-        : prev.account_ids.filter((aid) => aid !== id),
+      account_id: checked ? id : undefined,
     }));
   };
 
-  // 处理文件夹筛选
+  // 处理文件夹筛选 - 单选模式（点击已选中的选项会取消选择）
   const handleFolderChange = (folderId: string, checked: boolean) => {
     const id = parseInt(folderId);
     setLocalFilters((prev) => ({
       ...prev,
-      folder_ids: checked ? [...prev.folder_ids, id] : prev.folder_ids.filter((fid) => fid !== id),
+      folder_id: checked ? id : undefined,
     }));
   };
 
@@ -190,8 +188,8 @@ export function SearchFilters({ onFiltersChange }: SearchFiltersProps) {
   // 清除所有筛选
   const clearAllFilters = () => {
     setLocalFilters({
-      account_ids: [],
-      folder_ids: [],
+      account_id: undefined,
+      folder_id: undefined,
       is_read: undefined,
       is_starred: undefined,
       is_important: undefined,
@@ -202,12 +200,12 @@ export function SearchFilters({ onFiltersChange }: SearchFiltersProps) {
 
   // 清除账户筛选
   const clearAccountFilters = () => {
-    setLocalFilters((prev) => ({ ...prev, account_ids: [] }));
+    setLocalFilters((prev) => ({ ...prev, account_id: undefined }));
   };
 
   // 清除文件夹筛选
   const clearFolderFilters = () => {
-    setLocalFilters((prev) => ({ ...prev, folder_ids: [] }));
+    setLocalFilters((prev) => ({ ...prev, folder_id: undefined }));
   };
 
   // 清除状态筛选
@@ -228,8 +226,8 @@ export function SearchFilters({ onFiltersChange }: SearchFiltersProps) {
 
   // 检查是否有活动筛选
   const hasActiveFilters =
-    localFilters.account_ids.length > 0 ||
-    localFilters.folder_ids.length > 0 ||
+    localFilters.account_id !== undefined ||
+    localFilters.folder_id !== undefined ||
     localFilters.is_read !== undefined ||
     localFilters.is_starred !== undefined ||
     localFilters.is_important !== undefined ||

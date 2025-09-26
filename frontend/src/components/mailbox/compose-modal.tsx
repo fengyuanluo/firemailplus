@@ -17,6 +17,7 @@ import { RichTextEditor } from '@/components/editor/rich-text-editor';
 import { RecipientInput } from '@/components/compose/recipient-input';
 import { TemplateSelector } from '@/components/compose/template-selector';
 import { SendOptions } from '@/components/compose/send-options';
+import { validateEmailForm, showValidationErrors, autoSaveDraft, confirmClose } from '@/lib/compose-utils';
 import { useEffect, useCallback, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -44,40 +45,23 @@ export function ComposeModal() {
   const [showBcc, setShowBcc] = useState(false);
 
   // 自动保存草稿
-  const autoSaveDraft = useCallback(async () => {
-    if (!draft.subject && !draft.content && !draft.htmlContent) return;
-
-    setAutoSaveStatus('saving');
-    try {
-      // TODO: 调用API保存草稿
-      await new Promise((resolve) => setTimeout(resolve, 1000)); // 模拟API调用
-      setAutoSaveStatus('saved');
-      setTimeout(() => setAutoSaveStatus('idle'), 2000);
-    } catch (error) {
-      setAutoSaveStatus('error');
-      console.error('Auto save failed:', error);
-    }
-  }, [draft.subject, draft.content, draft.htmlContent, setAutoSaveStatus]);
+  const handleAutoSave = useCallback(async () => {
+    await autoSaveDraft(draft, setAutoSaveStatus);
+  }, [draft, setAutoSaveStatus]);
 
   // 防抖自动保存
   useEffect(() => {
     if (!isOpen) return;
 
     const timer = setTimeout(() => {
-      autoSaveDraft();
+      handleAutoSave();
     }, 2000);
 
     return () => clearTimeout(timer);
-  }, [autoSaveDraft, isOpen]);
+  }, [handleAutoSave, isOpen]);
 
   const handleClose = () => {
-    if (draft.subject || draft.content || draft.htmlContent) {
-      if (confirm('邮件内容尚未发送，确定要关闭吗？')) {
-        setIsOpen(false);
-      }
-    } else {
-      setIsOpen(false);
-    }
+    confirmClose(draft, () => setIsOpen(false));
   };
 
   // 处理模板选择
@@ -108,33 +92,10 @@ export function ComposeModal() {
   };
 
   const handleSend = async () => {
-    // 验证必填字段
-    if (draft.to.length === 0) {
-      toast.error('请输入收件人');
-      return;
-    }
-
-    // 验证收件人邮箱格式
-    const invalidRecipients = [...draft.to, ...draft.cc, ...draft.bcc].filter((r) => !r.isValid);
-    if (invalidRecipients.length > 0) {
-      toast.error('存在无效的邮箱地址，请检查后重试');
-      return;
-    }
-
-    if (!draft.subject.trim()) {
-      toast.error('请输入邮件主题');
-      return;
-    }
-
-    if (!draft.content.trim() && !draft.htmlContent.trim()) {
-      toast.error('请输入邮件内容');
-      return;
-    }
-
-    // 检查是否有正在上传的附件
-    const uploadingAttachments = draft.attachments.filter((a) => a.uploadStatus === 'uploading');
-    if (uploadingAttachments.length > 0) {
-      toast.error('请等待附件上传完成');
+    // 使用统一的表单验证
+    const validation = validateEmailForm(draft);
+    if (!validation.isValid) {
+      showValidationErrors(validation.errors);
       return;
     }
 
@@ -211,7 +172,7 @@ export function ComposeModal() {
       <div className="absolute inset-0 bg-black bg-opacity-50" onClick={handleClose} />
 
       {/* 弹窗内容 */}
-      <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-5xl max-h-[90vh] flex flex-col">
+      <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-5xl sm:max-w-4xl md:max-w-5xl max-h-[90vh] flex flex-col mx-4 sm:mx-0">
         {/* 可滚动的内容区域 */}
         <div className="flex-1 overflow-auto">
           {/* 头部 - 可收缩 */}

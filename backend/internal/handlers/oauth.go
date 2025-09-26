@@ -140,8 +140,6 @@ func (h *Handler) InitGmailOAuth(c *gin.Context) {
 	h.respondWithSuccess(c, response, "Gmail OAuth2 authorization URL generated")
 }
 
-
-
 // InitOutlookOAuth 初始化Outlook OAuth2认证
 func (h *Handler) InitOutlookOAuth(c *gin.Context) {
 	// OAuth初始化不需要用户认证，因为这是OAuth流程的开始
@@ -250,6 +248,7 @@ type CreateOAuth2AccountRequest struct {
 	ExpiresAt    int64  `json:"expires_at" binding:"required"`
 	Scope        string `json:"scope"`
 	ClientID     string `json:"client_id" binding:"required"` // OAuth2客户端ID，必需用于后续token刷新
+	ProxyURL     string `json:"proxy_url"`                    // 代理配置
 }
 
 // CreateManualOAuth2AccountRequest 手动创建OAuth2邮件账户请求
@@ -264,6 +263,8 @@ type CreateManualOAuth2AccountRequest struct {
 	// 可选的自定义端点配置
 	AuthURL  string `json:"auth_url,omitempty"`
 	TokenURL string `json:"token_url,omitempty"`
+	// 代理配置
+	ProxyURL string `json:"proxy_url"` // 代理配置
 }
 
 // CreateOAuth2Account 使用OAuth2 token创建邮件账户
@@ -284,42 +285,13 @@ func (h *Handler) CreateOAuth2Account(c *gin.Context) {
 		return
 	}
 
-	// 创建临时OAuth2客户端来验证和刷新token - 与手动添加流程保持一致
-	ctx := c.Request.Context()
-	var newToken *providers.OAuth2Token
-	var err error
-
-	if req.Provider == "outlook" {
-		// 使用重写的OutlookOAuth2Client，严格按照Python代码逻辑
-		outlookClient := providers.NewOutlookOAuth2Client(req.ClientID, "", "")
-		newToken, err = outlookClient.RefreshToken(ctx, req.RefreshToken)
-	} else if req.Provider == "gmail" {
-		// Gmail使用标准客户端
-		oauth2Client := providers.NewStandardOAuth2Client(
-			req.ClientID,
-			"", // client_secret不需要，因为我们直接使用refresh token
-			"https://accounts.google.com/o/oauth2/auth",
-			"https://oauth2.googleapis.com/token",
-			"", // redirect URL不需要，因为我们直接使用refresh token
-			[]string{"https://www.googleapis.com/auth/gmail.readonly", "https://www.googleapis.com/auth/gmail.send"},
-		)
-		newToken, err = oauth2Client.RefreshToken(ctx, req.RefreshToken)
-	} else {
-		h.respondWithError(c, http.StatusBadRequest, "Unsupported provider: "+req.Provider)
-		return
-	}
-
-	if err != nil {
-		h.respondWithError(c, http.StatusBadRequest, fmt.Sprintf("Failed to validate and refresh token: %v", err))
-		return
-	}
-
-	// 使用刷新后的token数据，确保token有效性
+	// 直接使用外部OAuth服务器验证过的token数据，无需重复验证
+	// 外部OAuth服务器已经完成了授权码交换和token验证
 	tokenData := &models.OAuth2TokenData{
-		AccessToken:  newToken.AccessToken,
-		RefreshToken: newToken.RefreshToken, // 使用新的refresh token
-		TokenType:    newToken.TokenType,
-		Expiry:       newToken.Expiry,
+		AccessToken:  req.AccessToken,
+		RefreshToken: req.RefreshToken,
+		TokenType:    "Bearer",                         // 默认token类型
+		Expiry:       time.Unix(req.ExpiresAt/1000, 0), // 转换毫秒时间戳为时间
 		Scope:        req.Scope,
 		ClientID:     req.ClientID, // 保存ClientID用于后续token刷新
 	}
@@ -354,8 +326,15 @@ func (h *Handler) CreateOAuth2Account(c *gin.Context) {
 		SMTPHost:     providerConfig.SMTPHost,
 		SMTPPort:     providerConfig.SMTPPort,
 		SMTPSecurity: providerConfig.SMTPSecurity,
+		ProxyURL:     req.ProxyURL, // 设置代理配置
 		IsActive:     true,
 		SyncStatus:   "pending",
+	}
+
+	// 验证代理配置
+	if err := account.ValidateProxyConfig(); err != nil {
+		h.respondWithError(c, http.StatusBadRequest, "Invalid proxy configuration: "+err.Error())
+		return
 	}
 
 	// 设置OAuth2 token
@@ -378,16 +357,16 @@ func (h *Handler) CreateOAuth2Account(c *gin.Context) {
 		if err := h.emailService.TestEmailAccount(context.Background(), userID, accountID); err != nil {
 			// 如果测试失败，标记为错误状态但不删除账户
 			h.db.Model(&models.EmailAccount{}).Where("id = ?", accountID).Updates(map[string]interface{}{
-				"sync_status":    "error",
-				"error_message":  err.Error(),
+				"sync_status":   "error",
+				"error_message": err.Error(),
 			})
 		} else {
 			// 测试成功，开始同步文件夹
 			if err := h.syncService.SyncEmails(context.Background(), accountID); err != nil {
 				// 记录错误但不影响账户创建
 				h.db.Model(&models.EmailAccount{}).Where("id = ?", accountID).Updates(map[string]interface{}{
-					"sync_status":    "error",
-					"error_message":  fmt.Sprintf("Failed to sync: %v", err),
+					"sync_status":   "error",
+					"error_message": fmt.Sprintf("Failed to sync: %v", err),
 				})
 			}
 		}
@@ -523,8 +502,15 @@ func (h *Handler) CreateManualOAuth2Account(c *gin.Context) {
 		SMTPHost:     smtpHost,
 		SMTPPort:     smtpPort,
 		SMTPSecurity: "STARTTLS", // SMTP使用STARTTLS
+		ProxyURL:     req.ProxyURL, // 设置代理配置
 		IsActive:     true,
 		SyncStatus:   "pending",
+	}
+
+	// 验证代理配置
+	if err := account.ValidateProxyConfig(); err != nil {
+		h.respondWithError(c, http.StatusBadRequest, "Invalid proxy configuration: "+err.Error())
+		return
 	}
 
 	// 设置OAuth2 token
@@ -557,24 +543,24 @@ func (h *Handler) CreateManualOAuth2Account(c *gin.Context) {
 		provider, err := h.providerFactory.CreateProvider(fullAccount.Provider)
 		if err != nil {
 			h.db.Model(&models.EmailAccount{}).Where("id = ?", accountID).Updates(map[string]interface{}{
-				"sync_status":    "error",
-				"error_message":  fmt.Sprintf("Failed to create provider: %v", err),
+				"sync_status":   "error",
+				"error_message": fmt.Sprintf("Failed to create provider: %v", err),
 			})
 			return
 		}
 
 		if err := provider.Connect(context.Background(), &fullAccount); err != nil {
 			h.db.Model(&models.EmailAccount{}).Where("id = ?", fullAccount.ID).Updates(map[string]interface{}{
-				"sync_status":    "error",
-				"error_message":  err.Error(),
+				"sync_status":   "error",
+				"error_message": err.Error(),
 			})
 		} else {
 			// 测试成功，开始同步文件夹
 			if err := h.syncService.SyncEmails(context.Background(), fullAccount.ID); err != nil {
 				// 记录错误但不影响账户创建
 				h.db.Model(&models.EmailAccount{}).Where("id = ?", fullAccount.ID).Updates(map[string]interface{}{
-					"sync_status":    "error",
-					"error_message":  fmt.Sprintf("Failed to sync: %v", err),
+					"sync_status":   "error",
+					"error_message": fmt.Sprintf("Failed to sync: %v", err),
 				})
 			}
 		}

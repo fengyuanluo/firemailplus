@@ -101,7 +101,7 @@ func (p *CustomProvider) validateSecuritySetting(security, protocol string) erro
 		}
 	}
 
-	return fmt.Errorf("invalid %s security setting: %s. Valid options: %s", 
+	return fmt.Errorf("invalid %s security setting: %s. Valid options: %s",
 		protocol, security, strings.Join(validSettings, ", "))
 }
 
@@ -155,11 +155,12 @@ func (p *CustomProvider) testIMAPConnection(ctx context.Context, account *models
 	switch account.AuthMethod {
 	case "password":
 		imapConfig = IMAPClientConfig{
-			Host:     account.IMAPHost,
-			Port:     account.IMAPPort,
-			Security: account.IMAPSecurity,
-			Username: account.Username,
-			Password: account.Password,
+			Host:        account.IMAPHost,
+			Port:        account.IMAPPort,
+			Security:    account.IMAPSecurity,
+			Username:    account.Username,
+			Password:    account.Password,
+			ProxyConfig: p.createProxyConfig(account),
 		}
 	case "oauth2":
 		tokenData, err := account.GetOAuth2Token()
@@ -181,6 +182,7 @@ func (p *CustomProvider) testIMAPConnection(ctx context.Context, account *models
 			Security:    account.IMAPSecurity,
 			Username:    account.Username,
 			OAuth2Token: oauth2Token,
+			ProxyConfig: p.createProxyConfig(account),
 		}
 	}
 
@@ -204,11 +206,12 @@ func (p *CustomProvider) testSMTPConnection(ctx context.Context, account *models
 	switch account.AuthMethod {
 	case "password":
 		smtpConfig = SMTPClientConfig{
-			Host:     account.SMTPHost,
-			Port:     account.SMTPPort,
-			Security: account.SMTPSecurity,
-			Username: account.Username,
-			Password: account.Password,
+			Host:        account.SMTPHost,
+			Port:        account.SMTPPort,
+			Security:    account.SMTPSecurity,
+			Username:    account.Username,
+			Password:    account.Password,
+			ProxyConfig: p.createProxyConfig(account),
 		}
 	case "oauth2":
 		tokenData, err := account.GetOAuth2Token()
@@ -230,6 +233,7 @@ func (p *CustomProvider) testSMTPConnection(ctx context.Context, account *models
 			Security:    account.SMTPSecurity,
 			Username:    account.Username,
 			OAuth2Token: oauth2Token,
+			ProxyConfig: p.createProxyConfig(account),
 		}
 	}
 
@@ -251,15 +255,15 @@ func (p *CustomProvider) GetProviderInfo() map[string]interface{} {
 		"auth_methods": []string{"password", "oauth2"},
 		"domains":      []string{}, // 支持任意域名
 		"features": map[string]bool{
-			"imap":       true,  // 可选
-			"smtp":       true,  // 可选
-			"oauth2":     true,  // 可选
-			"push":       false, // 通常不支持
-			"threading":  false, // 取决于服务器
-			"labels":     false, // 取决于服务器
-			"folders":    true,  // 通常支持
-			"search":     true,  // 通常支持
-			"idle":       true,  // 通常支持
+			"imap":      true,  // 可选
+			"smtp":      true,  // 可选
+			"oauth2":    true,  // 可选
+			"push":      false, // 通常不支持
+			"threading": false, // 取决于服务器
+			"labels":    false, // 取决于服务器
+			"folders":   true,  // 通常支持
+			"search":    true,  // 通常支持
+			"idle":      true,  // 通常支持
 		},
 		"configuration": map[string]interface{}{
 			"flexible":     true,

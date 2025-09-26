@@ -92,7 +92,7 @@ git clone https://github.com/fengyuanluo/firemailplus.git
 cd firemailplus
 
 # 2. 配置环境变量（可选）
-cp .env.example .env
+cp .env.docker.example .env
 # 编辑 .env 文件，修改管理员密码和 JWT 密钥
 
 # 3. 启动服务

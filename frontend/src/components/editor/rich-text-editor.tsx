@@ -16,8 +16,10 @@ import CharacterCount from '@tiptap/extension-character-count';
 import Focus from '@tiptap/extension-focus';
 import TextAlign from '@tiptap/extension-text-align';
 import { EditorToolbar } from './editor-toolbar';
+import { MobileEditorToolbar } from './mobile-editor-toolbar';
 import { AttachmentUploadArea } from '@/components/compose/attachment-upload-area';
 import { AttachmentBar } from '@/components/compose/attachment-bar';
+import { MobileAttachmentBar } from '@/components/compose/mobile-attachment-bar';
 import { validateFile, uploadFile } from '@/components/compose/attachment-upload-utils';
 import { useAuthStore } from '@/lib/store';
 import { useIsMobile } from '@/hooks/use-responsive';
@@ -125,6 +127,10 @@ export function RichTextEditor({
       Placeholder.configure({
         placeholder,
         emptyEditorClass: 'is-editor-empty',
+        emptyNodeClass: 'is-empty',
+        showOnlyWhenEditable: true,
+        showOnlyCurrent: false,
+        includeChildren: false,
       }),
       CharacterCount,
       Focus.configure({
@@ -274,11 +280,15 @@ export function RichTextEditor({
   }
 
   return (
-    <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden flex flex-col relative">
+    <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden flex flex-col relative shadow-sm hover:shadow-md transition-shadow duration-200">
       {/* 工具栏 - 固定在顶部 */}
       {editable && (
         <div className="flex-shrink-0">
-          <EditorToolbar editor={editor} onAttachmentClick={handleAttachmentClick} />
+          {isMobile ? (
+            <MobileEditorToolbar editor={editor} onAttachmentClick={handleAttachmentClick} />
+          ) : (
+            <EditorToolbar editor={editor} onAttachmentClick={handleAttachmentClick} />
+          )}
         </div>
       )}
 
@@ -298,11 +308,19 @@ export function RichTextEditor({
       {/* 附件显示条 - 在编辑器顶部显示 */}
       {editable && attachments.length > 0 && (
         <div className="flex-shrink-0">
-          <AttachmentBar
-            attachments={attachments}
-            onRemove={handleAttachmentRemove}
-            onRetry={handleAttachmentRetry}
-          />
+          {isMobile ? (
+            <MobileAttachmentBar
+              attachments={attachments}
+              onRemove={handleAttachmentRemove}
+              onRetry={handleAttachmentRetry}
+            />
+          ) : (
+            <AttachmentBar
+              attachments={attachments}
+              onRemove={handleAttachmentRemove}
+              onRetry={handleAttachmentRetry}
+            />
+          )}
         </div>
       )}
 
@@ -329,13 +347,13 @@ export function RichTextEditor({
       >
         <EditorContent
           editor={editor}
-          className="p-4 focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-opacity-50"
+          className="p-4"
         />
 
         {/* 字符统计 */}
         {editable &&
           editor.extensionManager.extensions.find((ext) => ext.name === 'characterCount') && (
-            <div className="absolute bottom-2 right-2 text-xs text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 px-2 py-1 rounded shadow">
+            <div className="absolute bottom-3 right-3 text-xs text-gray-400 dark:text-gray-500 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm px-2 py-1 rounded-md shadow-sm border border-gray-200 dark:border-gray-700">
               {editor.storage.characterCount.characters()} 字符
             </div>
           )}
@@ -363,13 +381,7 @@ export const editorStyles = `
     min-height: 200px;
   }
 
-  .ProseMirror p.is-editor-empty:first-child::before {
-    color: #adb5bd;
-    content: attr(data-placeholder);
-    float: left;
-    height: 0;
-    pointer-events: none;
-  }
+  /* Placeholder样式已在editor.css中定义，避免重复 */
 
   .ProseMirror .has-focus {
     border-radius: 3px;

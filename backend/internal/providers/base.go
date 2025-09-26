@@ -20,14 +20,14 @@ type TokenCallbackSetter interface {
 
 // BaseProvider 基础邮件提供商实现
 type BaseProvider struct {
-	config            *config.EmailProviderConfig
-	imapClient        IMAPClient
-	smtpClient        SMTPClient
-	oauth2Client      OAuth2Client
-	connected         bool // 保持向后兼容，表示任一连接成功
-	imapConnected     bool // IMAP连接状态
-	smtpConnected     bool // SMTP连接状态
-	mutex             sync.RWMutex
+	config              *config.EmailProviderConfig
+	imapClient          IMAPClient
+	smtpClient          SMTPClient
+	oauth2Client        OAuth2Client
+	connected           bool // 保持向后兼容，表示任一连接成功
+	imapConnected       bool // IMAP连接状态
+	smtpConnected       bool // SMTP连接状态
+	mutex               sync.RWMutex
 	tokenUpdateCallback TokenUpdateCallback // OAuth2 token更新回调
 }
 
@@ -178,11 +178,12 @@ func (p *BaseProvider) connectWithPassword(ctx context.Context, account *models.
 	// 连接IMAP
 	if p.imapClient != nil {
 		imapConfig := IMAPClientConfig{
-			Host:     account.IMAPHost,
-			Port:     account.IMAPPort,
-			Security: account.IMAPSecurity,
-			Username: account.Username,
-			Password: account.Password,
+			Host:        account.IMAPHost,
+			Port:        account.IMAPPort,
+			Security:    account.IMAPSecurity,
+			Username:    account.Username,
+			Password:    account.Password,
+			ProxyConfig: p.createProxyConfig(account),
 		}
 		if err := p.imapClient.Connect(ctx, imapConfig); err != nil {
 			imapErr = fmt.Errorf("failed to connect IMAP: %w", err)
@@ -196,11 +197,12 @@ func (p *BaseProvider) connectWithPassword(ctx context.Context, account *models.
 	// 连接SMTP
 	if p.smtpClient != nil {
 		smtpConfig := SMTPClientConfig{
-			Host:     account.SMTPHost,
-			Port:     account.SMTPPort,
-			Security: account.SMTPSecurity,
-			Username: account.Username,
-			Password: account.Password,
+			Host:        account.SMTPHost,
+			Port:        account.SMTPPort,
+			Security:    account.SMTPSecurity,
+			Username:    account.Username,
+			Password:    account.Password,
+			ProxyConfig: p.createProxyConfig(account),
 		}
 		if err := p.smtpClient.Connect(ctx, smtpConfig); err != nil {
 			smtpErr = fmt.Errorf("failed to connect SMTP: %w", err)
@@ -304,6 +306,7 @@ func (p *BaseProvider) connectWithOAuth2(ctx context.Context, account *models.Em
 			Security:    account.IMAPSecurity,
 			Username:    account.Username,
 			OAuth2Token: oauth2Token,
+			ProxyConfig: p.createProxyConfig(account),
 		}
 		if err := p.imapClient.Connect(ctx, imapConfig); err != nil {
 			imapErr = fmt.Errorf("failed to connect IMAP with OAuth2: %w", err)
@@ -322,6 +325,7 @@ func (p *BaseProvider) connectWithOAuth2(ctx context.Context, account *models.Em
 			Security:    account.SMTPSecurity,
 			Username:    account.Username,
 			OAuth2Token: oauth2Token,
+			ProxyConfig: p.createProxyConfig(account),
 		}
 		if err := p.smtpClient.Connect(ctx, smtpConfig); err != nil {
 			smtpErr = fmt.Errorf("failed to connect SMTP with OAuth2: %w", err)
@@ -530,4 +534,26 @@ func (p *BaseProvider) SendEmail(ctx context.Context, account *models.EmailAccou
 
 	// 发送邮件
 	return smtpClient.SendEmail(ctx, message)
+}
+
+// createProxyConfig 从EmailAccount创建代理配置
+func (p *BaseProvider) createProxyConfig(account *models.EmailAccount) *ProxyConfig {
+	// 如果没有配置代理URL，返回nil
+	if account.ProxyURL == "" {
+		return nil
+	}
+
+	// 获取解析后的代理配置
+	proxyData := account.GetProxyConfig()
+	if proxyData.Type == "none" {
+		return nil
+	}
+
+	return &ProxyConfig{
+		Type:     proxyData.Type,
+		Host:     proxyData.Host,
+		Port:     proxyData.Port,
+		Username: proxyData.Username,
+		Password: proxyData.Password,
+	}
 }

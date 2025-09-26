@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useOAuth2 } from '@/hooks/use-oauth';
 import { toast } from 'sonner';
+import { ProxyConfigFields } from '@/components/proxy-config';
 
 const gmailOAuth2Schema = z.object({
   name: z.string().min(1, '请输入账户名称'),
@@ -17,6 +18,8 @@ const gmailOAuth2Schema = z.object({
     .string()
     .email('请输入有效的Gmail地址')
     .refine((email) => email.endsWith('@gmail.com'), '请输入Gmail邮箱地址'),
+  // 代理配置
+  proxy_url: z.string().optional(),
 });
 
 type GmailOAuth2Form = z.infer<typeof gmailOAuth2Schema>;
@@ -35,6 +38,8 @@ export function GmailOAuth2Form({ onSuccess, onCancel }: GmailOAuth2FormProps) {
     handleSubmit,
     formState: { errors },
     reset,
+    watch,
+    setValue,
   } = useForm<GmailOAuth2Form>({
     resolver: zodResolver(gmailOAuth2Schema),
   });
@@ -42,7 +47,7 @@ export function GmailOAuth2Form({ onSuccess, onCancel }: GmailOAuth2FormProps) {
   const onSubmit = async (data: GmailOAuth2Form) => {
     setIsAuthenticating(true);
     try {
-      await authenticateGmail(data.name, data.email);
+      await authenticateGmail(data.name, data.email, data.proxy_url);
       toast.success('Gmail账户添加成功');
       reset();
       onSuccess?.();
@@ -115,6 +120,13 @@ export function GmailOAuth2Form({ onSuccess, onCancel }: GmailOAuth2FormProps) {
               <li>4. 完成后自动返回并创建账户</li>
             </ol>
           </div>
+
+          {/* 代理配置 */}
+          <ProxyConfigFields
+            form={{ register, watch, setValue, formState: { errors } } as any}
+            disabled={isAuthenticating}
+            compact={true}
+          />
 
           <div className="flex gap-3">
             <Button

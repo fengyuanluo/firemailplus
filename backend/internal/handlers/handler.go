@@ -19,14 +19,14 @@ import (
 
 // Handler HTTP处理器
 type Handler struct {
-	db                *gorm.DB
-	config            *config.Config
-	authService       *auth.Service
-	emailService      services.EmailService
-	syncService       *services.SyncService
-	providerFactory   *providers.ProviderFactory
-	sseService        sse.SSEService
-	oauthStateService services.OAuth2StateService
+	db                    *gorm.DB
+	config                *config.Config
+	authService           *auth.Service
+	emailService          services.EmailService
+	syncService           *services.SyncService
+	providerFactory       *providers.ProviderFactory
+	sseService            sse.SSEService
+	oauthStateService     services.OAuth2StateService
 	backupService         services.BackupService
 	softDeleteService     services.SoftDeleteService
 	attachmentService     services.AttachmentDownloader
@@ -215,16 +215,6 @@ func (h *Handler) getCurrentUserID(c *gin.Context) (uint, bool) {
 		return 0, false
 	}
 	return userID.(uint), true
-}
-
-// getCurrentUser 获取当前用户
-func (h *Handler) getCurrentUser(c *gin.Context) (*auth.JWTClaims, bool) {
-	user, exists := c.Get("user")
-	if !exists {
-		h.respondWithError(c, http.StatusUnauthorized, "User not authenticated")
-		return nil, false
-	}
-	return user.(*auth.JWTClaims), true
 }
 
 // validatePagination 验证分页参数

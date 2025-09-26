@@ -2,6 +2,9 @@ package models
 
 import (
 	"encoding/json"
+	"fmt"
+	"net/url"
+	"strconv"
 	"time"
 )
 
@@ -30,6 +33,9 @@ type EmailAccount struct {
 
 	// OAuth2信息
 	OAuth2Token string `gorm:"column:oauth2_token;type:text" json:"-"` // OAuth2 token（JSON格式，加密存储）
+
+	// 代理配置
+	ProxyURL string `gorm:"size:500" json:"proxy_url,omitempty"` // 代理URL，如：http://user:pass@proxy.com:8080
 
 	// 状态信息
 	IsActive     bool       `gorm:"not null;default:true" json:"is_active"`
@@ -113,4 +119,110 @@ func (ea *EmailAccount) NeedsOAuth2Refresh() bool {
 
 	// 如果token在30分钟内过期，则需要刷新
 	return time.Now().Add(30 * time.Minute).After(token.Expiry)
+}
+
+// ProxyConfigData 代理配置数据结构
+type ProxyConfigData struct {
+	Type     string `json:"type"`     // none, http, socks5
+	Host     string `json:"host"`     // 代理服务器地址
+	Port     int    `json:"port"`     // 代理服务器端口
+	Username string `json:"username"` // 用户名（可选）
+	Password string `json:"password"` // 密码（可选）
+}
+
+// GetProxyConfig 获取代理配置
+func (ea *EmailAccount) GetProxyConfig() *ProxyConfigData {
+	if ea.ProxyURL == "" {
+		return &ProxyConfigData{Type: "none"}
+	}
+
+	// 解析代理URL
+	u, err := url.Parse(ea.ProxyURL)
+	if err != nil {
+		return &ProxyConfigData{Type: "none"}
+	}
+
+	config := &ProxyConfigData{
+		Type: u.Scheme,
+		Host: u.Hostname(),
+	}
+
+	// 解析端口
+	if port := u.Port(); port != "" {
+		if p, err := strconv.Atoi(port); err == nil {
+			config.Port = p
+		}
+	}
+
+	// 解析认证信息
+	if u.User != nil {
+		config.Username = u.User.Username()
+		if password, ok := u.User.Password(); ok {
+			config.Password = password
+		}
+	}
+
+	return config
+}
+
+// SetProxyConfig 设置代理配置
+func (ea *EmailAccount) SetProxyConfig(config *ProxyConfigData) {
+	if config == nil || config.Type == "none" || config.Type == "" {
+		ea.ProxyURL = ""
+		return
+	}
+
+	// 构建代理URL
+	u := &url.URL{
+		Scheme: config.Type,
+		Host:   fmt.Sprintf("%s:%d", config.Host, config.Port),
+	}
+
+	// 添加认证信息
+	if config.Username != "" {
+		if config.Password != "" {
+			u.User = url.UserPassword(config.Username, config.Password)
+		} else {
+			u.User = url.User(config.Username)
+		}
+	}
+
+	ea.ProxyURL = u.String()
+}
+
+// HasProxy 检查是否配置了代理
+func (ea *EmailAccount) HasProxy() bool {
+	return ea.ProxyURL != ""
+}
+
+// ValidateProxyConfig 验证代理配置
+func (ea *EmailAccount) ValidateProxyConfig() error {
+	if ea.ProxyURL == "" {
+		return nil
+	}
+
+	// 解析代理URL
+	u, err := url.Parse(ea.ProxyURL)
+	if err != nil {
+		return fmt.Errorf("代理URL格式错误: %v", err)
+	}
+
+	// 验证代理类型
+	if u.Scheme != "http" && u.Scheme != "https" && u.Scheme != "socks5" {
+		return fmt.Errorf("不支持的代理类型: %s", u.Scheme)
+	}
+
+	// 验证主机地址
+	if u.Hostname() == "" {
+		return fmt.Errorf("代理主机地址不能为空")
+	}
+
+	// 验证端口
+	if port := u.Port(); port != "" {
+		if p, err := strconv.Atoi(port); err != nil || p <= 0 || p > 65535 {
+			return fmt.Errorf("代理端口必须在1-65535之间")
+		}
+	}
+
+	return nil
 }

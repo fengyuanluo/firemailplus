@@ -21,10 +21,13 @@ import {
 } from 'lucide-react';
 import { useBatchAddAccounts, parseBatchData } from '@/hooks/use-batch-add';
 import { toast } from 'sonner';
+import { ProxyConfigFields } from '@/components/proxy-config';
 
 const outlookBatchSchema = z.object({
   batchData: z.string().min(1, '请输入批量数据'),
   namePrefix: z.string().min(1, '请输入账户名称前缀'),
+  // 代理配置
+  proxy_url: z.string().optional(),
 });
 
 type OutlookBatchForm = z.infer<typeof outlookBatchSchema>;
@@ -47,6 +50,7 @@ export function OutlookBatchForm({ onSuccess, onCancel }: OutlookBatchFormProps)
     formState: { errors },
     watch,
     reset,
+    setValue,
   } = useForm<OutlookBatchForm>({
     resolver: zodResolver(outlookBatchSchema),
     defaultValues: {
@@ -83,7 +87,7 @@ export function OutlookBatchForm({ onSuccess, onCancel }: OutlookBatchFormProps)
     }
 
     setShowResults(true);
-    await processBatch(accounts, data.namePrefix);
+    await processBatch(accounts, data.namePrefix, data.proxy_url);
   };
 
   // 导出结果
@@ -198,6 +202,13 @@ export function OutlookBatchForm({ onSuccess, onCancel }: OutlookBatchFormProps)
             </div>
           </div>
 
+          {/* 代理配置 */}
+          <ProxyConfigFields
+            form={{ register, watch, setValue, formState: { errors } } as any}
+            disabled={progress.isProcessing}
+            compact={true}
+          />
+
           {/* 格式说明 */}
           <Collapsible open={showInstructions} onOpenChange={setShowInstructions}>
             <CollapsibleTrigger className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100">
@@ -295,7 +306,7 @@ user3@live.com----password3----11111111-2222-3333-4444-555555555555----refresh_t
                           type="button"
                           size="sm"
                           variant="outline"
-                          onClick={() => retryFailed(watch('namePrefix'))}
+                          onClick={() => retryFailed(watch('namePrefix'), watch('proxy_url'))}
                           className="text-xs"
                         >
                           <RefreshCw className="w-3 h-3 mr-1" />

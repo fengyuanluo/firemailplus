@@ -4,15 +4,15 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
-	"log"
-	"strings"
-	"time"
 	"firemail/internal/cache"
 	"firemail/internal/encoding/transfer"
 	"firemail/internal/models"
 	"firemail/internal/providers"
 	"firemail/internal/sse"
+	"fmt"
+	"log"
+	"strings"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -24,7 +24,7 @@ type SyncService struct {
 	eventPublisher      sse.EventPublisher
 	deduplicatorFactory DeduplicatorFactory
 	retryManager        *providers.RetryManager
-	attachmentStorage   AttachmentStorage // 添加附件存储
+	attachmentStorage   AttachmentStorage   // 添加附件存储
 	cacheManager        *cache.CacheManager // 添加缓存管理器
 }
 
@@ -623,10 +623,6 @@ func (s *SyncService) updateSyncError(account *models.EmailAccount, err error) {
 	s.db.Save(account)
 }
 
-
-
-
-
 // performIncrementalSync 执行真正的增量同步
 func (s *SyncService) performIncrementalSync(ctx context.Context, provider providers.EmailProvider, imapClient providers.IMAPClient, folder *models.Folder, account *models.EmailAccount) ([]*providers.EmailMessage, error) {
 	fmt.Printf("🔍 [INCREMENTAL] Starting incremental sync for folder: %s\n", folder.Name)
@@ -797,12 +793,8 @@ func (s *SyncService) getEmailsInBatches(ctx context.Context, provider providers
 			return nil, fmt.Errorf("failed to get emails from UID %d: %w", startUID, err)
 		}
 
-		// 限制批次大小
-		if len(emails) > maxBatchSize {
-			log.Printf("Large number of emails (%d) detected, limiting to %d", len(emails), maxBatchSize)
-			return emails[:maxBatchSize], nil
-		}
-
+		// 不限制总数量，只使用批次处理降低负载
+		log.Printf("Retrieved %d emails from UID %d", len(emails), startUID)
 		return emails, nil
 	}
 
@@ -828,12 +820,7 @@ func (s *SyncService) getEmailsInBatches(ctx context.Context, provider providers
 
 		allEmails = append(allEmails, batchEmails...)
 
-		// 如果这批邮件数量已经达到总限制，停止获取
-		if len(allEmails) >= maxBatchSize {
-			log.Printf("Reached batch limit (%d emails), stopping", len(allEmails))
-			break
-		}
-
+		// 继续处理下一批，不设置总数量限制
 		currentUID = batchEndUID + 1
 	}
 
@@ -992,9 +979,9 @@ func (s *SyncService) isFolderNotExistError(err error) bool {
 
 	errStr := strings.ToLower(err.Error())
 	return strings.Contains(errStr, "folder not exist") ||
-		   strings.Contains(errStr, "mailbox does not exist") ||
-		   strings.Contains(errStr, "no such mailbox") ||
-		   strings.Contains(errStr, "mailbox not found")
+		strings.Contains(errStr, "mailbox does not exist") ||
+		strings.Contains(errStr, "no such mailbox") ||
+		strings.Contains(errStr, "mailbox not found")
 }
 
 // handleMissingFolder 处理缺失的文件夹
@@ -1054,21 +1041,16 @@ func (s *SyncService) markFolderAsInvalid(folder *models.Folder) {
 func (s *SyncService) getEmailsBySequenceRange(ctx context.Context, imapClient providers.IMAPClient, folder *models.Folder, startSeq, endSeq uint32) ([]*providers.EmailMessage, error) {
 	log.Printf("Fetching emails for folder %s using sequence range %d-%d (UIDNext=0 fallback)", folder.Name, startSeq, endSeq)
 
-	// 对于UIDNext=0的情况，我们使用GetEmailsInUIDRange但传入序列号
+	// 对于UIDNext=0的情况，我们使用FetchCriteria获取邮件
 	// 这是一个权宜之计，因为163邮箱的UIDNext=0是异常情况
-	// 我们尝试获取前50封邮件
-	const maxEmails = 50
-	actualEndSeq := endSeq
-	if actualEndSeq > maxEmails {
-		actualEndSeq = maxEmails
-		log.Printf("Limiting to first %d emails due to UIDNext=0", maxEmails)
-	}
+	// 使用批次处理但不限制总数量
+	log.Printf("Using sequence range %d-%d for UIDNext=0 fallback", startSeq, endSeq)
 
-	// 使用FetchCriteria获取所有邮件，然后取前N封
+	// 使用FetchCriteria获取邮件，不限制总数量
 	criteria := &providers.FetchCriteria{
 		FolderName:  folder.Path,
 		IncludeBody: true,
-		Limit:       int(actualEndSeq),
+		Limit:       int(endSeq), // 使用原始的endSeq，不进行人为限制
 	}
 
 	emails, err := imapClient.FetchEmails(ctx, criteria)

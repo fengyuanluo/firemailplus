@@ -6,9 +6,11 @@ const nextConfig: NextConfig = {
 
   // 优化配置
   experimental: {
-    // 启用服务器组件优化
-    serverComponentsExternalPackages: [],
+    // 启用服务器组件优化 - moved to serverExternalPackages
   },
+  
+  // 外部包配置
+  serverExternalPackages: [],
 
   // 压缩配置
   compress: true,

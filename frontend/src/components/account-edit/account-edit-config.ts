@@ -24,7 +24,11 @@ export function getAccountEditConfig(account: EmailAccount): AccountEditConfig {
       type: 'oauth2',
       title: 'Gmail OAuth2 账户',
       description: '通过Google官方授权的Gmail账户',
-      editableFields: ['name', 'is_active'],
+      editableFields: [
+        'name',
+        'is_active',
+        'proxy_url',
+      ],
       showReauth: true,
       providerType: 'gmail-oauth2',
     };
@@ -36,7 +40,13 @@ export function getAccountEditConfig(account: EmailAccount): AccountEditConfig {
       type: 'basic',
       title: 'Gmail 应用专用密码',
       description: '使用应用专用密码的Gmail账户',
-      editableFields: ['name', 'email', 'password', 'is_active'],
+      editableFields: [
+        'name',
+        'email',
+        'password',
+        'is_active',
+        'proxy_url',
+      ],
       showPassword: true,
       providerType: 'gmail-password',
     };
@@ -48,7 +58,7 @@ export function getAccountEditConfig(account: EmailAccount): AccountEditConfig {
       type: 'oauth2',
       title: 'Outlook OAuth2 账户',
       description: '通过Microsoft官方授权的Outlook账户',
-      editableFields: ['name', 'is_active'],
+      editableFields: ['name', 'is_active', 'proxy_url'],
       showReauth: true,
       providerType: 'outlook-oauth2',
     };
@@ -60,7 +70,7 @@ export function getAccountEditConfig(account: EmailAccount): AccountEditConfig {
       type: 'oauth2',
       title: 'Outlook 手动OAuth2',
       description: '手动配置OAuth2参数的Outlook账户',
-      editableFields: ['name', 'email', 'client_id', 'client_secret', 'refresh_token', 'is_active'],
+      editableFields: ['name', 'email', 'client_id', 'client_secret', 'refresh_token', 'is_active', 'proxy_url'],
       showOAuth2Config: true,
       providerType: 'outlook-manual',
     };
@@ -72,7 +82,7 @@ export function getAccountEditConfig(account: EmailAccount): AccountEditConfig {
       type: 'basic',
       title: 'QQ邮箱',
       description: '使用授权码的QQ邮箱账户',
-      editableFields: ['name', 'email', 'password', 'is_active'],
+      editableFields: ['name', 'email', 'password', 'is_active', 'proxy_url'],
       showPassword: true,
       providerType: 'qq',
     };
@@ -84,7 +94,7 @@ export function getAccountEditConfig(account: EmailAccount): AccountEditConfig {
       type: 'basic',
       title: '163邮箱',
       description: '使用客户端授权码的163邮箱账户',
-      editableFields: ['name', 'email', 'password', 'is_active'],
+      editableFields: ['name', 'email', 'password', 'is_active', 'proxy_url'],
       showPassword: true,
       providerType: '163',
     };
@@ -108,6 +118,7 @@ export function getAccountEditConfig(account: EmailAccount): AccountEditConfig {
         'smtp_port',
         'smtp_security',
         'is_active',
+        'proxy_url',
       ],
       showPassword: true,
       showImapSmtp: true,
@@ -130,6 +141,7 @@ export function getAccountEditConfig(account: EmailAccount): AccountEditConfig {
       'smtp_port',
       'smtp_security',
       'is_active',
+      'proxy_url',
     ],
     showPassword: true,
     showImapSmtp: true,

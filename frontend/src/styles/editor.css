@@ -5,19 +5,22 @@
   padding: 1rem;
   min-height: 200px;
   line-height: 1.6;
+  border-radius: 6px;
 }
 
+/* 只有当编辑器完全为空且是第一个段落时才显示placeholder */
 .ProseMirror p.is-editor-empty:first-child::before {
-  color: #adb5bd;
+  color: #9ca3af;
   content: attr(data-placeholder);
   float: left;
   height: 0;
   pointer-events: none;
+  position: absolute;
 }
 
 .ProseMirror .has-focus {
-  border-radius: 3px;
-  box-shadow: 0 0 0 3px #68cef8;
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
 }
 
 .ProseMirror img {
@@ -256,6 +259,31 @@
   color: #6b7280;
 }
 
+/* 确保非第一个空段落不显示placeholder */
+.ProseMirror p.is-empty:not(.is-editor-empty)::before,
+.ProseMirror p.is-empty:not(:first-child)::before {
+  display: none;
+}
+
+/* 防止空段落显示任何伪元素内容 */
+.ProseMirror p:empty:not(.is-editor-empty):not(:first-child)::before {
+  display: none;
+}
+
+/* 更严格的placeholder控制 - 只有编辑器完全为空时才显示 */
+.ProseMirror:not(.ProseMirror-focused) p.is-empty::before {
+  display: none;
+}
+
+/* 确保只有第一个空段落且编辑器为空时才显示placeholder */
+.ProseMirror p.is-empty::before {
+  display: none;
+}
+
+.ProseMirror p.is-editor-empty:first-child:only-child::before {
+  display: block;
+}
+
 /* Focus styles */
 .ProseMirror:focus {
   outline: none;
@@ -276,18 +304,7 @@
   color: #1f2937;
 }
 
-/* Placeholder styles */
-.ProseMirror .is-empty::before {
-  content: attr(data-placeholder);
-  float: left;
-  color: #adb5bd;
-  pointer-events: none;
-  height: 0;
-}
-
-.dark .ProseMirror .is-empty::before {
-  color: #6b7280;
-}
+/* Placeholder styles - 移除重复的样式，避免每行都显示placeholder */
 
 /* Responsive styles */
 @media (max-width: 768px) {

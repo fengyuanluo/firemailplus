@@ -1,0 +1,280 @@
+/* 移动端键盘适配样式 */
+
+/* 基础视口设置 */
+@supports (height: 100dvh) {
+  .mobile-viewport {
+    height: 100dvh;
+  }
+}
+
+/* 虚拟键盘适配 */
+@supports (height: 100vh) {
+  .mobile-compose-container {
+    height: 100vh;
+    height: 100dvh; /* 动态视口高度 */
+  }
+}
+
+/* iOS Safari 特殊处理 */
+@supports (-webkit-touch-callout: none) {
+  .mobile-compose-container {
+    /* iOS Safari 的安全区域处理 */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  /* 防止iOS缩放 */
+  .mobile-input {
+    font-size: 16px !important;
+    transform: scale(1);
+  }
+
+  /* iOS键盘弹出时的处理 */
+  .mobile-editor-content {
+    /* 确保编辑器在键盘弹出时可见 */
+    min-height: 200px;
+    max-height: calc(100vh - 300px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* 虚拟键盘弹出时的布局调整 */
+.mobile-compose-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.mobile-compose-header {
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.mobile-compose-content {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: env(keyboard-inset-height, 0);
+}
+
+.mobile-compose-form {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.mobile-compose-editor {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 移动端输入框优化 */
+.mobile-input-field {
+  font-size: 16px; /* 防止iOS缩放 */
+  line-height: 1.5;
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  background: white;
+  transition: border-color 0.2s ease;
+}
+
+.mobile-input-field:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* 移动端工具栏优化 */
+.mobile-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 8px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.mobile-toolbar::-webkit-scrollbar {
+  display: none;
+}
+
+.mobile-toolbar-buttons {
+  display: flex;
+  gap: 4px;
+  min-width: max-content;
+}
+
+.mobile-toolbar-button {
+  min-width: 36px;
+  min-height: 36px;
+  padding: 8px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: #374151;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-toolbar-button:active {
+  background: #f3f4f6;
+  transform: scale(0.95);
+}
+
+.mobile-toolbar-button.active {
+  background: #e5e7eb;
+  color: #1f2937;
+}
+
+/* 移动端附件显示优化 */
+.mobile-attachment-bar {
+  padding: 8px 16px;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mobile-attachment-list {
+  display: flex;
+  gap: 8px;
+  min-width: max-content;
+}
+
+.mobile-attachment-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 14px;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  transition: box-shadow 0.2s ease;
+}
+
+.mobile-attachment-item:hover {
+  box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.1);
+}
+
+/* 移动端自动保存状态 */
+.mobile-autosave-status {
+  position: fixed;
+  top: env(safe-area-inset-top, 0);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  z-index: 1000;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.mobile-autosave-status.visible {
+  opacity: 1;
+}
+
+/* 暗色主题适配 */
+@media (prefers-color-scheme: dark) {
+  .mobile-compose-header {
+    background: #1f2937;
+    border-bottom-color: #374151;
+  }
+
+  .mobile-input-field {
+    background: #1f2937;
+    border-color: #374151;
+    color: #f9fafb;
+  }
+
+  .mobile-input-field:focus {
+    border-color: #60a5fa;
+    box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.1);
+  }
+
+  .mobile-toolbar {
+    background: #1f2937;
+    border-bottom-color: #374151;
+  }
+
+  .mobile-toolbar-button {
+    color: #d1d5db;
+  }
+
+  .mobile-toolbar-button:active {
+    background: #374151;
+  }
+
+  .mobile-toolbar-button.active {
+    background: #4b5563;
+    color: #f9fafb;
+  }
+
+  .mobile-attachment-bar {
+    background: #111827;
+    border-bottom-color: #374151;
+  }
+
+  .mobile-attachment-item {
+    background: #1f2937;
+    border-color: #374151;
+    color: #f9fafb;
+  }
+}
+
+/* 横屏适配 */
+@media (orientation: landscape) and (max-height: 500px) {
+  .mobile-compose-editor {
+    min-height: 150px;
+  }
+
+  .mobile-toolbar {
+    padding: 4px 8px;
+  }
+
+  .mobile-toolbar-button {
+    min-width: 32px;
+    min-height: 32px;
+    padding: 6px;
+  }
+}
+
+/* 触摸优化 */
+.mobile-touch-target {
+  min-width: 44px;
+  min-height: 44px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 防止双击缩放 */
+.mobile-no-zoom {
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}

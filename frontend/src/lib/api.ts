@@ -66,6 +66,7 @@ export interface CreateAccountRequest {
   smtp_host?: string;
   smtp_port?: number;
   smtp_security?: string;
+  proxy_url?: string;
 }
 
 // 基础请求函数
@@ -196,6 +197,7 @@ class ApiClient {
       smtp_port?: number;
       smtp_security?: string;
       is_active?: boolean;
+      proxy_url?: string;
     }
   ): Promise<ApiResponse<EmailAccount>> {
     return this.request<EmailAccount>(`/accounts/${id}`, {
@@ -267,6 +269,7 @@ class ApiClient {
     expires_at: number;
     scope?: string;
     client_id: string; // 必需，用于token刷新
+    proxy_url?: string; // 代理配置
   }): Promise<ApiResponse<EmailAccount>> {
     return this.request<EmailAccount>('/oauth/create-account', {
       method: 'POST',
@@ -284,6 +287,7 @@ class ApiClient {
     scope?: string;
     auth_url?: string;
     token_url?: string;
+    proxy_url?: string;
   }): Promise<ApiResponse<EmailAccount>> {
     return this.request<EmailAccount>('/oauth/manual-config', {
       method: 'POST',

@@ -13,6 +13,7 @@ import { apiClient } from '@/lib/api';
 import { toast } from 'sonner';
 import type { EmailAccount } from '@/types/email';
 import type { AccountEditConfig } from './account-edit-config';
+import { ProxyConfigFields } from '@/components/proxy-config';
 
 // 基础编辑表单验证schema
 const basicEditSchema = z.object({
@@ -20,6 +21,7 @@ const basicEditSchema = z.object({
   email: z.string().email('请输入有效的邮箱地址').optional(),
   password: z.string().optional(),
   is_active: z.boolean(),
+  proxy_url: z.string().optional(),
 });
 
 type BasicEditForm = z.infer<typeof basicEditSchema>;
@@ -62,6 +64,7 @@ export function BasicEditForm({
         email: account.email,
         password: '', // 密码字段留空
         is_active: account.is_active,
+        proxy_url: account.proxy_url || '',
       });
     }
   }, [account, reset]);
@@ -83,6 +86,9 @@ export function BasicEditForm({
       }
       if (config.editableFields.includes('is_active')) {
         updateData.is_active = data.is_active;
+      }
+      if (config.editableFields.includes('proxy_url')) {
+        updateData.proxy_url = data.proxy_url;
       }
 
       const response = await apiClient.updateEmailAccount(account.id, updateData);
@@ -213,6 +219,15 @@ export function BasicEditForm({
           </div>
         )}
       </div>
+
+      {/* 代理配置 */}
+      {config.editableFields.includes('proxy_url') && (
+        <ProxyConfigFields
+          form={{ register, watch, setValue, formState: { errors } } as any}
+          disabled={isSubmitting}
+          compact={true}
+        />
+      )}
 
       {/* 底部按钮 */}
       <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">

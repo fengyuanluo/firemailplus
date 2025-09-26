@@ -196,11 +196,12 @@ func (p *NetEaseProvider) connectWithIMAPID(ctx context.Context, account *models
 	// 连接IMAP
 	if p.imapClient != nil {
 		imapConfig := IMAPClientConfig{
-			Host:     account.IMAPHost,
-			Port:     account.IMAPPort,
-			Security: account.IMAPSecurity,
-			Username: account.Username,
-			Password: account.Password,
+			Host:        account.IMAPHost,
+			Port:        account.IMAPPort,
+			Security:    account.IMAPSecurity,
+			Username:    account.Username,
+			Password:    account.Password,
+			ProxyConfig: p.createProxyConfig(account),
 		}
 
 		// 为163邮箱添加IMAP ID信息（可信部分）
@@ -216,11 +217,12 @@ func (p *NetEaseProvider) connectWithIMAPID(ctx context.Context, account *models
 	// 连接SMTP
 	if p.smtpClient != nil {
 		smtpConfig := SMTPClientConfig{
-			Host:     account.SMTPHost,
-			Port:     account.SMTPPort,
-			Security: account.SMTPSecurity,
-			Username: account.Username,
-			Password: account.Password,
+			Host:        account.SMTPHost,
+			Port:        account.SMTPPort,
+			Security:    account.SMTPSecurity,
+			Username:    account.Username,
+			Password:    account.Password,
+			ProxyConfig: p.createProxyConfig(account),
 		}
 		if err := p.smtpClient.Connect(ctx, smtpConfig); err != nil {
 			return fmt.Errorf("failed to connect SMTP: %w", err)
@@ -229,43 +231,6 @@ func (p *NetEaseProvider) connectWithIMAPID(ctx context.Context, account *models
 
 	p.connected = true
 	return nil
-}
-
-// connectWithRetry 带重试机制的连接（保留原方法以兼容）
-func (p *NetEaseProvider) connectWithRetry(ctx context.Context, account *models.EmailAccount) error {
-	maxRetries := 3
-	baseDelay := time.Second * 2
-
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		err := p.BaseProvider.Connect(ctx, account)
-		if err == nil {
-			return nil
-		}
-
-		// 处理网易邮箱特定错误
-		netEaseErr := p.HandleNetEaseError(err)
-
-		// 某些错误不需要重试
-		if p.isNonRetryableError(err) {
-			return netEaseErr
-		}
-
-		// 如果是最后一次尝试，返回错误
-		if attempt == maxRetries-1 {
-			return netEaseErr
-		}
-
-		// 指数退避延迟
-		delay := baseDelay * time.Duration(1<<uint(attempt))
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(delay):
-			// 继续下一次重试
-		}
-	}
-
-	return fmt.Errorf("failed to connect after %d attempts", maxRetries)
 }
 
 // HandleNetEaseError 处理网易邮箱特定错误

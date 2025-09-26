@@ -10,15 +10,13 @@ import (
 	"firemail/internal/encoding"
 	"firemail/internal/models"
 	"firemail/internal/oauth2"
-
-	goauth2 "golang.org/x/oauth2"
 )
 
 // GmailProvider Gmail邮件提供商
 type GmailProvider struct {
 	*BaseProvider
-	oauth2Service   *oauth2.OAuth2Service
-	encodingHelper  *encoding.EmailEncodingHelper
+	oauth2Service  *oauth2.OAuth2Service
+	encodingHelper *encoding.EmailEncodingHelper
 }
 
 // newGmailProviderImpl 创建Gmail提供商实例的内部实现
@@ -48,9 +46,33 @@ func (p *GmailProvider) Connect(ctx context.Context, account *models.EmailAccoun
 	// 确保使用正确的服务器配置
 	p.ensureGmailConfig(account)
 
+	// 设置OAuth2客户端（如果使用OAuth2认证）
+	if account.AuthMethod == "oauth2" && p.oauth2Client == nil {
+		// 从账户的OAuth2Token中获取client_id
+		tokenData, err := account.GetOAuth2Token()
+		if err != nil {
+			return fmt.Errorf("failed to get OAuth2 token data: %w", err)
+		}
+
+		if tokenData == nil {
+			return fmt.Errorf("OAuth2 token data not found")
+		}
+
+		// 从token数据中提取client_id（在外部OAuth服务器认证时存储）
+		clientID := tokenData.ClientID
+		if clientID == "" {
+			return fmt.Errorf("OAuth2 client ID not found in token data")
+		}
+
+		// 对于外部OAuth服务器认证，我们不需要client_secret和redirect_url
+		// 因为我们只使用refresh token来获取access token
+		p.oauth2Client = NewGmailOAuth2Client(clientID, "", "")
+		p.SetOAuth2Client(p.oauth2Client)
+	}
+
 	// 验证认证方式和凭据
 	if err := p.validateGmailAuth(ctx, account); err != nil {
-		return fmt.Errorf("Gmail authentication validation failed: %w", err)
+		return fmt.Errorf("gmail authentication validation failed: %w", err)
 	}
 
 	// 使用重试机制连接
@@ -75,7 +97,7 @@ func (p *GmailProvider) validateAppPassword(account *models.EmailAccount) error 
 	password := strings.ReplaceAll(account.Password, " ", "") // 移除空格
 
 	if len(password) != 16 {
-		return fmt.Errorf("Gmail app password must be 16 characters long. Please generate app password in Google Account settings")
+		return fmt.Errorf("gmail app password must be 16 characters long. Please generate app password in Google Account settings")
 	}
 
 	// 检查字符是否为字母和数字
@@ -111,17 +133,8 @@ func (p *GmailProvider) validateOAuth2Credentials(ctx context.Context, account *
 		return fmt.Errorf("OAuth2 token has expired and no refresh token available")
 	}
 
-	// 使用OAuth2服务验证token
-	token := &goauth2.Token{
-		AccessToken:  tokenData.AccessToken,
-		RefreshToken: tokenData.RefreshToken,
-		TokenType:    tokenData.TokenType,
-		Expiry:       tokenData.Expiry,
-	}
-
-	if err := p.oauth2Service.ValidateToken(ctx, "gmail", token); err != nil {
-		return fmt.Errorf("OAuth2 token validation failed: %w", err)
-	}
+	// 基本token验证已经足够，不需要通过OAuth2Service验证
+	// 因为我们已经在Connect方法中设置了OAuth2客户端
 
 	return nil
 }
@@ -197,7 +210,7 @@ func (p *GmailProvider) HandleGmailError(err error) error {
 	case strings.Contains(errStr, "insufficient_scope"):
 		return fmt.Errorf("OAuth2 token does not have required Gmail permissions")
 	default:
-		return fmt.Errorf("Gmail error: %v", err)
+		return fmt.Errorf("gmail error: %v", err)
 	}
 }
 

@@ -67,7 +67,7 @@ func (p *OutlookProvider) Connect(ctx context.Context, account *models.EmailAcco
 
 	// 验证认证方式和凭据，并刷新token
 	if err := p.validateOutlookAuth(ctx, account); err != nil {
-		return fmt.Errorf("Outlook authentication validation failed: %w", err)
+		return fmt.Errorf("outlook authentication validation failed: %w", err)
 	}
 
 	// 使用重试机制连接
@@ -81,28 +81,6 @@ func (p *OutlookProvider) validateOutlookAuth(ctx context.Context, account *mode
 	}
 	// 调用token验证和刷新
 	return p.validateOAuth2Token(ctx, account)
-}
-
-// validateOAuth2Credentials 验证OAuth2凭据 - 简化版本
-func (p *OutlookProvider) validateOAuth2Credentials(account *models.EmailAccount) error {
-	tokenData, err := account.GetOAuth2Token()
-	if err != nil {
-		return fmt.Errorf("failed to get OAuth2 token: %w", err)
-	}
-
-	if tokenData == nil {
-		return fmt.Errorf("OAuth2 token not found")
-	}
-
-	if tokenData.RefreshToken == "" {
-		return fmt.Errorf("refresh token is required")
-	}
-
-	if tokenData.ClientID == "" {
-		return fmt.Errorf("client ID is required")
-	}
-
-	return nil
 }
 
 // connectWithRetry 带重试机制的连接
@@ -174,13 +152,13 @@ func (p *OutlookProvider) HandleOutlookError(err error) error {
 	case strings.Contains(errStr, "553"):
 		return fmt.Errorf("invalid recipient address or sender not authorized")
 	case strings.Contains(errStr, "invalid_grant"):
-		return fmt.Errorf("OAuth2 token is invalid or expired. Please re-authenticate")
+		return fmt.Errorf("oAuth2 token is invalid or expired. Please re-authenticate")
 	case strings.Contains(errStr, "insufficient_scope"):
 		return fmt.Errorf("OAuth2 token does not have required Outlook permissions")
 	case strings.Contains(errStr, "AADSTS"):
-		return fmt.Errorf("Azure AD authentication error: %v. Please check your OAuth2 configuration", err)
+		return fmt.Errorf("azure AD authentication error: %v. Please check your OAuth2 configuration", err)
 	default:
-		return fmt.Errorf("Outlook error: %v", err)
+		return fmt.Errorf("outlook error: %v", err)
 	}
 }
 

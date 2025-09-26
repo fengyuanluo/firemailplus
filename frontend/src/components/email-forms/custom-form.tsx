@@ -20,6 +20,7 @@ import { ChevronDown, ChevronRight, Eye, EyeOff, Server, Mail, Shield } from 'lu
 import { apiClient } from '@/lib/api';
 import { useMailboxStore } from '@/lib/store';
 import { toast } from 'sonner';
+import { ProxyConfigFields } from '@/components/proxy-config';
 
 // 配置模式类型
 type ConfigMode = 'full' | 'imap-only' | 'smtp-only';
@@ -62,6 +63,9 @@ const customSchema = z
     smtp_host: z.string().optional(),
     smtp_port: z.number().min(1, '端口必须大于0').max(65535, '端口不能超过65535').optional(),
     smtp_security: z.enum(['SSL', 'STARTTLS', 'NONE']).optional(),
+
+    // 代理配置
+    proxy_url: z.string().optional(),
   })
   .refine(
     (data) => {
@@ -141,6 +145,7 @@ export function CustomForm({ onSuccess, onCancel }: CustomFormProps) {
         auth_method: 'password',
         username: data.username,
         password: data.password,
+        proxy_url: data.proxy_url,
       };
 
       // 根据配置模式添加相应配置
@@ -488,6 +493,12 @@ export function CustomForm({ onSuccess, onCancel }: CustomFormProps) {
               </div>
             </div>
           )}
+
+          {/* 代理配置 */}
+          <ProxyConfigFields
+            form={{ register, watch, setValue, formState: { errors } } as any}
+            disabled={isSubmitting}
+          />
 
           {/* 配置说明 */}
           <Collapsible open={showInstructions} onOpenChange={setShowInstructions}>

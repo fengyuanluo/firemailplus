@@ -3,6 +3,9 @@ package services
 import (
 	"bytes"
 	"context"
+	"crypto/md5"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"html"
 	"io"
@@ -11,9 +14,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-	"crypto/md5"
-	"encoding/hex"
-	"encoding/json"
 
 	"firemail/internal/cache"
 	"firemail/internal/config"
@@ -115,6 +115,9 @@ type CreateEmailAccountRequest struct {
 	SMTPHost     string `json:"smtp_host"`
 	SMTPPort     int    `json:"smtp_port"`
 	SMTPSecurity string `json:"smtp_security"`
+
+	// 代理配置
+	ProxyURL string `json:"proxy_url"` // 代理URL，如：http://user:pass@proxy.com:8080
 }
 
 // UpdateEmailAccountRequest 更新邮件账户请求
@@ -128,6 +131,9 @@ type UpdateEmailAccountRequest struct {
 	SMTPPort     *int    `json:"smtp_port"`
 	SMTPSecurity *string `json:"smtp_security"`
 	IsActive     *bool   `json:"is_active"`
+
+	// 代理配置（使用指针类型支持部分更新）
+	ProxyURL *string `json:"proxy_url"` // 代理URL，如：http://user:pass@proxy.com:8080
 }
 
 // GetEmailsRequest 获取邮件列表请求
@@ -272,9 +278,14 @@ func (s *EmailServiceImpl) CreateEmailAccount(ctx context.Context, userID uint, 
 		return nil, fmt.Errorf("failed to configure account: %w", err)
 	}
 
+	// 设置代理配置
+	if err := s.configureProxySettings(account, req); err != nil {
+		return nil, fmt.Errorf("failed to configure proxy settings: %w", err)
+	}
+
 	// 调试日志
-	log.Printf("Account before validation: Provider=%s, IMAPHost=%s, IMAPPort=%d, SMTPHost=%s, SMTPPort=%d",
-		account.Provider, account.IMAPHost, account.IMAPPort, account.SMTPHost, account.SMTPPort)
+	log.Printf("Account before validation: Provider=%s, IMAPHost=%s, IMAPPort=%d, SMTPHost=%s, SMTPPort=%d, ProxyURL=%s",
+		account.Provider, account.IMAPHost, account.IMAPPort, account.SMTPHost, account.SMTPPort, account.ProxyURL)
 
 	// 验证配置
 	if err := s.providerFactory.ValidateProviderConfig(account); err != nil {
@@ -372,6 +383,11 @@ func (s *EmailServiceImpl) UpdateEmailAccount(ctx context.Context, userID, accou
 		account.IsActive = *req.IsActive
 	}
 
+	// 更新代理配置
+	if err := s.updateProxySettings(account, req); err != nil {
+		return nil, fmt.Errorf("failed to update proxy settings: %w", err)
+	}
+
 	// 验证更新后的配置
 	if err := s.providerFactory.ValidateProviderConfig(account); err != nil {
 		return nil, fmt.Errorf("invalid provider configuration: %w", err)
@@ -382,10 +398,10 @@ func (s *EmailServiceImpl) UpdateEmailAccount(ctx context.Context, userID, accou
 		return nil, fmt.Errorf("failed to update email account: %w", err)
 	}
 
-	// 如果更新了连接相关的配置，测试连接
+	// 如果更新了连接相关的配置（包括代理配置），测试连接
 	if req.Password != nil || req.IMAPHost != nil || req.IMAPPort != nil ||
 		req.IMAPSecurity != nil || req.SMTPHost != nil || req.SMTPPort != nil ||
-		req.SMTPSecurity != nil {
+		req.SMTPSecurity != nil || req.ProxyURL != nil {
 		if err := s.TestEmailAccount(ctx, userID, accountID); err != nil {
 			account.SyncStatus = "error"
 			account.ErrorMessage = err.Error()
@@ -2409,6 +2425,34 @@ func (s *EmailServiceImpl) loadAttachmentsFromIDs(ctx context.Context, message *
 		}
 
 		message.Attachments = append(message.Attachments, outgoingAttachment)
+	}
+
+	return nil
+}
+
+// configureProxySettings 配置代理设置
+func (s *EmailServiceImpl) configureProxySettings(account *models.EmailAccount, req *CreateEmailAccountRequest) error {
+	// 设置代理URL
+	account.ProxyURL = req.ProxyURL
+
+	// 验证代理配置
+	if err := account.ValidateProxyConfig(); err != nil {
+		return fmt.Errorf("invalid proxy configuration: %w", err)
+	}
+
+	return nil
+}
+
+// updateProxySettings 更新代理设置
+func (s *EmailServiceImpl) updateProxySettings(account *models.EmailAccount, req *UpdateEmailAccountRequest) error {
+	// 更新代理URL
+	if req.ProxyURL != nil {
+		account.ProxyURL = *req.ProxyURL
+	}
+
+	// 验证代理配置
+	if err := account.ValidateProxyConfig(); err != nil {
+		return fmt.Errorf("invalid proxy configuration: %w", err)
 	}
 
 	return nil

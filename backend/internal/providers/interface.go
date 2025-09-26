@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"firemail/internal/models"
+	"firemail/internal/proxy"
 )
 
 // EmailProvider 邮件提供商接口
@@ -98,6 +99,9 @@ type OAuth2Client interface {
 	// Token验证
 	ValidateToken(ctx context.Context, token *OAuth2Token) error
 	RevokeToken(ctx context.Context, token string) error
+
+	// 代理配置
+	SetProxyConfig(config *ProxyConfig)
 }
 
 // 配置结构体
@@ -111,6 +115,32 @@ type IMAPClientConfig struct {
 	Password    string
 	OAuth2Token *OAuth2Token
 	IMAPIDInfo  map[string]string // IMAP ID信息，用于163等邮箱的可信部分
+
+	// 代理配置
+	ProxyConfig *ProxyConfig
+}
+
+// ProxyConfig 代理配置
+type ProxyConfig struct {
+	Type     string // none, http, socks5
+	Host     string // 代理服务器地址
+	Port     int    // 代理服务器端口
+	Username string // 用户名（可选）
+	Password string // 密码（可选）
+}
+
+// ToProxyConfig 转换为proxy包的ProxyConfig
+func (pc *ProxyConfig) ToProxyConfig() *proxy.ProxyConfig {
+	if pc == nil {
+		return nil
+	}
+	return &proxy.ProxyConfig{
+		Type:     pc.Type,
+		Host:     pc.Host,
+		Port:     pc.Port,
+		Username: pc.Username,
+		Password: pc.Password,
+	}
 }
 
 // SMTPClientConfig SMTP客户端配置
@@ -121,6 +151,9 @@ type SMTPClientConfig struct {
 	Username    string
 	Password    string
 	OAuth2Token *OAuth2Token
+
+	// 代理配置
+	ProxyConfig *ProxyConfig
 }
 
 // OAuth2Token OAuth2令牌

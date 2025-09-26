@@ -71,33 +71,33 @@ export function AttachmentBar({ attachments, onRemove, onRetry }: AttachmentBarP
   }
 
   return (
-    <div className="border-t border-gray-200 dark:border-gray-700 p-3 bg-white dark:bg-gray-800 shadow-lg">
+    <div className="border-t border-gray-200 dark:border-gray-700 p-3 bg-gray-50 dark:bg-gray-800">
       <div className="flex flex-wrap gap-2">
         {attachments.map((attachment) => (
           <div
             key={attachment.id}
-            className="flex items-center gap-2 bg-gray-700 dark:bg-gray-600 text-white text-xs px-3 py-2 rounded-md min-w-0 max-w-xs"
+            className="flex items-center gap-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 text-xs px-3 py-2 rounded-lg shadow-sm min-w-0 max-w-xs hover:shadow-md transition-shadow"
           >
             {/* 文件图标 */}
-            <div className="flex-shrink-0 text-white">{getFileIcon(attachment.type)}</div>
+            <div className="flex-shrink-0 text-blue-500 dark:text-blue-400">{getFileIcon(attachment.type)}</div>
 
             {/* 文件信息 */}
             <div className="flex-1 min-w-0">
-              <div className="truncate font-medium">{attachment.name}</div>
-              <div className="text-gray-300 text-xs">{formatFileSize(attachment.size)}</div>
+              <div className="truncate font-medium text-gray-900 dark:text-gray-100">{attachment.name}</div>
+              <div className="text-gray-500 dark:text-gray-400 text-xs">{formatFileSize(attachment.size)}</div>
             </div>
 
             {/* 状态指示器 */}
             <div className="flex-shrink-0 flex items-center gap-1">
               {attachment.uploadStatus === 'uploading' && (
                 <>
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                  <span className="text-xs">{attachment.uploadProgress}%</span>
+                  <Loader2 className="w-3 h-3 animate-spin text-blue-500" />
+                  <span className="text-xs text-gray-600 dark:text-gray-300">{attachment.uploadProgress}%</span>
                 </>
               )}
 
               {attachment.uploadStatus === 'completed' && (
-                <div className="w-2 h-2 bg-green-400 rounded-full" />
+                <div className="w-2 h-2 bg-green-500 rounded-full" />
               )}
 
               {attachment.uploadStatus === 'error' && onRetry && (
@@ -105,7 +105,7 @@ export function AttachmentBar({ attachments, onRemove, onRetry }: AttachmentBarP
                   variant="ghost"
                   size="sm"
                   onClick={() => onRetry(attachment.id)}
-                  className="text-xs text-red-300 hover:text-red-100 p-0 h-auto"
+                  className="text-xs text-red-500 hover:text-red-600 p-0 h-auto"
                 >
                   重试
                 </Button>
@@ -116,7 +116,7 @@ export function AttachmentBar({ attachments, onRemove, onRetry }: AttachmentBarP
                 variant="ghost"
                 size="sm"
                 onClick={() => onRemove(attachment.id)}
-                className="p-0 h-auto text-gray-300 hover:text-white ml-1"
+                className="p-0 h-auto text-gray-400 hover:text-red-500 ml-1"
               >
                 <X className="w-3 h-3" />
               </Button>

@@ -20,6 +20,7 @@ import { apiClient } from '@/lib/api';
 import { toast } from 'sonner';
 import type { EmailAccount } from '@/types/email';
 import type { AccountEditConfig } from './account-edit-config';
+import { ProxyConfigFields } from '@/components/proxy-config';
 
 // 自定义编辑表单验证schema
 const customEditSchema = z.object({
@@ -34,6 +35,8 @@ const customEditSchema = z.object({
   smtp_port: z.number().min(1).max(65535, '端口号必须在1-65535之间'),
   smtp_security: z.enum(['SSL', 'STARTTLS', 'NONE']),
   is_active: z.boolean(),
+  // 代理配置
+  proxy_url: z.string().optional(),
 });
 
 type CustomEditForm = z.infer<typeof customEditSchema>;
@@ -83,6 +86,7 @@ export function CustomEditForm({
         smtp_port: account.smtp_port,
         smtp_security: account.smtp_security as 'SSL' | 'STARTTLS' | 'NONE',
         is_active: account.is_active,
+        proxy_url: account.proxy_url || '',
       });
     }
   }, [account, reset]);
@@ -129,6 +133,11 @@ export function CustomEditForm({
         if (config.editableFields.includes('smtp_security')) {
           updateData.smtp_security = data.smtp_security;
         }
+      }
+
+      // 代理配置
+      if (config.editableFields.includes('proxy_url')) {
+        updateData.proxy_url = data.proxy_url;
       }
 
       const response = await apiClient.updateEmailAccount(account.id, updateData);
@@ -369,6 +378,13 @@ export function CustomEditForm({
           </div>
         </div>
       )}
+
+      {/* 代理配置 */}
+      <ProxyConfigFields
+        form={{ register, watch, setValue, formState: { errors } } as any}
+        disabled={isSubmitting}
+        compact={true}
+      />
 
       {/* 底部按钮 */}
       <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">

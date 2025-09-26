@@ -11,8 +11,7 @@ import (
 
 // AdaptiveManager 自适应管理器
 type AdaptiveManager struct {
-	factory  *ProviderFactory
-	detector CapabilityDetector
+	factory *ProviderFactory
 }
 
 // NewAdaptiveManager 创建自适应管理器

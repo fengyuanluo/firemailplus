@@ -22,7 +22,7 @@ func NewMigrationService(logger *log.Logger) *MigrationService {
 	if logger == nil {
 		logger = log.New(os.Stdout, "[MIGRATION] ", log.LstdFlags)
 	}
-	
+
 	return &MigrationService{
 		logger: logger,
 	}
@@ -37,21 +37,21 @@ func (s *MigrationService) Initialize(db *sql.DB, config MigrationConfig) error 
 	if config.DatabaseName == "" {
 		config.DatabaseName = "sqlite3"
 	}
-	
+
 	// 确保迁移目录存在
 	if err := s.ensureMigrationsDir(config.MigrationsPath); err != nil {
 		return fmt.Errorf("failed to ensure migrations directory: %w", err)
 	}
-	
+
 	// 创建迁移器实例
 	migrator, err := NewGolangMigrator(db, config)
 	if err != nil {
 		return fmt.Errorf("failed to create migrator: %w", err)
 	}
-	
+
 	s.migrator = migrator
 	s.config = config
-	
+
 	s.logger.Printf("Migration service initialized with path: %s", config.MigrationsPath)
 	return nil
 }
@@ -61,14 +61,14 @@ func (s *MigrationService) RunMigrations(ctx context.Context) error {
 	if s.migrator == nil {
 		return fmt.Errorf("migration service not initialized")
 	}
-	
+
 	// 获取当前版本
 	version, dirty, err := s.migrator.Version(ctx)
 	if err != nil {
 		s.logger.Printf("No previous migrations found, starting fresh")
 	} else {
 		s.logger.Printf("Current migration version: %d (dirty: %v)", version, dirty)
-		
+
 		// 如果数据库处于dirty状态，尝试优雅修复
 		if dirty {
 			s.logger.Printf("Database is in dirty state at version %d, attempting graceful recovery...", version)
@@ -78,13 +78,13 @@ func (s *MigrationService) RunMigrations(ctx context.Context) error {
 			s.logger.Printf("Successfully recovered from dirty state at version %d", version)
 		}
 	}
-	
+
 	// 执行向上迁移
 	s.logger.Println("Running up migrations...")
 	if err := s.migrator.Up(ctx); err != nil {
 		return fmt.Errorf("failed to run migrations: %w", err)
 	}
-	
+
 	// 获取最终版本
 	finalVersion, _, err := s.migrator.Version(ctx)
 	if err != nil {
@@ -92,7 +92,7 @@ func (s *MigrationService) RunMigrations(ctx context.Context) error {
 	} else {
 		s.logger.Printf("Migrations completed successfully, current version: %d", finalVersion)
 	}
-	
+
 	return nil
 }
 
@@ -101,12 +101,12 @@ func (s *MigrationService) GetMigrationInfo(ctx context.Context) ([]MigrationInf
 	if s.migrator == nil {
 		return nil, fmt.Errorf("migration service not initialized")
 	}
-	
+
 	version, dirty, err := s.migrator.Version(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get migration version: %w", err)
 	}
-	
+
 	// 简单实现，返回当前版本信息
 	info := []MigrationInfo{
 		{
@@ -116,7 +116,7 @@ func (s *MigrationService) GetMigrationInfo(ctx context.Context) ([]MigrationInf
 			Applied:   !dirty,
 		},
 	}
-	
+
 	return info, nil
 }
 
@@ -125,18 +125,18 @@ func (s *MigrationService) Rollback(ctx context.Context, steps int) error {
 	if s.migrator == nil {
 		return fmt.Errorf("migration service not initialized")
 	}
-	
+
 	if steps <= 0 {
 		return fmt.Errorf("rollback steps must be positive")
 	}
-	
+
 	s.logger.Printf("Rolling back %d migration steps...", steps)
-	
+
 	// 执行回滚
 	if err := s.migrator.Steps(ctx, -steps); err != nil {
 		return fmt.Errorf("failed to rollback %d steps: %w", steps, err)
 	}
-	
+
 	s.logger.Printf("Successfully rolled back %d migration steps", steps)
 	return nil
 }
@@ -146,14 +146,14 @@ func (s *MigrationService) Reset(ctx context.Context) error {
 	if s.migrator == nil {
 		return fmt.Errorf("migration service not initialized")
 	}
-	
+
 	s.logger.Println("WARNING: Resetting database - this will remove all data!")
-	
+
 	// 执行完全回滚
 	if err := s.migrator.Down(ctx); err != nil {
 		return fmt.Errorf("failed to reset database: %w", err)
 	}
-	
+
 	s.logger.Println("Database reset completed")
 	return nil
 }
@@ -197,17 +197,17 @@ func (s *MigrationService) ensureMigrationsDir(path string) error {
 	if path == "" {
 		return fmt.Errorf("migrations path cannot be empty")
 	}
-	
+
 	// 转换为绝对路径
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return fmt.Errorf("failed to get absolute path: %w", err)
 	}
-	
+
 	// 创建目录
 	if err := os.MkdirAll(absPath, 0755); err != nil {
 		return fmt.Errorf("failed to create directory %s: %w", absPath, err)
 	}
-	
+
 	return nil
 }

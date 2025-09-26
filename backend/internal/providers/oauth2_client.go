@@ -2,9 +2,12 @@ package providers
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
+	"firemail/internal/proxy"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -15,7 +18,8 @@ import (
 
 // StandardOAuth2Client 标准OAuth2客户端实现
 type StandardOAuth2Client struct {
-	config *oauth2.Config
+	config      *oauth2.Config
+	proxyConfig *ProxyConfig
 }
 
 // NewStandardOAuth2Client 创建标准OAuth2客户端
@@ -32,8 +36,14 @@ func NewStandardOAuth2Client(clientID, clientSecret, authURL, tokenURL, redirect
 	}
 
 	return &StandardOAuth2Client{
-		config: config,
+		config:      config,
+		proxyConfig: nil,
 	}
+}
+
+// SetProxyConfig 设置代理配置
+func (c *StandardOAuth2Client) SetProxyConfig(config *ProxyConfig) {
+	c.proxyConfig = config
 }
 
 // GetAuthURL 获取授权URL
@@ -206,27 +216,69 @@ func NewGmailOAuth2Client(clientID, clientSecret, redirectURL string) *GmailOAut
 	}
 }
 
-// getRevokeURL Gmail撤销URL
-func (c *GmailOAuth2Client) getRevokeURL() string {
-	return "https://oauth2.googleapis.com/revoke"
-}
-
-// getValidationURL Gmail验证URL
-func (c *GmailOAuth2Client) getValidationURL() string {
-	return "https://www.googleapis.com/oauth2/v1/tokeninfo"
-}
-
 // OutlookOAuth2Client Outlook OAuth2客户端 - 严格按照Python代码重写
 type OutlookOAuth2Client struct {
-	ClientID   string
-	httpClient *http.Client
+	ClientID    string
+	httpClient  *http.Client
+	proxyConfig *ProxyConfig
 }
 
 // NewOutlookOAuth2Client 创建Outlook OAuth2客户端 - 简化版本，只支持手动配置
 func NewOutlookOAuth2Client(clientID, clientSecret, redirectURL string) *OutlookOAuth2Client {
 	return &OutlookOAuth2Client{
-		ClientID:   clientID,
-		httpClient: &http.Client{Timeout: 30 * time.Second},
+		ClientID:    clientID,
+		httpClient:  &http.Client{Timeout: 30 * time.Second},
+		proxyConfig: nil,
+	}
+}
+
+// SetProxyConfig 设置代理配置
+func (c *OutlookOAuth2Client) SetProxyConfig(config *ProxyConfig) {
+	c.proxyConfig = config
+	// 重新创建httpClient以应用代理配置
+	c.httpClient = c.createHTTPClient()
+}
+
+// createHTTPClient 创建自定义HTTP客户端（支持代理）
+func (c *OutlookOAuth2Client) createHTTPClient() *http.Client {
+	// 如果没有代理配置，返回默认客户端
+	if c.proxyConfig == nil {
+		return &http.Client{Timeout: 30 * time.Second}
+	}
+
+	// 创建自定义Transport
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: false},
+		DialContext: (&net.Dialer{
+			Timeout: 30 * time.Second,
+		}).DialContext,
+	}
+
+	// 根据代理类型配置
+	switch c.proxyConfig.Type {
+	case "http", "https":
+		// HTTP/HTTPS代理
+		proxyURL := &url.URL{
+			Scheme: "http", // HTTPS代理实际上也是HTTP协议
+			Host:   fmt.Sprintf("%s:%d", c.proxyConfig.Host, c.proxyConfig.Port),
+		}
+		if c.proxyConfig.Username != "" {
+			proxyURL.User = url.UserPassword(c.proxyConfig.Username, c.proxyConfig.Password)
+		}
+		transport.Proxy = http.ProxyURL(proxyURL)
+	case "socks5":
+		// SOCKS5代理需要使用自定义DialContext
+		proxyDialer, err := proxy.CreateDialer(c.proxyConfig.ToProxyConfig())
+		if err == nil {
+			transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+				return proxyDialer.Dial(network, addr)
+			}
+		}
+	}
+
+	return &http.Client{
+		Transport: transport,
+		Timeout:   30 * time.Second,
 	}
 }
 
@@ -359,7 +411,7 @@ func (c *OutlookOAuth2Client) ValidateToken(ctx context.Context, token *OAuth2To
 func (c *OutlookOAuth2Client) RevokeToken(ctx context.Context, token string) error {
 	// Microsoft Graph没有标准的撤销端点
 	// 通常通过删除应用授权来撤销，这里返回不支持的错误
-	return fmt.Errorf("Microsoft Graph does not support token revocation via API. Please revoke access through Azure Portal or Microsoft account settings")
+	return fmt.Errorf("microsoft Graph does not support token revocation via API. Please revoke access through Azure Portal or Microsoft account settings")
 }
 
 // TokenInfo token信息结构

@@ -1,24 +1,29 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
 	"firemail/internal/middleware"
+	"firemail/internal/models"
 	"firemail/internal/services"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // DeduplicationHandler 去重处理器
 type DeduplicationHandler struct {
 	deduplicationManager services.DeduplicationManager
+	db                   *gorm.DB
 }
 
 // NewDeduplicationHandler 创建去重处理器
-func NewDeduplicationHandler(deduplicationManager services.DeduplicationManager) *DeduplicationHandler {
+func NewDeduplicationHandler(deduplicationManager services.DeduplicationManager, db *gorm.DB) *DeduplicationHandler {
 	return &DeduplicationHandler{
 		deduplicationManager: deduplicationManager,
+		db:                   db,
 	}
 }
 
@@ -29,19 +34,19 @@ func (h *DeduplicationHandler) RegisterRoutes(router *gin.RouterGroup) {
 	{
 		// 账户去重
 		dedup.POST("/accounts/:id/deduplicate", h.DeduplicateAccount)
-		
+
 		// 用户所有账户去重
 		dedup.POST("/user/deduplicate", h.DeduplicateUser)
-		
+
 		// 获取去重报告
 		dedup.GET("/accounts/:id/report", h.GetDeduplicationReport)
-		
+
 		// 计划去重任务
 		dedup.POST("/accounts/:id/schedule", h.ScheduleDeduplication)
-		
+
 		// 取消计划去重任务
 		dedup.DELETE("/accounts/:id/schedule", h.CancelScheduledDeduplication)
-		
+
 		// 获取去重统计
 		dedup.GET("/accounts/:id/stats", h.GetDeduplicationStats)
 	}
@@ -49,20 +54,20 @@ func (h *DeduplicationHandler) RegisterRoutes(router *gin.RouterGroup) {
 
 // DeduplicateAccountRequest 账户去重请求
 type DeduplicateAccountRequest struct {
-	DryRun              bool     `json:"dry_run"`
-	CrossFolder         bool     `json:"cross_folder"`
-	CleanupDuplicates   bool     `json:"cleanup_duplicates"`
-	RebuildIndex        bool     `json:"rebuild_index"`
-	BatchSize           int      `json:"batch_size"`
-	IncludeFolders      []string `json:"include_folders"`
-	ExcludeFolders      []string `json:"exclude_folders"`
-	NotifyOnCompletion  bool     `json:"notify_on_completion"`
+	DryRun             bool     `json:"dry_run"`
+	CrossFolder        bool     `json:"cross_folder"`
+	CleanupDuplicates  bool     `json:"cleanup_duplicates"`
+	RebuildIndex       bool     `json:"rebuild_index"`
+	BatchSize          int      `json:"batch_size"`
+	IncludeFolders     []string `json:"include_folders"`
+	ExcludeFolders     []string `json:"exclude_folders"`
+	NotifyOnCompletion bool     `json:"notify_on_completion"`
 }
 
 // DeduplicateAccount 执行账户去重
 func (h *DeduplicationHandler) DeduplicateAccount(c *gin.Context) {
 	userID := middleware.GetUserID(c)
-	
+
 	accountID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
@@ -126,14 +131,14 @@ func (h *DeduplicationHandler) DeduplicateAccount(c *gin.Context) {
 
 // DeduplicateUserRequest 用户去重请求
 type DeduplicateUserRequest struct {
-	DryRun              bool     `json:"dry_run"`
-	CrossFolder         bool     `json:"cross_folder"`
-	CleanupDuplicates   bool     `json:"cleanup_duplicates"`
-	RebuildIndex        bool     `json:"rebuild_index"`
-	BatchSize           int      `json:"batch_size"`
-	IncludeFolders      []string `json:"include_folders"`
-	ExcludeFolders      []string `json:"exclude_folders"`
-	NotifyOnCompletion  bool     `json:"notify_on_completion"`
+	DryRun             bool     `json:"dry_run"`
+	CrossFolder        bool     `json:"cross_folder"`
+	CleanupDuplicates  bool     `json:"cleanup_duplicates"`
+	RebuildIndex       bool     `json:"rebuild_index"`
+	BatchSize          int      `json:"batch_size"`
+	IncludeFolders     []string `json:"include_folders"`
+	ExcludeFolders     []string `json:"exclude_folders"`
+	NotifyOnCompletion bool     `json:"notify_on_completion"`
 }
 
 // DeduplicateUser 执行用户所有账户去重
@@ -186,7 +191,7 @@ func (h *DeduplicationHandler) DeduplicateUser(c *gin.Context) {
 // GetDeduplicationReport 获取去重报告
 func (h *DeduplicationHandler) GetDeduplicationReport(c *gin.Context) {
 	userID := middleware.GetUserID(c)
-	
+
 	accountID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
@@ -232,7 +237,7 @@ type ScheduleDeduplicationRequest struct {
 // ScheduleDeduplication 计划去重任务
 func (h *DeduplicationHandler) ScheduleDeduplication(c *gin.Context) {
 	userID := middleware.GetUserID(c)
-	
+
 	accountID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
@@ -288,7 +293,7 @@ func (h *DeduplicationHandler) ScheduleDeduplication(c *gin.Context) {
 // CancelScheduledDeduplication 取消计划去重任务
 func (h *DeduplicationHandler) CancelScheduledDeduplication(c *gin.Context) {
 	userID := middleware.GetUserID(c)
-	
+
 	accountID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
@@ -326,7 +331,7 @@ func (h *DeduplicationHandler) CancelScheduledDeduplication(c *gin.Context) {
 // GetDeduplicationStats 获取去重统计
 func (h *DeduplicationHandler) GetDeduplicationStats(c *gin.Context) {
 	userID := middleware.GetUserID(c)
-	
+
 	accountID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
@@ -363,7 +368,19 @@ func (h *DeduplicationHandler) GetDeduplicationStats(c *gin.Context) {
 
 // validateAccountAccess 验证账户访问权限
 func (h *DeduplicationHandler) validateAccountAccess(c *gin.Context, accountID, userID uint) error {
-	// 这里应该实现账户权限验证逻辑
-	// 暂时返回nil，表示允许访问
+	var count int64
+	err := h.db.WithContext(c.Request.Context()).
+		Model(&models.EmailAccount{}).
+		Where("id = ? AND user_id = ?", accountID, userID).
+		Count(&count).Error
+
+	if err != nil {
+		return fmt.Errorf("failed to validate account access: %w", err)
+	}
+
+	if count == 0 {
+		return fmt.Errorf("account not found or access denied")
+	}
+
 	return nil
 }

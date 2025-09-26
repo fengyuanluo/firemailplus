@@ -485,11 +485,6 @@ func boolPtr(b bool) *bool {
 	return &b
 }
 
-// timePtr 返回time指针
-func timePtr(t time.Time) *time.Time {
-	return &t
-}
-
 // parseServerConfig 解析服务器配置
 func (d *StandardCapabilityDetector) parseServerConfig(servers map[string]interface{}) ServerConfig {
 	config := ServerConfig{}

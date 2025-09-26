@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"log"
 	"mime"
 	"mime/quotedprintable"
 	"net"
@@ -14,7 +15,11 @@ import (
 	"strings"
 	"sync"
 	"time"
+
 	"firemail/internal/models"
+	"firemail/internal/proxy"
+
+	netproxy "golang.org/x/net/proxy"
 )
 
 // StandardSMTPClient 标准SMTP客户端实现
@@ -49,7 +54,21 @@ func (c *StandardSMTPClient) Connect(ctx context.Context, config SMTPClientConfi
 	// 构建服务器地址
 	addr := net.JoinHostPort(config.Host, strconv.Itoa(config.Port))
 
-	var err error
+	// 创建代理Dialer
+	dialer, err := c.createDialer(config.ProxyConfig, 30*time.Second)
+	if err != nil {
+		return fmt.Errorf("failed to create dialer: %w", err)
+	}
+
+	// 添加代理调试信息
+	if config.ProxyConfig != nil {
+		hasAuth := config.ProxyConfig.Username != ""
+		log.Printf("[DEBUG] SMTP connecting via %s proxy: %s:%d (with auth: %v)",
+			config.ProxyConfig.Type, config.ProxyConfig.Host, config.ProxyConfig.Port, hasAuth)
+	} else {
+		log.Printf("[DEBUG] SMTP direct connection (no proxy configured)")
+	}
+
 	var smtpClient *smtp.Client
 
 	// 根据安全类型连接
@@ -59,29 +78,47 @@ func (c *StandardSMTPClient) Connect(ctx context.Context, config SMTPClientConfi
 		tlsConfig := &tls.Config{
 			ServerName: config.Host,
 		}
-		conn, err := tls.Dial("tcp", addr, tlsConfig)
+		conn, err := c.dialTLS(dialer, addr, tlsConfig)
 		if err != nil {
 			return fmt.Errorf("failed to dial TLS: %w", err)
 		}
 		smtpClient, err = smtp.NewClient(conn, config.Host)
+		if err != nil {
+			conn.Close()
+			return fmt.Errorf("failed to create SMTP client: %w", err)
+		}
 	case "STARTTLS":
 		// 先明文连接，然后升级到TLS
-		smtpClient, err = smtp.Dial(addr)
-		if err == nil {
-			tlsConfig := &tls.Config{
-				ServerName: config.Host,
-			}
-			err = smtpClient.StartTLS(tlsConfig)
+		conn, err := dialer.Dial("tcp", addr)
+		if err != nil {
+			return fmt.Errorf("failed to dial: %w", err)
+		}
+		smtpClient, err = smtp.NewClient(conn, config.Host)
+		if err != nil {
+			conn.Close()
+			return fmt.Errorf("failed to create SMTP client: %w", err)
+		}
+		tlsConfig := &tls.Config{
+			ServerName: config.Host,
+		}
+		err = smtpClient.StartTLS(tlsConfig)
+		if err != nil {
+			smtpClient.Close()
+			return fmt.Errorf("failed to start TLS: %w", err)
 		}
 	case "NONE":
 		// 明文连接
-		smtpClient, err = smtp.Dial(addr)
+		conn, err := dialer.Dial("tcp", addr)
+		if err != nil {
+			return fmt.Errorf("failed to dial: %w", err)
+		}
+		smtpClient, err = smtp.NewClient(conn, config.Host)
+		if err != nil {
+			conn.Close()
+			return fmt.Errorf("failed to create SMTP client: %w", err)
+		}
 	default:
 		return fmt.Errorf("unsupported security type: %s", config.Security)
-	}
-
-	if err != nil {
-		return fmt.Errorf("failed to connect to SMTP server: %w", err)
 	}
 
 	// 设置认证
@@ -600,4 +637,51 @@ func (a *OAuth2SMTPAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 		return []byte{}, nil
 	}
 	return nil, nil
+}
+
+// createDialer 创建代理Dialer
+func (c *StandardSMTPClient) createDialer(proxyConfig *ProxyConfig, timeout time.Duration) (netproxy.Dialer, error) {
+	// 如果没有代理配置，返回标准Dialer
+	if proxyConfig == nil {
+		return &net.Dialer{
+			Timeout: timeout,
+		}, nil
+	}
+
+	// 转换为proxy包的ProxyConfig
+	proxyConf := proxyConfig.ToProxyConfig()
+
+	// 使用proxy包创建Dialer
+	return proxy.CreateDialer(proxyConf)
+}
+
+// dialTLS 使用代理进行TLS连接
+func (c *StandardSMTPClient) dialTLS(dialer netproxy.Dialer, addr string, tlsConfig *tls.Config) (net.Conn, error) {
+	// 先建立到代理的连接
+	conn, err := dialer.Dial("tcp", addr)
+	if err != nil {
+		return nil, err
+	}
+
+	// 如果是直连（非代理），直接进行TLS握手
+	if _, ok := dialer.(*net.Dialer); ok {
+		// 直连情况下，使用tls.Client包装连接
+		tlsConn := tls.Client(conn, tlsConfig)
+		err = tlsConn.Handshake()
+		if err != nil {
+			conn.Close()
+			return nil, err
+		}
+		return tlsConn, nil
+	}
+
+	// 代理连接情况下，也需要进行TLS握手
+	tlsConn := tls.Client(conn, tlsConfig)
+	err = tlsConn.Handshake()
+	if err != nil {
+		conn.Close()
+		return nil, err
+	}
+
+	return tlsConn, nil
 }

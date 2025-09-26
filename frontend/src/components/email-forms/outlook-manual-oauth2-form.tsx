@@ -13,6 +13,7 @@ import { ChevronDown, ChevronRight, ExternalLink, Eye, EyeOff } from 'lucide-rea
 import { useOAuth2 } from '@/hooks/use-oauth';
 import { useMailboxStore } from '@/lib/store';
 import { toast } from 'sonner';
+import { ProxyConfigFields } from '@/components/proxy-config';
 
 // UUID格式验证
 const isValidUUID = (value: string) => {
@@ -36,6 +37,8 @@ const outlookManualOAuth2Schema = z.object({
   client_secret: z.string().optional(),
   refresh_token: z.string().min(1, '请输入刷新令牌'),
   scope: z.string().optional(),
+  // 代理配置
+  proxy_url: z.string().optional(),
 });
 
 type OutlookManualOAuth2Form = z.infer<typeof outlookManualOAuth2Schema>;
@@ -59,6 +62,7 @@ export function OutlookManualOAuth2Form({ onSuccess, onCancel }: OutlookManualOA
     formState: { errors },
     reset,
     setValue,
+    watch,
   } = useForm<OutlookManualOAuth2Form>({
     resolver: zodResolver(outlookManualOAuth2Schema),
     defaultValues: {
@@ -275,6 +279,13 @@ export function OutlookManualOAuth2Form({ onSuccess, onCancel }: OutlookManualOA
               </p>
             </div>
           </div>
+
+          {/* 代理配置 */}
+          <ProxyConfigFields
+            form={{ register, watch, setValue, formState: { errors } } as any}
+            disabled={isSubmitting}
+            compact={true}
+          />
 
           {/* 设置说明 */}
           <Collapsible open={showInstructions} onOpenChange={setShowInstructions}>
