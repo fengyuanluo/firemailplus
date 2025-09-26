@@ -151,7 +151,7 @@ cd firemailplus
 
 # 2. 启动后端服务
 cd backend
-cp .env.example .env
+cp .env.docker.example .env
 # 编辑 .env 文件配置
 go mod download
 go run cmd/firemail/main.go
