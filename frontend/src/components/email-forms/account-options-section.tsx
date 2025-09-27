@@ -42,22 +42,31 @@ export function AccountOptionsSection({
         });
     }
   }, [accountGroups.length, setAccountGroups]);
-  const groupValue = form.watch(groupFieldName) ?? '';
+
+  const UNGROUPED_VALUE = '__ungrouped__';
+  const watchedValue = form.watch(groupFieldName);
+  const selectValue = watchedValue ? String(watchedValue) : UNGROUPED_VALUE;
 
   return (
     <div className="space-y-6">
       <div className="space-y-2">
         <Label className="text-gray-700 dark:text-gray-300">邮箱分组</Label>
         <Select
-          value={groupValue}
-          onValueChange={(value) => form.setValue(groupFieldName, value)}
+          value={selectValue}
+          onValueChange={(value) => {
+            if (value === UNGROUPED_VALUE) {
+              form.setValue(groupFieldName, '', { shouldDirty: true, shouldTouch: true });
+            } else {
+              form.setValue(groupFieldName, value, { shouldDirty: true, shouldTouch: true });
+            }
+          }}
           disabled={disabled}
         >
           <SelectTrigger className="w-full">
             <SelectValue placeholder="选择分组（未分组将显示在默认区域）" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">未分组</SelectItem>
+            <SelectItem value={UNGROUPED_VALUE}>未分组</SelectItem>
             {accountGroups.map((group) => (
               <SelectItem key={group.id} value={group.id.toString()}>
                 {group.name}

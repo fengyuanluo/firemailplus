@@ -110,7 +110,7 @@ export function AccountItem({
 
   return (
     <div
-      className={`space-y-1 ${isSelected ? 'ring-2 ring-blue-500 rounded-md' : ''}`}
+      className="space-y-1"
       draggable
       onDragStart={(event) => onAccountDragStart?.(event, account)}
       onDragEnter={(event) => onAccountDragEnter?.(event, account)}
@@ -123,15 +123,15 @@ export function AccountItem({
         onClick={handleAccountClick}
         onContextMenu={handleContextMenu}
         className={`
-          flex items-center gap-2 p-2 rounded-md cursor-pointer transition-colors
+          relative flex items-center gap-2 p-2 rounded-md cursor-pointer transition-colors
           hover:bg-gray-100 dark:hover:bg-gray-700
           ${
             selectedAccount?.id === account.id
               ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
               : 'text-gray-700 dark:text-gray-300'
           }
-          ${isSelected ? 'border border-blue-300 dark:border-blue-600' : ''}
-          ${isDragOver ? 'ring-2 ring-dashed ring-blue-400' : ''}
+          ${isSelected ? 'outline outline-2 outline-blue-400 dark:outline-blue-500 outline-offset-0' : ''}
+          ${isDragOver ? 'ring-2 ring-blue-400 dark:ring-blue-500 ring-offset-0' : ''}
         `}
       >
         {/* 展开/折叠图标 */}
@@ -182,7 +182,7 @@ export function AccountItem({
 
       {/* 错误信息显示 */}
       {account.sync_status === 'error' && account.error_message && (
-        <div className="ml-6 p-2 text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded border border-red-200 dark:border-red-800">
+        <div className="ml-6 p-2 text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded border border-red-200 dark:border-red-800 whitespace-pre-wrap break-words">
           {account.error_message}
         </div>
       )}

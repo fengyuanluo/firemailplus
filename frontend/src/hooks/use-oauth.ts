@@ -65,6 +65,7 @@ export function useOAuth2() {
       scope?: string;
       client_id: string; // 必需，用于token刷新
       proxy_url?: string; // 代理配置
+      group_id?: number | null;
     }) => apiClient.createOAuth2Account(account),
     onSuccess: (response) => {
       if (response.success && response.data) {
@@ -90,6 +91,8 @@ export function useOAuth2() {
       scope?: string;
       auth_url?: string;
       token_url?: string;
+      proxy_url?: string;
+      group_id?: number | null;
     }) => apiClient.createManualOAuth2Account(account),
     onSuccess: (response) => {
       if (response.success && response.data) {

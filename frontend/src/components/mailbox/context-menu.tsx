@@ -75,11 +75,12 @@ export function ContextMenu({
           if (target.type === 'account') {
             await apiClient.syncAccount(target.id);
             toast.success('账户同步已开始');
+            onSync?.(target.id);
           } else if (target.type === 'folder') {
             await apiClient.syncFolder(target.id);
             toast.success('文件夹同步已开始');
+            onSync?.(target.id);
           }
-          onSync?.(target.id);
           break;
 
         case 'delete':
