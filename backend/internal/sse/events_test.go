@@ -46,9 +46,9 @@ func TestEventPriority(t *testing.T) {
 func TestNewEvent(t *testing.T) {
 	userID := uint(123)
 	data := map[string]interface{}{"test": "data"}
-	
+
 	event := NewEvent(EventNewEmail, data, userID)
-	
+
 	assert.NotEmpty(t, event.ID)
 	assert.Equal(t, EventNewEmail, event.Type)
 	assert.Equal(t, data, event.Data)
@@ -59,25 +59,25 @@ func TestNewEvent(t *testing.T) {
 
 func TestNewNewEmailEvent(t *testing.T) {
 	email := &models.Email{
-		BaseModel: models.BaseModel{ID: 1},
-		AccountID: 2,
-		FolderID:  func() *uint { id := uint(3); return &id }(),
-		Subject:   "Test Subject",
-		From:      "test@example.com",
-		Date:      time.Now(),
-		IsRead:    false,
+		BaseModel:     models.BaseModel{ID: 1},
+		AccountID:     2,
+		FolderID:      func() *uint { id := uint(3); return &id }(),
+		Subject:       "Test Subject",
+		From:          "test@example.com",
+		Date:          time.Now(),
+		IsRead:        false,
 		HasAttachment: true,
-		TextBody:  "This is a test email body with more than 100 characters to test the preview truncation functionality.",
+		TextBody:      "This is a test email body with more than 100 characters to test the preview truncation functionality.",
 	}
 	userID := uint(123)
-	
+
 	event := NewNewEmailEvent(email, userID)
-	
+
 	assert.Equal(t, EventNewEmail, event.Type)
 	assert.Equal(t, userID, event.UserID)
 	assert.Equal(t, email.AccountID, *event.AccountID)
 	assert.Equal(t, PriorityHigh, event.Priority)
-	
+
 	// 验证事件数据
 	data, ok := event.Data.(*NewEmailEventData)
 	require.True(t, ok)
@@ -96,7 +96,7 @@ func TestNewEmailStatusEvent(t *testing.T) {
 	emailID := uint(1)
 	accountID := uint(2)
 	userID := uint(123)
-	
+
 	tests := []struct {
 		name         string
 		isRead       *bool
@@ -130,15 +130,15 @@ func TestNewEmailStatusEvent(t *testing.T) {
 			expectedType: EventEmailDeleted,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			event := NewEmailStatusEvent(emailID, accountID, userID, tt.isRead, tt.isStarred, tt.isDeleted)
-			
+			event := NewEmailStatusEvent(emailID, accountID, userID, tt.isRead, tt.isStarred, tt.isDeleted, nil)
+
 			assert.Equal(t, tt.expectedType, event.Type)
 			assert.Equal(t, userID, event.UserID)
 			assert.Equal(t, accountID, *event.AccountID)
-			
+
 			// 验证事件数据
 			data, ok := event.Data.(*EmailStatusEventData)
 			require.True(t, ok)
@@ -155,25 +155,25 @@ func TestNewSyncEvent(t *testing.T) {
 	accountID := uint(1)
 	accountName := "Test Account"
 	userID := uint(123)
-	
+
 	tests := []struct {
-		name         string
-		eventType    EventType
+		name           string
+		eventType      EventType
 		expectedStatus string
 	}{
 		{"同步开始", EventSyncStarted, "started"},
 		{"同步完成", EventSyncCompleted, "completed"},
 		{"同步错误", EventSyncError, "error"},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			event := NewSyncEvent(tt.eventType, accountID, accountName, userID)
-			
+
 			assert.Equal(t, tt.eventType, event.Type)
 			assert.Equal(t, userID, event.UserID)
 			assert.Equal(t, accountID, *event.AccountID)
-			
+
 			// 验证事件数据
 			data, ok := event.Data.(*SyncEventData)
 			require.True(t, ok)
@@ -189,13 +189,13 @@ func TestNewNotificationEvent(t *testing.T) {
 	message := "Test Message"
 	notificationType := "info"
 	userID := uint(123)
-	
+
 	event := NewNotificationEvent(title, message, notificationType, userID)
-	
+
 	assert.Equal(t, EventNotification, event.Type)
 	assert.Equal(t, userID, event.UserID)
 	assert.Equal(t, PriorityHigh, event.Priority)
-	
+
 	// 验证事件数据
 	data, ok := event.Data.(*NotificationEventData)
 	require.True(t, ok)
@@ -206,14 +206,14 @@ func TestNewNotificationEvent(t *testing.T) {
 
 func TestNewHeartbeatEvent(t *testing.T) {
 	clientID := "test-client-123"
-	
+
 	event := NewHeartbeatEvent(clientID)
-	
+
 	assert.Equal(t, EventHeartbeat, event.Type)
 	assert.Equal(t, uint(0), event.UserID) // 心跳事件不绑定特定用户
 	assert.Equal(t, PriorityLow, event.Priority)
 	assert.NotEmpty(t, event.ID)
-	
+
 	// 验证事件数据
 	data, ok := event.Data.(*HeartbeatEventData)
 	require.True(t, ok)
@@ -231,12 +231,12 @@ func TestEventToSSEFormat(t *testing.T) {
 		Timestamp: time.Now(),
 		Retry:     func() *int { r := 3000; return &r }(),
 	}
-	
+
 	sseData, err := event.ToSSEFormat()
 	require.NoError(t, err)
-	
+
 	sseString := string(sseData)
-	
+
 	// 验证SSE格式
 	assert.Contains(t, sseString, "id: test-123")
 	assert.Contains(t, sseString, "event: new_email")
@@ -244,7 +244,7 @@ func TestEventToSSEFormat(t *testing.T) {
 	assert.Contains(t, sseString, "data: ")
 	assert.Contains(t, sseString, `"test":"data"`)
 	assert.Contains(t, sseString, `"user_id":123`)
-	
+
 	// 验证结束标记
 	assert.Contains(t, sseString, "\n\n")
 }
@@ -258,12 +258,12 @@ func TestEventToSSEFormatWithoutRetry(t *testing.T) {
 		Priority:  PriorityLow,
 		Timestamp: time.Now(),
 	}
-	
+
 	sseData, err := event.ToSSEFormat()
 	require.NoError(t, err)
-	
+
 	sseString := string(sseData)
-	
+
 	// 验证SSE格式
 	assert.Contains(t, sseString, "id: test-456")
 	assert.Contains(t, sseString, "event: heartbeat")
@@ -277,7 +277,7 @@ func TestEventToSSEFormatInvalidData(t *testing.T) {
 		Type: EventNewEmail,
 		Data: make(chan int), // 无法序列化的数据类型
 	}
-	
+
 	_, err := event.ToSSEFormat()
 	assert.Error(t, err)
 }
@@ -285,7 +285,7 @@ func TestEventToSSEFormatInvalidData(t *testing.T) {
 func TestGenerateEventID(t *testing.T) {
 	id1 := generateEventID()
 	id2 := generateEventID()
-	
+
 	assert.NotEmpty(t, id1)
 	assert.NotEmpty(t, id2)
 	assert.NotEqual(t, id1, id2) // 应该生成不同的ID
@@ -323,7 +323,7 @@ func TestTruncateText(t *testing.T) {
 			expected:  "Exactly twenty chars",
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := truncateText(tt.input, tt.maxLength)

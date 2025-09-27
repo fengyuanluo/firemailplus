@@ -1109,7 +1109,7 @@ func (s *EmailServiceImpl) DeleteEmail(ctx context.Context, userID, emailID uint
 	// 发布邮件删除事件
 	if s.eventPublisher != nil {
 		isDeleted := true
-		event := sse.NewEmailStatusEvent(emailID, email.AccountID, userID, nil, nil, nil)
+		event := sse.NewEmailStatusEvent(emailID, email.AccountID, userID, nil, nil, nil, nil)
 		event.Type = sse.EventEmailDeleted
 		if event.Data != nil {
 			if statusData, ok := event.Data.(*sse.EmailStatusEventData); ok {
@@ -1154,7 +1154,7 @@ func (s *EmailServiceImpl) MarkEmailAsRead(ctx context.Context, userID, emailID 
 	// 发布邮件状态变更事件
 	if s.eventPublisher != nil {
 		isRead := true
-		event := sse.NewEmailStatusEvent(emailID, email.AccountID, userID, &isRead, nil, nil)
+		event := sse.NewEmailStatusEvent(emailID, email.AccountID, userID, &isRead, nil, nil, nil)
 		if err := s.eventPublisher.PublishToUser(ctx, userID, event); err != nil {
 			// 记录错误但不影响主要操作
 			fmt.Printf("Failed to publish email read event: %v\n", err)
@@ -1193,7 +1193,7 @@ func (s *EmailServiceImpl) MarkEmailAsUnread(ctx context.Context, userID, emailI
 	// 发布邮件状态变更事件
 	if s.eventPublisher != nil {
 		isRead := false
-		event := sse.NewEmailStatusEvent(emailID, email.AccountID, userID, &isRead, nil, nil)
+		event := sse.NewEmailStatusEvent(emailID, email.AccountID, userID, &isRead, nil, nil, nil)
 		if err := s.eventPublisher.PublishToUser(ctx, userID, event); err != nil {
 			// 记录错误但不影响主要操作
 			fmt.Printf("Failed to publish email unread event: %v\n", err)
@@ -1231,10 +1231,10 @@ func (s *EmailServiceImpl) ToggleEmailStar(ctx context.Context, userID, emailID 
 		var event *sse.Event
 
 		if isStarred {
-			event = sse.NewEmailStatusEvent(emailID, email.AccountID, userID, nil, &isStarred, nil)
+			event = sse.NewEmailStatusEvent(emailID, email.AccountID, userID, nil, &isStarred, nil, nil)
 			event.Type = sse.EventEmailStarred
 		} else {
-			event = sse.NewEmailStatusEvent(emailID, email.AccountID, userID, nil, &isStarred, nil)
+			event = sse.NewEmailStatusEvent(emailID, email.AccountID, userID, nil, &isStarred, nil, nil)
 			event.Type = sse.EventEmailUnstarred
 		}
 
@@ -1275,10 +1275,10 @@ func (s *EmailServiceImpl) ToggleEmailImportant(ctx context.Context, userID, ema
 		var event *sse.Event
 
 		if isImportant {
-			event = sse.NewEmailStatusEvent(emailID, email.AccountID, userID, nil, nil, &isImportant)
+			event = sse.NewEmailStatusEvent(emailID, email.AccountID, userID, nil, nil, nil, &isImportant)
 			event.Type = sse.EventEmailImportant
 		} else {
-			event = sse.NewEmailStatusEvent(emailID, email.AccountID, userID, nil, nil, &isImportant)
+			event = sse.NewEmailStatusEvent(emailID, email.AccountID, userID, nil, nil, nil, &isImportant)
 			event.Type = sse.EventEmailUnimportant
 		}
 
