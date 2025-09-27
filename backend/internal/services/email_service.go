@@ -33,6 +33,13 @@ type EmailService interface {
 	UpdateEmailAccount(ctx context.Context, userID, accountID uint, req *UpdateEmailAccountRequest) (*models.EmailAccount, error)
 	DeleteEmailAccount(ctx context.Context, userID, accountID uint) error
 	TestEmailAccount(ctx context.Context, userID, accountID uint) error
+	GetAccountGroups(ctx context.Context, userID uint) ([]*models.EmailAccountGroup, error)
+	CreateAccountGroup(ctx context.Context, userID uint, req *CreateAccountGroupRequest) (*models.EmailAccountGroup, error)
+	UpdateAccountGroup(ctx context.Context, userID, groupID uint, req *UpdateAccountGroupRequest) (*models.EmailAccountGroup, error)
+	DeleteAccountGroup(ctx context.Context, userID, groupID uint) error
+	ReorderAccountGroups(ctx context.Context, userID uint, orders []AccountGroupOrder) error
+	MoveAccountsToGroup(ctx context.Context, userID uint, req *MoveAccountsToGroupRequest) error
+	ReorderAccounts(ctx context.Context, userID uint, orders []AccountOrder) error
 
 	// 邮件同步
 	SyncEmails(ctx context.Context, accountID uint) error
@@ -101,6 +108,68 @@ func (s *EmailServiceImpl) SetAttachmentService(attachmentService AttachmentDown
 
 // 请求和响应结构体
 
+// OptionalUint 用于处理可空并区分是否显式提供的uint字段
+type OptionalUint struct {
+	Set   bool
+	Value *uint
+}
+
+// UintPtr 返回指针值
+func (o OptionalUint) UintPtr() *uint {
+	if !o.Set {
+		return nil
+	}
+	return o.Value
+}
+
+// UnmarshalJSON 自定义反序列化逻辑
+func (o *OptionalUint) UnmarshalJSON(data []byte) error {
+	if o == nil {
+		return fmt.Errorf("optional uint is nil")
+	}
+	o.Set = true
+	trimmed := bytes.TrimSpace(data)
+	if bytes.Equal(trimmed, []byte("null")) {
+		o.Value = nil
+		return nil
+	}
+	var v uint
+	if err := json.Unmarshal(trimmed, &v); err != nil {
+		return err
+	}
+	o.Value = &v
+	return nil
+}
+
+// CreateAccountGroupRequest 创建分组请求
+type CreateAccountGroupRequest struct {
+	Name string `json:"name" binding:"required"`
+}
+
+// UpdateAccountGroupRequest 更新分组请求
+type UpdateAccountGroupRequest struct {
+	Name      *string `json:"name"`
+	SortOrder *int    `json:"sort_order"`
+}
+
+// AccountGroupOrder 分组排序
+type AccountGroupOrder struct {
+	ID        uint `json:"id" binding:"required"`
+	SortOrder int  `json:"sort_order" binding:"required"`
+}
+
+// MoveAccountsToGroupRequest 批量移动账户到分组
+type MoveAccountsToGroupRequest struct {
+	AccountIDs []uint `json:"account_ids" binding:"required"`
+	GroupID    *uint  `json:"group_id"`
+}
+
+// AccountOrder 邮箱账户排序请求
+type AccountOrder struct {
+	AccountID uint `json:"account_id" binding:"required"`
+	SortOrder int  `json:"sort_order" binding:"required"`
+}
+
 // CreateEmailAccountRequest 创建邮件账户请求
 type CreateEmailAccountRequest struct {
 	Name         string `json:"name" binding:"required"`
@@ -118,6 +187,10 @@ type CreateEmailAccountRequest struct {
 
 	// 代理配置
 	ProxyURL string `json:"proxy_url"` // 代理URL，如：http://user:pass@proxy.com:8080
+
+	// 分组配置
+	GroupID   *uint `json:"group_id"`
+	SortOrder *int  `json:"sort_order"`
 }
 
 // UpdateEmailAccountRequest 更新邮件账户请求
@@ -134,6 +207,10 @@ type UpdateEmailAccountRequest struct {
 
 	// 代理配置（使用指针类型支持部分更新）
 	ProxyURL *string `json:"proxy_url"` // 代理URL，如：http://user:pass@proxy.com:8080
+
+	// 分组配置
+	GroupID   OptionalUint `json:"group_id"`
+	SortOrder *int         `json:"sort_order"`
 }
 
 // GetEmailsRequest 获取邮件列表请求
@@ -273,6 +350,24 @@ func (s *EmailServiceImpl) CreateEmailAccount(ctx context.Context, userID uint, 
 		SyncStatus: "pending",
 	}
 
+	// 处理分组信息
+	if req.GroupID != nil {
+		if _, err := s.findAccountGroup(s.db.WithContext(ctx), userID, *req.GroupID); err != nil {
+			return nil, err
+		}
+		account.GroupID = req.GroupID
+	}
+
+	if req.SortOrder != nil {
+		account.SortOrder = *req.SortOrder
+	} else {
+		nextOrder, err := s.nextAccountSortOrderDB(s.db.WithContext(ctx), userID, account.GroupID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to determine account sort order: %w", err)
+		}
+		account.SortOrder = nextOrder
+	}
+
 	// 根据邮箱类型设置配置
 	if err := s.configureAccountByProvider(account, req, providerConfig); err != nil {
 		return nil, fmt.Errorf("failed to configure account: %w", err)
@@ -322,8 +417,10 @@ func (s *EmailServiceImpl) CreateEmailAccount(ctx context.Context, userID uint, 
 func (s *EmailServiceImpl) GetEmailAccounts(ctx context.Context, userID uint) ([]*models.EmailAccount, error) {
 	var accounts []*models.EmailAccount
 
-	err := s.db.Where("user_id = ?", userID).
-		Order("created_at DESC").
+	err := s.db.WithContext(ctx).
+		Where("user_id = ?", userID).
+		Preload("Group").
+		Order("sort_order ASC, created_at DESC").
 		Find(&accounts).Error
 
 	if err != nil {
@@ -386,6 +483,37 @@ func (s *EmailServiceImpl) UpdateEmailAccount(ctx context.Context, userID, accou
 	// 更新代理配置
 	if err := s.updateProxySettings(account, req); err != nil {
 		return nil, fmt.Errorf("failed to update proxy settings: %w", err)
+	}
+
+	currentGroupID := account.GroupID
+
+	// 更新分组与排序
+	if req.GroupID.Set {
+		if req.GroupID.Value != nil {
+			if _, err := s.findAccountGroup(s.db.WithContext(ctx), userID, *req.GroupID.Value); err != nil {
+				return nil, err
+			}
+		}
+
+		changed := false
+		if (currentGroupID == nil) != (req.GroupID.Value == nil) {
+			changed = true
+		} else if currentGroupID != nil && req.GroupID.Value != nil && *currentGroupID != *req.GroupID.Value {
+			changed = true
+		}
+
+		account.GroupID = req.GroupID.Value
+		if changed && req.SortOrder == nil {
+			nextOrder, err := s.nextAccountSortOrderDB(s.db.WithContext(ctx), userID, account.GroupID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to determine account sort order: %w", err)
+			}
+			account.SortOrder = nextOrder
+		}
+	}
+
+	if req.SortOrder != nil {
+		account.SortOrder = *req.SortOrder
 	}
 
 	// 验证更新后的配置

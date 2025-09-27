@@ -4,7 +4,7 @@
  */
 
 import { create } from 'zustand';
-import type { EmailAccount, Email, Folder } from '@/types/email';
+import type { EmailAccount, Email, Folder, EmailAccountGroup } from '@/types/email';
 
 // 搜索筛选条件
 interface SearchFilters {
@@ -33,6 +33,7 @@ interface MailboxState {
   // 账户状态
   accounts: EmailAccount[];
   selectedAccount: EmailAccount | null;
+  accountGroups: EmailAccountGroup[];
 
   // 文件夹状态
   folders: Folder[];
@@ -69,9 +70,15 @@ interface MailboxState {
 
   // 账户操作
   setAccounts: (accounts: EmailAccount[]) => void;
+  setAccountGroups: (groups: EmailAccountGroup[]) => void;
   addAccount: (account: EmailAccount) => void;
+  addAccountGroup: (group: EmailAccountGroup) => void;
   updateAccount: (account: EmailAccount) => void;
+  updateAccountGroup: (group: EmailAccountGroup) => void;
   removeAccount: (id: number) => void;
+  removeAccountGroup: (id: number) => void;
+  reorderAccountGroupsState: (orders: { id: number; sort_order: number }[]) => void;
+  reorderAccountsState: (orders: { account_id: number; sort_order: number }[]) => void;
   selectAccount: (account: EmailAccount | null) => void;
 
   // 文件夹操作
@@ -122,10 +129,25 @@ interface MailboxState {
   resetState: () => void;
 }
 
+const compareAccounts = (a: EmailAccount, b: EmailAccount) => {
+  if (a.sort_order === b.sort_order) {
+    return a.id - b.id;
+  }
+  return a.sort_order - b.sort_order;
+};
+
+const compareAccountGroups = (a: EmailAccountGroup, b: EmailAccountGroup) => {
+  if (a.sort_order === b.sort_order) {
+    return a.id - b.id;
+  }
+  return a.sort_order - b.sort_order;
+};
+
 export const useMailboxStore = create<MailboxState>((set, get) => ({
   // 初始状态
   accounts: [],
   selectedAccount: null,
+  accountGroups: [],
   folders: [],
   selectedFolder: null,
   expandedFolders: new Set(),
@@ -152,21 +174,70 @@ export const useMailboxStore = create<MailboxState>((set, get) => ({
   syncError: null,
 
   // 账户操作
-  setAccounts: (accounts) => set({ accounts }),
+  setAccounts: (accounts) =>
+    set({
+      accounts: [...accounts].sort(compareAccounts),
+    }),
+  setAccountGroups: (groups) =>
+    set({
+      accountGroups: [...groups].sort(compareAccountGroups),
+    }),
   addAccount: (account) =>
     set((state) => ({
-      accounts: [...state.accounts, account],
+      accounts: [...state.accounts, account].sort(compareAccounts),
+    })),
+  addAccountGroup: (group) =>
+    set((state) => ({
+      accountGroups: [...state.accountGroups, group].sort(compareAccountGroups),
     })),
   updateAccount: (account) =>
     set((state) => ({
-      accounts: state.accounts.map((acc) => (acc.id === account.id ? account : acc)),
+      accounts: state.accounts
+        .map((acc) => (acc.id === account.id ? account : acc))
+        .sort(compareAccounts),
       selectedAccount: state.selectedAccount?.id === account.id ? account : state.selectedAccount,
+    })),
+  updateAccountGroup: (group) =>
+    set((state) => ({
+      accountGroups: state.accountGroups
+        .map((g) => (g.id === group.id ? group : g))
+        .sort(compareAccountGroups),
     })),
   removeAccount: (id) =>
     set((state) => ({
       accounts: state.accounts.filter((acc) => acc.id !== id),
       selectedAccount: state.selectedAccount?.id === id ? null : state.selectedAccount,
     })),
+  removeAccountGroup: (id) =>
+    set((state) => ({
+      accountGroups: state.accountGroups.filter((group) => group.id !== id),
+    })),
+  reorderAccountGroupsState: (orders) =>
+    set((state) => {
+      if (!orders || orders.length === 0) {
+        return {};
+      }
+      const orderMap = new Map(orders.map((item) => [item.id, item.sort_order]));
+      const updated = state.accountGroups
+        .map((group) =>
+          orderMap.has(group.id) ? { ...group, sort_order: orderMap.get(group.id)! } : group
+        )
+        .sort(compareAccountGroups);
+      return { accountGroups: updated };
+    }),
+  reorderAccountsState: (orders) =>
+    set((state) => {
+      if (!orders || orders.length === 0) {
+        return {};
+      }
+      const orderMap = new Map(orders.map((item) => [item.account_id, item.sort_order]));
+      const updatedAccounts = state.accounts
+        .map((account) =>
+          orderMap.has(account.id) ? { ...account, sort_order: orderMap.get(account.id)! } : account
+        )
+        .sort(compareAccounts);
+      return { accounts: updatedAccounts };
+    }),
   selectAccount: (account) =>
     set({
       selectedAccount: account,

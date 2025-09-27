@@ -141,11 +141,24 @@ func setupRoutes(router *gin.Engine, h *handlers.Handler) {
 			accounts.GET("", h.GetEmailAccounts)
 			accounts.POST("", h.CreateEmailAccount)
 			accounts.POST("/custom", h.CreateCustomEmailAccount) // 自定义邮箱创建端点
+			accounts.POST("/move", h.MoveAccountsToGroup)
+			accounts.POST("/reorder", h.ReorderAccounts)
 			accounts.GET("/:id", h.GetEmailAccount)
 			accounts.PUT("/:id", h.UpdateEmailAccount)
 			accounts.DELETE("/:id", h.DeleteEmailAccount)
 			accounts.POST("/:id/test", h.TestEmailAccount)
 			accounts.POST("/:id/sync", h.SyncEmailAccount)
+		}
+
+		// 邮箱分组管理路由（需要认证）
+		accountGroups := api.Group("/account-groups")
+		accountGroups.Use(h.AuthRequired())
+		{
+			accountGroups.GET("", h.GetAccountGroups)
+			accountGroups.POST("", h.CreateAccountGroup)
+			accountGroups.PUT("/:id", h.UpdateAccountGroup)
+			accountGroups.DELETE("/:id", h.DeleteAccountGroup)
+			accountGroups.POST("/reorder", h.ReorderAccountGroups)
 		}
 
 		// 提供商配置路由（需要认证）
@@ -215,10 +228,10 @@ func setupRoutes(router *gin.Engine, h *handlers.Handler) {
 		// SSE路由（SSE端点有自己的认证逻辑）
 		sse := api.Group("/sse")
 		{
-			sse.GET("", h.HandleSSE)                    // 主SSE端点，支持token参数
-			sse.GET("/events", h.HandleSSE)             // 保持向后兼容
-			sse.GET("/stats", h.AuthRequired(), h.GetSSEStats)     // 统计需要认证
-			sse.POST("/test", h.AuthRequired(), h.SendTestEvent)   // 测试需要认证
+			sse.GET("", h.HandleSSE)                             // 主SSE端点，支持token参数
+			sse.GET("/events", h.HandleSSE)                      // 保持向后兼容
+			sse.GET("/stats", h.AuthRequired(), h.GetSSEStats)   // 统计需要认证
+			sse.POST("/test", h.AuthRequired(), h.SendTestEvent) // 测试需要认证
 		}
 	}
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { CheckCheck, RefreshCw, Settings, Trash2, Edit, FolderPlus, Download } from 'lucide-react';
+import { CheckCheck, RefreshCw, Settings, Trash2, Edit, FolderPlus } from 'lucide-react';
 import { useContextMenuStore } from '@/lib/store';
 import { apiClient } from '@/lib/api';
 import { toast } from 'sonner';
@@ -13,6 +13,9 @@ interface ContextMenuProps {
   onRename?: (targetId: number) => void;
   onSettings?: (targetId: number) => void;
   onDeleteAccount?: (targetId: number) => void;
+  onCreateGroup?: () => void;
+  onRenameGroup?: (groupId: number) => void;
+  onDeleteGroup?: (groupId: number) => void;
 }
 
 export function ContextMenu({
@@ -22,6 +25,9 @@ export function ContextMenu({
   onRename,
   onSettings,
   onDeleteAccount,
+  onCreateGroup,
+  onRenameGroup,
+  onDeleteGroup,
 }: ContextMenuProps) {
   const { isOpen, position, target, closeMenu } = useContextMenuStore();
   const menuRef = useRef<HTMLDivElement>(null);
@@ -103,6 +109,24 @@ export function ContextMenu({
             onDeleteAccount?.(target.id);
           }
           break;
+
+        case 'createGroup':
+          if (target.type === 'sidebar') {
+            onCreateGroup?.();
+          }
+          break;
+
+        case 'renameGroup':
+          if (target.type === 'group') {
+            onRenameGroup?.(target.id);
+          }
+          break;
+
+        case 'deleteGroup':
+          if (target.type === 'group') {
+            onDeleteGroup?.(target.id);
+          }
+          break;
       }
     } catch (error: any) {
       toast.error(error.message || '操作失败');
@@ -166,6 +190,26 @@ export function ContextMenu({
           }
         );
       }
+    } else if (target.type === 'group') {
+      items.push(
+        {
+          icon: Edit,
+          label: '重命名分组',
+          action: 'renameGroup',
+        },
+        {
+          icon: Trash2,
+          label: '删除分组',
+          action: 'deleteGroup',
+          danger: true,
+        }
+      );
+    } else if (target.type === 'sidebar') {
+      items.push({
+        icon: FolderPlus,
+        label: '新建分组',
+        action: 'createGroup',
+      });
     }
 
     return items;

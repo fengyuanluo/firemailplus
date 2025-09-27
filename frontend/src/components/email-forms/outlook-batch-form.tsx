@@ -21,13 +21,14 @@ import {
 } from 'lucide-react';
 import { useBatchAddAccounts, parseBatchData } from '@/hooks/use-batch-add';
 import { toast } from 'sonner';
-import { ProxyConfigFields } from '@/components/proxy-config';
+import { AccountOptionsSection } from './account-options-section';
 
 const outlookBatchSchema = z.object({
   batchData: z.string().min(1, '请输入批量数据'),
   namePrefix: z.string().min(1, '请输入账户名称前缀'),
   // 代理配置
   proxy_url: z.string().optional(),
+  group_id: z.string().optional(),
 });
 
 type OutlookBatchForm = z.infer<typeof outlookBatchSchema>;
@@ -55,6 +56,7 @@ export function OutlookBatchForm({ onSuccess, onCancel }: OutlookBatchFormProps)
     resolver: zodResolver(outlookBatchSchema),
     defaultValues: {
       namePrefix: 'Outlook账户',
+      group_id: '',
     },
   });
 
@@ -87,7 +89,8 @@ export function OutlookBatchForm({ onSuccess, onCancel }: OutlookBatchFormProps)
     }
 
     setShowResults(true);
-    await processBatch(accounts, data.namePrefix, data.proxy_url);
+    const groupId = data.group_id ? Number(data.group_id) : null;
+    await processBatch(accounts, data.namePrefix, data.proxy_url, groupId ?? undefined);
   };
 
   // 导出结果
@@ -202,11 +205,10 @@ export function OutlookBatchForm({ onSuccess, onCancel }: OutlookBatchFormProps)
             </div>
           </div>
 
-          {/* 代理配置 */}
-          <ProxyConfigFields
+          <AccountOptionsSection
             form={{ register, watch, setValue, formState: { errors } } as any}
             disabled={progress.isProcessing}
-            compact={true}
+            compactProxy={true}
           />
 
           {/* 格式说明 */}
@@ -306,7 +308,13 @@ user3@live.com----password3----11111111-2222-3333-4444-555555555555----refresh_t
                           type="button"
                           size="sm"
                           variant="outline"
-                          onClick={() => retryFailed(watch('namePrefix'), watch('proxy_url'))}
+                          onClick={() =>
+                            retryFailed(
+                              watch('namePrefix'),
+                              watch('proxy_url'),
+                              watch('group_id') ? Number(watch('group_id')) : null
+                            )
+                          }
                           className="text-xs"
                         >
                           <RefreshCw className="w-3 h-3 mr-1" />

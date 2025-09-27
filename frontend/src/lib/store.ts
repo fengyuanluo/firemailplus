@@ -573,14 +573,17 @@ interface NotificationState {
 }
 
 // 右键菜单状态
+type ContextMenuTarget =
+  | { type: 'account'; id: number; data?: any }
+  | { type: 'folder'; id: number; data?: any }
+  | { type: 'email'; id: number; data?: any }
+  | { type: 'group'; id: number; data?: any }
+  | { type: 'sidebar'; data?: any };
+
 interface ContextMenuState {
   isOpen: boolean;
   position: { x: number; y: number };
-  target: {
-    type: 'account' | 'folder' | 'email';
-    id: number;
-    data?: any;
-  } | null;
+  target: ContextMenuTarget | null;
   setIsOpen: (open: boolean) => void;
   setPosition: (position: { x: number; y: number }) => void;
   setTarget: (target: ContextMenuState['target']) => void;

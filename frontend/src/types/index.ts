@@ -43,6 +43,7 @@ export type {
 // 邮件相关类型
 export type {
   EmailAccount as EmailAccountType,
+  EmailAccountGroup as EmailAccountGroupType,
   Email as EmailType,
   EmailAddress as EmailAddressType,
   Attachment as AttachmentType,

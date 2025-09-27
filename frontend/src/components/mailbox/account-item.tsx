@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import type { DragEvent, MouseEvent } from 'react';
 import { ChevronDown, ChevronRight, Circle, AlertCircle, Loader2 } from 'lucide-react';
 import { EmailAccount } from '@/types/email';
 import { useMailboxStore, useContextMenuStore } from '@/lib/store';
@@ -9,9 +10,27 @@ import { apiClient } from '@/lib/api';
 
 interface AccountItemProps {
   account: EmailAccount;
+  isSelected?: boolean;
+  isDragOver?: boolean;
+  onAccountClick?: (event: MouseEvent<HTMLDivElement>, account: EmailAccount) => void;
+  onAccountDragStart?: (event: DragEvent<HTMLDivElement>, account: EmailAccount) => void;
+  onAccountDragEnter?: (event: DragEvent<HTMLDivElement>, account: EmailAccount) => void;
+  onAccountDragOver?: (event: DragEvent<HTMLDivElement>, account: EmailAccount) => void;
+  onAccountDragEnd?: (event: DragEvent<HTMLDivElement>, account: EmailAccount) => void;
+  onAccountDrop?: (event: DragEvent<HTMLDivElement>, account: EmailAccount) => void;
 }
 
-export function AccountItem({ account }: AccountItemProps) {
+export function AccountItem({
+  account,
+  isSelected = false,
+  isDragOver = false,
+  onAccountClick,
+  onAccountDragStart,
+  onAccountDragEnter,
+  onAccountDragOver,
+  onAccountDragEnd,
+  onAccountDrop,
+}: AccountItemProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { selectedAccount, selectAccount, folders, setFolders } = useMailboxStore();
@@ -38,7 +57,8 @@ export function AccountItem({ account }: AccountItemProps) {
   };
 
   // 处理账户点击
-  const handleAccountClick = () => {
+  const handleAccountClick = (event: MouseEvent<HTMLDivElement>) => {
+    onAccountClick?.(event, account);
     setIsExpanded(!isExpanded);
     selectAccount(account);
 
@@ -89,7 +109,15 @@ export function AccountItem({ account }: AccountItemProps) {
   };
 
   return (
-    <div className="space-y-1">
+    <div
+      className={`space-y-1 ${isSelected ? 'ring-2 ring-blue-500 rounded-md' : ''}`}
+      draggable
+      onDragStart={(event) => onAccountDragStart?.(event, account)}
+      onDragEnter={(event) => onAccountDragEnter?.(event, account)}
+      onDragOver={(event) => onAccountDragOver?.(event, account)}
+      onDrop={(event) => onAccountDrop?.(event, account)}
+      onDragEnd={(event) => onAccountDragEnd?.(event, account)}
+    >
       {/* 账户头部 */}
       <div
         onClick={handleAccountClick}
@@ -102,6 +130,8 @@ export function AccountItem({ account }: AccountItemProps) {
               ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
               : 'text-gray-700 dark:text-gray-300'
           }
+          ${isSelected ? 'border border-blue-300 dark:border-blue-600' : ''}
+          ${isDragOver ? 'ring-2 ring-dashed ring-blue-400' : ''}
         `}
       >
         {/* 展开/折叠图标 */}

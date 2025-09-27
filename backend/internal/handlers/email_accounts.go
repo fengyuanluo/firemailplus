@@ -320,6 +320,165 @@ func (h *Handler) validateCustomAccountRequest(req *services.CreateEmailAccountR
 	return nil
 }
 
+// GetAccountGroups 获取邮箱分组列表
+func (h *Handler) GetAccountGroups(c *gin.Context) {
+	userID, exists := h.getCurrentUserID(c)
+	if !exists {
+		return
+	}
+
+	groups, err := h.emailService.GetAccountGroups(c.Request.Context(), userID)
+	if err != nil {
+		h.respondWithError(c, http.StatusInternalServerError, "Failed to get account groups")
+		return
+	}
+
+	h.respondWithSuccess(c, groups)
+}
+
+// CreateAccountGroup 创建邮箱分组
+func (h *Handler) CreateAccountGroup(c *gin.Context) {
+	userID, exists := h.getCurrentUserID(c)
+	if !exists {
+		return
+	}
+
+	var req services.CreateAccountGroupRequest
+	if !h.bindJSON(c, &req) {
+		return
+	}
+
+	group, err := h.emailService.CreateAccountGroup(c.Request.Context(), userID, &req)
+	if err != nil {
+		h.respondWithError(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	h.respondWithCreated(c, group, "Account group created successfully")
+}
+
+// UpdateAccountGroup 更新邮箱分组
+func (h *Handler) UpdateAccountGroup(c *gin.Context) {
+	userID, exists := h.getCurrentUserID(c)
+	if !exists {
+		return
+	}
+
+	groupID, exists := h.parseUintParam(c, "id")
+	if !exists {
+		return
+	}
+
+	var req services.UpdateAccountGroupRequest
+	if !h.bindJSON(c, &req) {
+		return
+	}
+
+	group, err := h.emailService.UpdateAccountGroup(c.Request.Context(), userID, groupID, &req)
+	if err != nil {
+		h.respondWithError(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	h.respondWithSuccess(c, group, "Account group updated successfully")
+}
+
+// DeleteAccountGroup 删除邮箱分组
+func (h *Handler) DeleteAccountGroup(c *gin.Context) {
+	userID, exists := h.getCurrentUserID(c)
+	if !exists {
+		return
+	}
+
+	groupID, exists := h.parseUintParam(c, "id")
+	if !exists {
+		return
+	}
+
+	if err := h.emailService.DeleteAccountGroup(c.Request.Context(), userID, groupID); err != nil {
+		h.respondWithError(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	h.respondWithSuccess(c, nil, "Account group deleted successfully")
+}
+
+// ReorderAccountGroups 调整邮箱分组排序
+func (h *Handler) ReorderAccountGroups(c *gin.Context) {
+	userID, exists := h.getCurrentUserID(c)
+	if !exists {
+		return
+	}
+
+	var req struct {
+		Orders []services.AccountGroupOrder `json:"orders" binding:"required"`
+	}
+
+	if !h.bindJSON(c, &req) {
+		return
+	}
+
+	if len(req.Orders) == 0 {
+		h.respondWithError(c, http.StatusBadRequest, "orders cannot be empty")
+		return
+	}
+
+	if err := h.emailService.ReorderAccountGroups(c.Request.Context(), userID, req.Orders); err != nil {
+		h.respondWithError(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	h.respondWithSuccess(c, nil, "Account groups reordered successfully")
+}
+
+// MoveAccountsToGroup 批量移动邮箱账户
+func (h *Handler) MoveAccountsToGroup(c *gin.Context) {
+	userID, exists := h.getCurrentUserID(c)
+	if !exists {
+		return
+	}
+
+	var req services.MoveAccountsToGroupRequest
+	if !h.bindJSON(c, &req) {
+		return
+	}
+
+	if err := h.emailService.MoveAccountsToGroup(c.Request.Context(), userID, &req); err != nil {
+		h.respondWithError(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	h.respondWithSuccess(c, nil, "Accounts moved successfully")
+}
+
+// ReorderAccounts 批量调整邮箱账户排序
+func (h *Handler) ReorderAccounts(c *gin.Context) {
+	userID, exists := h.getCurrentUserID(c)
+	if !exists {
+		return
+	}
+
+	var req struct {
+		Orders []services.AccountOrder `json:"orders" binding:"required"`
+	}
+
+	if !h.bindJSON(c, &req) {
+		return
+	}
+
+	if len(req.Orders) == 0 {
+		h.respondWithError(c, http.StatusBadRequest, "orders cannot be empty")
+		return
+	}
+
+	if err := h.emailService.ReorderAccounts(c.Request.Context(), userID, req.Orders); err != nil {
+		h.respondWithError(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	h.respondWithSuccess(c, nil, "Accounts reordered successfully")
+}
+
 // isValidSecurityOption 检查安全选项是否有效
 func (h *Handler) isValidSecurityOption(option string, validOptions []string) bool {
 	if option == "" {

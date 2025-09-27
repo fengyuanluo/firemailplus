@@ -37,6 +37,11 @@ type EmailAccount struct {
 	// 代理配置
 	ProxyURL string `gorm:"size:500" json:"proxy_url,omitempty"` // 代理URL，如：http://user:pass@proxy.com:8080
 
+	// 分组
+	GroupID   *uint              `gorm:"index" json:"group_id,omitempty"`
+	Group     *EmailAccountGroup `gorm:"foreignKey:GroupID" json:"group,omitempty"`
+	SortOrder int                `gorm:"not null;default:0" json:"sort_order"`
+
 	// 状态信息
 	IsActive     bool       `gorm:"not null;default:true" json:"is_active"`
 	LastSyncAt   *time.Time `json:"last_sync_at"`

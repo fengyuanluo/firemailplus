@@ -14,7 +14,7 @@ import { useOAuth2 } from '@/hooks/use-oauth';
 import { toast } from 'sonner';
 import type { EmailAccount } from '@/types/email';
 import type { AccountEditConfig } from './account-edit-config';
-import { ProxyConfigFields } from '@/components/proxy-config';
+import { AccountOptionsSection } from '@/components/email-forms/account-options-section';
 
 // OAuth2编辑表单验证schema
 const oauth2EditSchema = z.object({
@@ -25,6 +25,7 @@ const oauth2EditSchema = z.object({
   refresh_token: z.string().optional(),
   is_active: z.boolean(),
   proxy_url: z.string().optional(),
+  group_id: z.string().optional(),
 });
 
 type OAuth2EditForm = z.infer<typeof oauth2EditSchema>;
@@ -73,6 +74,7 @@ export function OAuth2EditForm({
         refresh_token: '',
         is_active: account.is_active,
         proxy_url: account.proxy_url || '',
+        group_id: account.group_id ? account.group_id.toString() : '',
       });
     }
   }, [account, reset]);
@@ -123,6 +125,10 @@ export function OAuth2EditForm({
         updateData.proxy_url = data.proxy_url;
       }
 
+      if (data.group_id !== undefined) {
+        updateData.group_id = data.group_id ? Number(data.group_id) : null;
+      }
+
       const response = await apiClient.updateEmailAccount(account.id, updateData);
 
       if (response.success && response.data) {
@@ -160,10 +166,14 @@ export function OAuth2EditForm({
     setIsReauthing(true);
     try {
       const currentProxyUrl = watch('proxy_url') || account.proxy_url || '';
+      const currentGroupIdRaw = watch('group_id');
+      const currentGroupId = currentGroupIdRaw
+        ? Number(currentGroupIdRaw)
+        : (account.group_id ?? null);
       if (config.providerType === 'gmail-oauth2') {
-        await authenticateGmail(account.name, account.email, currentProxyUrl);
+        await authenticateGmail(account.name, account.email, currentProxyUrl, currentGroupId);
       } else if (config.providerType === 'outlook-oauth2') {
-        await authenticateOutlook(account.name, account.email, currentProxyUrl);
+        await authenticateOutlook(account.name, account.email, currentProxyUrl, currentGroupId);
       }
       toast.success('重新授权成功');
       onSuccess();
@@ -310,13 +320,11 @@ export function OAuth2EditForm({
       </div>
 
       {/* 代理配置 */}
-      {config.editableFields.includes('proxy_url') && (
-        <ProxyConfigFields
-          form={{ register, watch, setValue, formState: { errors } } as any}
-          disabled={isSubmitting}
-          compact={true}
-        />
-      )}
+      <AccountOptionsSection
+        form={{ register, watch, setValue, formState: { errors } } as any}
+        disabled={isSubmitting}
+        compactProxy={true}
+      />
 
       {/* 底部按钮 */}
       <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">

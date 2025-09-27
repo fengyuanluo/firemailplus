@@ -108,6 +108,7 @@ function OAuthCallbackContent() {
           scope: tokenData.scope,
           client_id: tokenClientId,
           proxy_url: accountData.proxy_url || '',
+          group_id: accountData.group_id ?? null,
         });
 
         if (createResponse.success && createResponse.data) {

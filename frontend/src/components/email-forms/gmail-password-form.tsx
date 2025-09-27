@@ -13,7 +13,7 @@ import { ChevronDown, ChevronRight, ExternalLink, Eye, EyeOff } from 'lucide-rea
 import { apiClient } from '@/lib/api';
 import { useMailboxStore } from '@/lib/store';
 import { toast } from 'sonner';
-import { ProxyConfigFields } from '@/components/proxy-config';
+import { AccountOptionsSection } from './account-options-section';
 
 // 应用专用密码验证函数
 const validateAppPassword = (password: string) => {
@@ -47,6 +47,7 @@ const gmailPasswordSchema = z.object({
   }),
   // 代理配置
   proxy_url: z.string().optional(),
+  group_id: z.string().optional(),
 });
 
 type GmailPasswordForm = z.infer<typeof gmailPasswordSchema>;
@@ -71,6 +72,9 @@ export function GmailPasswordForm({ onSuccess, onCancel }: GmailPasswordFormProp
     setValue,
   } = useForm<GmailPasswordForm>({
     resolver: zodResolver(gmailPasswordSchema),
+    defaultValues: {
+      group_id: '',
+    },
   });
 
   // 监听密码输入，自动格式化显示
@@ -96,6 +100,7 @@ export function GmailPasswordForm({ onSuccess, onCancel }: GmailPasswordFormProp
         auth_method: 'password',
         password: cleanPassword,
         proxy_url: data.proxy_url,
+        group_id: data.group_id ? Number(data.group_id) : null,
       });
 
       if (response.success && response.data) {
@@ -199,11 +204,10 @@ export function GmailPasswordForm({ onSuccess, onCancel }: GmailPasswordFormProp
             </div>
           </div>
 
-          {/* 代理配置 */}
-          <ProxyConfigFields
+          <AccountOptionsSection
             form={{ register, watch, setValue, formState: { errors } } as any}
             disabled={isSubmitting}
-            compact={true}
+            compactProxy={true}
           />
 
           {/* 设置说明 */}

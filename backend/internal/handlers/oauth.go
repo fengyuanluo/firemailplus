@@ -3,7 +3,9 @@ package handlers
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -249,6 +251,7 @@ type CreateOAuth2AccountRequest struct {
 	Scope        string `json:"scope"`
 	ClientID     string `json:"client_id" binding:"required"` // OAuth2客户端ID，必需用于后续token刷新
 	ProxyURL     string `json:"proxy_url"`                    // 代理配置
+	GroupID      *uint  `json:"group_id"`
 }
 
 // CreateManualOAuth2AccountRequest 手动创建OAuth2邮件账户请求
@@ -265,6 +268,7 @@ type CreateManualOAuth2AccountRequest struct {
 	TokenURL string `json:"token_url,omitempty"`
 	// 代理配置
 	ProxyURL string `json:"proxy_url"` // 代理配置
+	GroupID  *uint  `json:"group_id"`
 }
 
 // CreateOAuth2Account 使用OAuth2 token创建邮件账户
@@ -305,6 +309,21 @@ func (h *Handler) CreateOAuth2Account(c *gin.Context) {
 	}
 	// 注意：gorm.ErrRecordNotFound 是正常情况，表示账户不存在，可以继续创建
 
+	// 验证分组
+	var groupID *uint
+	if req.GroupID != nil {
+		var group models.EmailAccountGroup
+		if err := h.db.Where("id = ? AND user_id = ?", *req.GroupID, userID).First(&group).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				h.respondWithError(c, http.StatusBadRequest, "Account group not found")
+			} else {
+				h.respondWithError(c, http.StatusInternalServerError, "Failed to load account group")
+			}
+			return
+		}
+		groupID = req.GroupID
+	}
+
 	// 获取提供商配置
 	providerConfig := h.providerFactory.GetProviderConfig(req.Provider)
 	if providerConfig == nil {
@@ -329,6 +348,23 @@ func (h *Handler) CreateOAuth2Account(c *gin.Context) {
 		ProxyURL:     req.ProxyURL, // 设置代理配置
 		IsActive:     true,
 		SyncStatus:   "pending",
+		GroupID:      groupID,
+	}
+
+	// 设置排序值
+	var maxOrder sql.NullInt64
+	orderQuery := h.db.Model(&models.EmailAccount{}).Where("user_id = ?", userID)
+	if groupID != nil {
+		orderQuery = orderQuery.Where("group_id = ?", *groupID)
+	} else {
+		orderQuery = orderQuery.Where("group_id IS NULL")
+	}
+	if err := orderQuery.Select("MAX(sort_order)").Scan(&maxOrder).Error; err != nil {
+		h.respondWithError(c, http.StatusInternalServerError, "Failed to determine account order: "+err.Error())
+		return
+	}
+	if maxOrder.Valid {
+		account.SortOrder = int(maxOrder.Int64) + 1
 	}
 
 	// 验证代理配置
@@ -489,6 +525,21 @@ func (h *Handler) CreateManualOAuth2Account(c *gin.Context) {
 		smtpPort = 587
 	}
 
+	// 验证分组
+	var groupID *uint
+	if req.GroupID != nil {
+		var group models.EmailAccountGroup
+		if err := h.db.Where("id = ? AND user_id = ?", *req.GroupID, userID).First(&group).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				h.respondWithError(c, http.StatusBadRequest, "Account group not found")
+			} else {
+				h.respondWithError(c, http.StatusInternalServerError, "Failed to load account group")
+			}
+			return
+		}
+		groupID = req.GroupID
+	}
+
 	// 创建邮件账户
 	account := &models.EmailAccount{
 		UserID:       userID,
@@ -501,10 +552,26 @@ func (h *Handler) CreateManualOAuth2Account(c *gin.Context) {
 		IMAPSecurity: "SSL", // Outlook使用SSL
 		SMTPHost:     smtpHost,
 		SMTPPort:     smtpPort,
-		SMTPSecurity: "STARTTLS", // SMTP使用STARTTLS
+		SMTPSecurity: "STARTTLS",   // SMTP使用STARTTLS
 		ProxyURL:     req.ProxyURL, // 设置代理配置
 		IsActive:     true,
 		SyncStatus:   "pending",
+		GroupID:      groupID,
+	}
+
+	var maxOrder sql.NullInt64
+	orderQuery := h.db.Model(&models.EmailAccount{}).Where("user_id = ?", userID)
+	if groupID != nil {
+		orderQuery = orderQuery.Where("group_id = ?", *groupID)
+	} else {
+		orderQuery = orderQuery.Where("group_id IS NULL")
+	}
+	if err := orderQuery.Select("MAX(sort_order)").Scan(&maxOrder).Error; err != nil {
+		h.respondWithError(c, http.StatusInternalServerError, "Failed to determine account order: "+err.Error())
+		return
+	}
+	if maxOrder.Valid {
+		account.SortOrder = int(maxOrder.Int64) + 1
 	}
 
 	// 验证代理配置

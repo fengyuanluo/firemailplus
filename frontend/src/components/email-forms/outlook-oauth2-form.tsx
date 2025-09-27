@@ -12,7 +12,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
 import { useOAuth2 } from '@/hooks/use-oauth';
 import { toast } from 'sonner';
-import { ProxyConfigFields } from '@/components/proxy-config';
+import { AccountOptionsSection } from './account-options-section';
 
 const outlookOAuth2Schema = z.object({
   name: z.string().min(1, '请输入账户名称'),
@@ -25,6 +25,7 @@ const outlookOAuth2Schema = z.object({
     }, '请输入Outlook相关域名的邮箱地址（@outlook.com, @hotmail.com, @live.com, @msn.com）'),
   // 代理配置
   proxy_url: z.string().optional(),
+  group_id: z.string().optional(),
 });
 
 type OutlookOAuth2Form = z.infer<typeof outlookOAuth2Schema>;
@@ -48,12 +49,16 @@ export function OutlookOAuth2Form({ onSuccess, onCancel }: OutlookOAuth2FormProp
     setValue,
   } = useForm<OutlookOAuth2Form>({
     resolver: zodResolver(outlookOAuth2Schema),
+    defaultValues: {
+      group_id: '',
+    },
   });
 
   const onSubmit = async (data: OutlookOAuth2Form) => {
     setIsAuthenticating(true);
     try {
-      await authenticateOutlook(data.name, data.email, data.proxy_url);
+      const groupId = data.group_id ? Number(data.group_id) : null;
+      await authenticateOutlook(data.name, data.email, data.proxy_url, groupId ?? undefined);
       // 注意：由于使用直接跳转，这里的代码不会执行
       // 成功处理在OAuth回调页面中进行
     } catch (error: any) {
@@ -128,11 +133,10 @@ export function OutlookOAuth2Form({ onSuccess, onCancel }: OutlookOAuth2FormProp
             </ol>
           </div>
 
-          {/* 代理配置 */}
-          <ProxyConfigFields
+          <AccountOptionsSection
             form={{ register, watch, setValue, formState: { errors } } as any}
             disabled={isAuthenticating}
-            compact={true}
+            compactProxy={true}
           />
 
           {/* 设置说明 */}
