@@ -1,5 +1,7 @@
 package config
 
+import "strings"
+
 // EmailProviderConfig 邮件提供商配置
 type EmailProviderConfig struct {
 	Name         string                 `json:"name"`
@@ -102,7 +104,8 @@ func GetBuiltinProviders() map[string]EmailProviderConfig {
 				Scopes:       []string{"https://outlook.office.com/IMAP.AccessAsUser.All", "https://outlook.office.com/SMTP.Send", "offline_access"},
 				ResponseType: "code",
 			},
-			Domains: []string{"outlook.com", "hotmail.com", "live.com", "msn.com"},
+			// 支持全球地域性后缀：outlook.*、hotmail.*、live.*、msn.*
+			Domains: []string{"outlook.*", "hotmail.*", "live.*", "msn.*"},
 			Features: map[string]bool{
 				"imap":       true,
 				"smtp":       true,
@@ -291,7 +294,7 @@ func GetProviderByDomain(domain string) *EmailProviderConfig {
 
 	for _, provider := range providers {
 		for _, supportedDomain := range provider.Domains {
-			if supportedDomain == domain {
+			if DomainMatches(supportedDomain, domain) {
 				return &provider
 			}
 		}
@@ -309,4 +312,20 @@ func GetProviderByName(name string) *EmailProviderConfig {
 		return &provider
 	}
 	return nil
+}
+
+// DomainMatches 判断域匹配，支持后缀通配 *.（例如 outlook.* 匹配 outlook.com/outlook.fr）
+func DomainMatches(pattern string, domain string) bool {
+	if pattern == "" || domain == "" {
+		return false
+	}
+
+	// 通配符后缀：xxx.*
+	if strings.HasSuffix(pattern, ".*") {
+		prefix := strings.TrimSuffix(pattern, ".*")
+		return domain == prefix || strings.HasPrefix(domain, prefix+".")
+	}
+
+	// 精确匹配
+	return pattern == domain
 }

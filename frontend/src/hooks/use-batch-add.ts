@@ -37,13 +37,10 @@ const isValidUUID = (value: string) => {
   return uuidRegex.test(value);
 };
 
-// 邮箱格式验证
+// 邮箱格式验证（支持地域性后缀，如 outlook.co.uk、hotmail.fr）
 const isValidOutlookEmail = (email: string) => {
-  const outlookDomains = ['@outlook.com', '@hotmail.com', '@live.com', '@msn.com'];
-  return (
-    outlookDomains.some((domain) => email.endsWith(domain)) &&
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-  );
+  const outlookDomainRegex = /@(outlook|hotmail|live|msn)\.[^\s@]+$/i;
+  return outlookDomainRegex.test(email);
 };
 
 // 解析批量数据

@@ -221,7 +221,7 @@ export function OutlookBatchForm({ onSuccess, onCancel }: OutlookBatchFormProps)
                     </code>
                   </li>
                   <li>
-                    邮箱必须是Outlook相关域名（@outlook.com, @hotmail.com, @live.com, @msn.com）
+                  邮箱必须是Outlook相关域名（@outlook.*、@hotmail.*、@live.*、@msn.*）
                   </li>
                   <li>密码字段保留但不使用（OAuth2模式）</li>
                   <li>客户端ID必须是有效的UUID格式</li>

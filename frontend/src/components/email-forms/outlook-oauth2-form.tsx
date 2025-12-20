@@ -13,15 +13,14 @@ import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
 import { useOAuth2 } from '@/hooks/use-oauth';
 import { toast } from 'sonner';
 
+const OUTLOOK_DOMAIN_REGEX = /@(outlook|hotmail|live|msn)\.[^\s@]+$/i;
+
 const outlookOAuth2Schema = z.object({
   name: z.string().min(1, '请输入账户名称'),
   email: z
     .string()
     .email('请输入有效的Outlook邮箱地址')
-    .refine((email) => {
-      const outlookDomains = ['@outlook.com', '@hotmail.com', '@live.com', '@msn.com'];
-      return outlookDomains.some((domain) => email.endsWith(domain));
-    }, '请输入Outlook相关域名的邮箱地址（@outlook.com, @hotmail.com, @live.com, @msn.com）'),
+    .refine((email) => OUTLOOK_DOMAIN_REGEX.test(email), '请输入Outlook相关域名的邮箱地址（@outlook.*、@hotmail.*、@live.*、@msn.*）'),
 });
 
 type OutlookOAuth2Form = z.infer<typeof outlookOAuth2Schema>;
@@ -108,7 +107,7 @@ export function OutlookOAuth2Form({ onSuccess, onCancel }: OutlookOAuth2FormProp
               />
               {errors.email && <p className="text-sm text-red-500 mt-1">{errors.email.message}</p>}
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                支持 @outlook.com, @hotmail.com, @live.com, @msn.com
+                支持 @outlook.*, @hotmail.*, @live.*, @msn.*
               </p>
             </div>
           </div>
@@ -140,7 +139,7 @@ export function OutlookOAuth2Form({ onSuccess, onCancel }: OutlookOAuth2FormProp
                 </h4>
                 <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1 list-disc list-inside">
                   <li>
-                    <strong>个人账户</strong>：@outlook.com, @hotmail.com, @live.com, @msn.com
+                    <strong>个人账户</strong>：@outlook.*、@hotmail.*、@live.*、@msn.*
                   </li>
                   <li>
                     <strong>企业账户</strong>：组织域名邮箱（需要管理员授权）

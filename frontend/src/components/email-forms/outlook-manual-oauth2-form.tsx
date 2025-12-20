@@ -20,15 +20,14 @@ const isValidUUID = (value: string) => {
   return uuidRegex.test(value);
 };
 
+const OUTLOOK_DOMAIN_REGEX = /@(outlook|hotmail|live|msn)\.[^\s@]+$/i;
+
 const outlookManualOAuth2Schema = z.object({
   name: z.string().min(1, '请输入账户名称'),
   email: z
     .string()
     .email('请输入有效的Outlook邮箱地址')
-    .refine((email) => {
-      const outlookDomains = ['@outlook.com', '@hotmail.com', '@live.com', '@msn.com'];
-      return outlookDomains.some((domain) => email.endsWith(domain));
-    }, '请输入Outlook相关域名的邮箱地址（@outlook.com, @hotmail.com, @live.com, @msn.com）'),
+    .refine((email) => OUTLOOK_DOMAIN_REGEX.test(email), '请输入Outlook相关域名的邮箱地址（@outlook.*、@hotmail.*、@live.*、@msn.*）'),
   client_id: z
     .string()
     .min(1, '请输入客户端ID')

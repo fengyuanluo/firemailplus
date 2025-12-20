@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"firemail/internal/config"
 	"firemail/internal/models"
 )
 
@@ -403,13 +404,13 @@ func (v *ProviderValidator) suggestBetterProvider(domain string, result *Validat
 	providers := v.factory.GetAvailableProviders()
 
 	for _, providerName := range providers {
-		config := v.factory.GetProviderConfig(providerName)
-		if config == nil {
+		providerConfig := v.factory.GetProviderConfig(providerName)
+		if providerConfig == nil {
 			continue
 		}
 
-		for _, supportedDomain := range config.Domains {
-			if supportedDomain == domain {
+		for _, supportedDomain := range providerConfig.Domains {
+			if config.DomainMatches(supportedDomain, domain) {
 				v.addSuggestion(result, "provider", "BETTER_MATCH",
 					fmt.Sprintf("Provider '%s' supports domain '%s'", providerName, domain),
 					fmt.Sprintf("Consider using provider '%s'", providerName),
@@ -427,8 +428,7 @@ func (v *ProviderValidator) checkDeprecationWarnings(account *models.EmailAccoun
 		domain := extractDomainFromEmail(account.Email)
 
 		// Microsoft个人账户
-		microsoftPersonalDomains := []string{"outlook.com", "hotmail.com", "live.com", "msn.com"}
-		if contains(microsoftPersonalDomains, domain) {
+		if isMicrosoftPersonalDomain(domain) {
 			v.addWarning(result, "auth_method", "DEPRECATED",
 				"Basic authentication is deprecated for Microsoft personal accounts. Use OAuth2 instead")
 			v.addSuggestion(result, "auth_method", "USE_OAUTH2",
@@ -607,4 +607,14 @@ func (v *ProviderValidator) applySuggestion(account *models.EmailAccount, sugges
 			account.SMTPSecurity = str
 		}
 	}
+}
+
+func isMicrosoftPersonalDomain(domain string) bool {
+	if domain == "" {
+		return false
+	}
+	return strings.HasPrefix(domain, "outlook.") ||
+		strings.HasPrefix(domain, "hotmail.") ||
+		strings.HasPrefix(domain, "live.") ||
+		strings.HasPrefix(domain, "msn.")
 }

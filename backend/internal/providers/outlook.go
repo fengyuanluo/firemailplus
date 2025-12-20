@@ -479,20 +479,18 @@ func (p *OutlookProvider) SendEmail(ctx context.Context, account *models.EmailAc
 func (p *OutlookProvider) ValidateEmailAddress(email string) error {
 	email = strings.ToLower(email)
 
-	// 检查是否是支持的Outlook邮箱域名
-	supportedDomains := []string{
-		"outlook.com", "hotmail.com", "live.com", "msn.com",
-		"outlook.co.uk", "hotmail.co.uk", "live.co.uk",
-		"outlook.fr", "hotmail.fr", "live.fr",
-	}
-
-	for _, domain := range supportedDomains {
-		if strings.HasSuffix(email, "@"+domain) {
+	// 通配匹配 outlook.* / hotmail.* / live.* / msn.*
+	if strings.Contains(email, "@") {
+		domain := strings.SplitN(email, "@", 2)[1]
+		if strings.HasPrefix(domain, "outlook.") ||
+			strings.HasPrefix(domain, "hotmail.") ||
+			strings.HasPrefix(domain, "live.") ||
+			strings.HasPrefix(domain, "msn.") {
 			return nil
 		}
 	}
 
-	return fmt.Errorf("unsupported Outlook domain. Supported domains include: outlook.com, hotmail.com, live.com, msn.com")
+	return fmt.Errorf("unsupported Outlook domain. Supported patterns: outlook.*, hotmail.*, live.*, msn.*")
 }
 
 // 重复的GetOAuth2Instructions方法已删除
@@ -503,7 +501,7 @@ func (p *OutlookProvider) GetProviderInfo() map[string]interface{} {
 		"name":         "Outlook",
 		"display_name": "Outlook/Hotmail（Microsoft）",
 		"auth_methods": []string{"oauth2", "password"},
-		"domains":      []string{"outlook.com", "hotmail.com", "live.com", "msn.com"},
+		"domains":      []string{"outlook.*", "hotmail.*", "live.*", "msn.*"},
 		"servers": map[string]interface{}{
 			"imap": map[string]interface{}{
 				"host":     "outlook.office365.com",
