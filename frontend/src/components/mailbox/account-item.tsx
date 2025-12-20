@@ -79,18 +79,6 @@ export function AccountItem({ account, draggable = false, onDragStart, onDragEnd
     }
   };
 
-  // 获取提供商显示名称
-  const getProviderDisplayName = () => {
-    const providerNames: Record<string, string> = {
-      gmail: 'Gmail',
-      outlook: 'Outlook',
-      qq: 'QQ邮箱',
-      '163': '163邮箱',
-      custom: '自定义',
-    };
-    return providerNames[account.provider] || account.provider;
-  };
-
   return (
     <div className="space-y-1">
       {/* 账户头部 */}
@@ -128,10 +116,7 @@ export function AccountItem({ account, draggable = false, onDragStart, onDragEnd
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between">
             <div className="min-w-0 flex-1">
-              <div className="text-sm font-medium truncate">{account.name}</div>
-              <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                {getProviderDisplayName()}
-              </div>
+              <div className="text-sm font-medium truncate">{account.email}</div>
             </div>
 
             {/* 未读邮件数量 */}

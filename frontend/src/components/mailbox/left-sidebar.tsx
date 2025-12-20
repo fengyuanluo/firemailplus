@@ -34,6 +34,7 @@ export function LeftSidebar() {
   const [draggingAccountId, setDraggingAccountId] = useState<number | null>(null);
   const [draggingGroupId, setDraggingGroupId] = useState<number | null>(null);
   const [dragOverGroupId, setDragOverGroupId] = useState<number | null>(null);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<number>>(new Set());
 
   const loadAccounts = useCallback(async () => {
     try {
@@ -99,7 +100,25 @@ export function LeftSidebar() {
     defaultGroup && (defaultGroupAccounts.length > 0 || draggingAccountId !== null)
   );
 
-  const displayGroups = orderedGroups.filter((g) => !g.is_default || shouldShowDefault);
+  const displayGroups = orderedGroups.filter((g) => {
+    if (g.is_default) return shouldShowDefault || draggingGroupId !== null;
+    const count = accountsByGroup.get(g.id)?.length ?? 0;
+    if (g.name === '未分组' && count === 0 && draggingAccountId === null && draggingGroupId === null)
+      return false;
+    return true;
+  });
+
+  const toggleCollapse = (groupId: number) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupId)) {
+        next.delete(groupId);
+      } else {
+        next.add(groupId);
+      }
+      return next;
+    });
+  };
 
   const handleCloseSettings = () => {
     setIsSettingsOpen(false);
@@ -295,6 +314,7 @@ export function LeftSidebar() {
   const renderGroup = (group: EmailGroup) => {
     const accountsInGroup = accountsByGroup.get(group.id) || [];
     const isDropTarget = dragOverGroupId === group.id;
+    const collapsed = collapsedGroups.has(group.id);
     return (
       <div
         key={group.id}
@@ -319,7 +339,13 @@ export function LeftSidebar() {
       >
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300">
+              <div
+                className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleCollapse(group.id);
+                }}
+              >
                 {group.is_default ? <FolderPlus className="w-4 h-4" /> : <Hash className="w-4 h-4" />}
               </div>
             <div>
@@ -345,32 +371,34 @@ export function LeftSidebar() {
             </div>
           </div>
 
-        <div className="mt-2 space-y-2">
-          {accountsInGroup.length === 0 ? (
-            <div className="text-xs text-gray-500 dark:text-gray-400 border border-dashed border-gray-300 dark:border-gray-700 rounded-md p-3">
-              将邮箱拖拽到此分组
-            </div>
-          ) : (
-            accountsInGroup.map((account) => (
-              <AccountItem
-                key={account.id}
-                account={account}
-                draggable
-                onDragStart={(e) => {
-                  if (!e) return;
-                  e.dataTransfer.setData('text/plain', String(account.id));
-                  e.dataTransfer.effectAllowed = 'move';
-                  setDraggingAccountId(account.id);
-                  setDragOverGroupId(group.id);
-                }}
-                onDragEnd={() => {
-                  setDraggingAccountId(null);
-                  setDragOverGroupId(null);
-                }}
-              />
-            ))
-          )}
-        </div>
+        {!collapsed && (
+          <div className="mt-2 space-y-2">
+            {accountsInGroup.length === 0 ? (
+              <div className="text-xs text-gray-500 dark:text-gray-400 border border-dashed border-gray-300 dark:border-gray-700 rounded-md p-3">
+                将邮箱拖拽到此分组
+              </div>
+            ) : (
+              accountsInGroup.map((account) => (
+                <AccountItem
+                  key={account.id}
+                  account={account}
+                  draggable
+                  onDragStart={(e) => {
+                    if (!e) return;
+                    e.dataTransfer.setData('text/plain', String(account.id));
+                    e.dataTransfer.effectAllowed = 'move';
+                    setDraggingAccountId(account.id);
+                    setDragOverGroupId(group.id);
+                  }}
+                  onDragEnd={() => {
+                    setDraggingAccountId(null);
+                    setDragOverGroupId(null);
+                  }}
+                />
+              ))
+            )}
+          </div>
+        )}
       </div>
     );
   };
