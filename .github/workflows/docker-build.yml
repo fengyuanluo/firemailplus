@@ -60,13 +60,15 @@ jobs:
     - name: Export digest
       run: |
         mkdir -p /tmp/digests
-        echo "${{ steps.build.outputs.digest }}" > /tmp/digests/${{ matrix.platform }}
+        platform=${{ matrix.platform }}
+        platform_safe=${platform//\//-}
+        echo "${{ steps.build.outputs.digest }}" > /tmp/digests/${platform_safe}
 
     - name: Upload digest
       uses: actions/upload-artifact@v4
       with:
-        name: digests
-        path: /tmp/digests/${{ matrix.platform }}
+        name: digests-${{ matrix.platform }}
+        path: /tmp/digests/*
 
   manifest:
     runs-on: ubuntu-latest
@@ -79,8 +81,9 @@ jobs:
     - name: Download digests
       uses: actions/download-artifact@v4
       with:
-        name: digests
+        pattern: digests-*
         path: /tmp/digests
+        merge-multiple: true
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -107,4 +110,3 @@ jobs:
         while read -r tag; do
           docker buildx imagetools create -t "$tag" $digests
         done <<< "${{ steps.meta.outputs.tags }}"
-
