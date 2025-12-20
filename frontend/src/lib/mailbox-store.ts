@@ -63,6 +63,10 @@ interface MailboxState {
   searchFilters: SearchFilters;
   isSearching: boolean;
 
+  // 选择模式
+  selectionMode: boolean;
+  selectedAccountIds: Set<number>;
+
   // 加载状态
   isLoading: boolean;
   isSyncing: boolean;
@@ -74,6 +78,9 @@ interface MailboxState {
   updateAccount: (account: EmailAccount) => void;
   removeAccount: (id: number) => void;
   selectAccount: (account: EmailAccount | null) => void;
+  setSelectionMode: (enabled: boolean) => void;
+  toggleSelectAccount: (id: number) => void;
+  clearAccountSelection: () => void;
   setGroups: (groups: EmailGroup[]) => void;
   addGroup: (group: EmailGroup) => void;
   updateGroup: (group: EmailGroup) => void;
@@ -153,6 +160,8 @@ export const useMailboxStore = create<MailboxState>((set, get) => ({
   searchQuery: '',
   searchFilters: {},
   isSearching: false,
+  selectionMode: false,
+  selectedAccountIds: new Set(),
   isLoading: false,
   isSyncing: false,
   syncError: null,
@@ -182,6 +191,25 @@ export const useMailboxStore = create<MailboxState>((set, get) => ({
       selectedEmails: new Set(),
       page: 1,
     }),
+  setSelectionMode: (enabled) =>
+    set(() => ({
+      selectionMode: enabled,
+      selectedAccountIds: enabled ? new Set() : new Set(),
+    })),
+  toggleSelectAccount: (id) =>
+    set((state) => {
+      const next = new Set(state.selectedAccountIds);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return { selectedAccountIds: next };
+    }),
+  clearAccountSelection: () =>
+    set(() => ({
+      selectedAccountIds: new Set(),
+    })),
   setGroups: (groups) => set({ groups }),
   addGroup: (group) =>
     set((state) => ({

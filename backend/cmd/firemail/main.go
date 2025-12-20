@@ -146,6 +146,8 @@ func setupRoutes(router *gin.Engine, h *handlers.Handler) {
 			accounts.DELETE("/:id", h.DeleteEmailAccount)
 			accounts.POST("/:id/test", h.TestEmailAccount)
 			accounts.POST("/:id/sync", h.SyncEmailAccount)
+			accounts.POST("/batch/delete", h.BatchDeleteEmailAccounts)
+			accounts.POST("/batch/sync", h.BatchSyncEmailAccounts)
 		}
 
 		// 提供商配置路由（需要认证）

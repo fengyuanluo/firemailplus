@@ -166,6 +166,67 @@ func (h *Handler) SyncEmailAccount(c *gin.Context) {
 	h.respondWithSuccess(c, nil, "Email sync started")
 }
 
+// BatchAccountRequest 批量账户操作请求
+type BatchAccountRequest struct {
+	AccountIDs []uint `json:"account_ids" binding:"required"`
+}
+
+// BatchDeleteEmailAccounts 批量删除邮箱账户
+func (h *Handler) BatchDeleteEmailAccounts(c *gin.Context) {
+	userID, exists := h.getCurrentUserID(c)
+	if !exists {
+		return
+	}
+
+	var req BatchAccountRequest
+	if !h.bindJSON(c, &req) {
+		return
+	}
+	if len(req.AccountIDs) == 0 {
+		h.respondWithError(c, http.StatusBadRequest, "account_ids cannot be empty")
+		return
+	}
+
+	for _, id := range req.AccountIDs {
+		if err := h.emailService.DeleteEmailAccount(c.Request.Context(), userID, id); err != nil {
+			h.respondWithError(c, http.StatusBadRequest, "Failed to delete account: "+err.Error())
+			return
+		}
+	}
+
+	h.respondWithSuccess(c, nil, "Accounts deleted successfully")
+}
+
+// BatchSyncEmailAccounts 批量同步邮箱账户
+func (h *Handler) BatchSyncEmailAccounts(c *gin.Context) {
+	userID, exists := h.getCurrentUserID(c)
+	if !exists {
+		return
+	}
+
+	var req BatchAccountRequest
+	if !h.bindJSON(c, &req) {
+		return
+	}
+	if len(req.AccountIDs) == 0 {
+		h.respondWithError(c, http.StatusBadRequest, "account_ids cannot be empty")
+		return
+	}
+
+	for _, id := range req.AccountIDs {
+		// 验证账户归属
+		if _, err := h.emailService.GetEmailAccount(c.Request.Context(), userID, id); err != nil {
+			h.respondWithError(c, http.StatusNotFound, "Email account not found")
+			return
+		}
+		go func(accountID uint) {
+			_ = h.syncService.SyncEmails(c.Request.Context(), accountID)
+		}(id)
+	}
+
+	h.respondWithSuccess(c, nil, "Batch email sync started")
+}
+
 // GetProviders 获取支持的邮件提供商列表
 func (h *Handler) GetProviders(c *gin.Context) {
 	providers := h.providerFactory.GetAvailableProviders()

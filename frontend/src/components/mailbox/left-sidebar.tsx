@@ -22,6 +22,11 @@ export function LeftSidebar() {
     updateAccount,
     groups,
     setGroups,
+    selectionMode,
+    setSelectionMode,
+    selectedAccountIds,
+    toggleSelectAccount,
+    clearAccountSelection,
   } = useMailboxStore();
   const { openMenu } = useContextMenuStore();
   const [settingsAccount, setSettingsAccount] = useState<EmailAccount | null>(null);
@@ -130,7 +135,7 @@ export function LeftSidebar() {
     if (!account) return;
 
     const confirmed = confirm(
-      `确定要删除账户 "${account.name}" 吗？此操作不可撤销，将删除该账户的所有邮件数据。`
+      `确定要删除账户 "${account.email}" 吗？此操作不可撤销，将删除该账户的所有邮件数据。`
     );
     if (!confirmed) return;
 
@@ -260,6 +265,46 @@ export function LeftSidebar() {
     setDragOverGroupId(null);
   };
 
+  const handleBatchSync = async () => {
+    const ids = Array.from(selectedAccountIds);
+    if (ids.length === 0) {
+      toast.error('请先选择要同步的邮箱');
+      return;
+    }
+    try {
+      const resp = await apiClient.batchSyncEmailAccounts(ids);
+      if (resp.success) {
+        toast.success('已开始批量同步');
+      } else {
+        throw new Error(resp.message || '批量同步失败');
+      }
+    } catch (error: any) {
+      toast.error(error.message || '批量同步失败');
+    }
+  };
+
+  const handleBatchDelete = async () => {
+    const ids = Array.from(selectedAccountIds);
+    if (ids.length === 0) {
+      toast.error('请先选择要删除的邮箱');
+      return;
+    }
+    const confirmed = confirm(`确定删除选中的 ${ids.length} 个邮箱账户吗？操作不可撤销。`);
+    if (!confirmed) return;
+    try {
+      const resp = await apiClient.batchDeleteEmailAccounts(ids);
+      if (resp.success) {
+        toast.success('已删除所选邮箱');
+        clearAccountSelection();
+        await Promise.all([loadAccounts(), loadGroups()]);
+      } else {
+        throw new Error(resp.message || '批量删除失败');
+      }
+    } catch (error: any) {
+      toast.error(error.message || '批量删除失败');
+    }
+  };
+
   const handleSetDefaultGroup = async (group: EmailGroup) => {
     if (group.is_default) return;
     const confirmed = confirm(`是否将分组“${group.name}”设为默认分组？`);
@@ -382,7 +427,10 @@ export function LeftSidebar() {
                 <AccountItem
                   key={account.id}
                   account={account}
-                  draggable
+                  draggable={!selectionMode}
+                  selectionMode={selectionMode}
+                  selected={selectedAccountIds.has(account.id)}
+                  onSelectToggle={() => toggleSelectAccount(account.id)}
                   onDragStart={(e) => {
                     if (!e) return;
                     e.dataTransfer.setData('text/plain', String(account.id));
@@ -411,22 +459,60 @@ export function LeftSidebar() {
         <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
           邮箱分组
         </div>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="text-gray-600 dark:text-gray-300"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            openGroupDialog('create');
-          }}
-        >
-          <Plus className="w-4 h-4 mr-1" />
-          新建
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant={selectionMode ? 'default' : 'ghost'}
+            className="text-gray-600 dark:text-gray-300"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (selectionMode) {
+                setSelectionMode(false);
+                clearAccountSelection();
+              } else {
+                setSelectionMode(true);
+              }
+            }}
+          >
+            {selectionMode ? '退出选择' : '选择'}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-gray-600 dark:text-gray-300"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              openGroupDialog('create');
+            }}
+          >
+            <Plus className="w-4 h-4 mr-1" />
+            新建
+          </Button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto">
+        {selectionMode && (
+          <div className="px-4 pb-2 flex items-center gap-3 text-sm text-gray-600 dark:text-gray-300">
+            <div>已选 {selectedAccountIds.size} 个邮箱</div>
+            <Button size="sm" variant="secondary" onClick={handleBatchSync} disabled={selectedAccountIds.size === 0}>
+              批量同步
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={handleBatchDelete}
+              disabled={selectedAccountIds.size === 0}
+            >
+              批量删除
+            </Button>
+            <Button size="sm" variant="ghost" onClick={clearAccountSelection}>
+              清空选择
+            </Button>
+          </div>
+        )}
         <div className="p-4 space-y-3" onContextMenu={handleBlankContextMenu}>
           {loadingGroups && (
             <div className="text-sm text-gray-500 dark:text-gray-400">加载分组中...</div>

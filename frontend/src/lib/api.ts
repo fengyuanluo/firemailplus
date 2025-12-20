@@ -218,6 +218,20 @@ class ApiClient {
     });
   }
 
+  async batchDeleteEmailAccounts(accountIds: number[]): Promise<ApiResponse> {
+    return this.request('/accounts/batch/delete', {
+      method: 'POST',
+      body: JSON.stringify({ account_ids: accountIds }),
+    });
+  }
+
+  async batchSyncEmailAccounts(accountIds: number[]): Promise<ApiResponse> {
+    return this.request('/accounts/batch/sync', {
+      method: 'POST',
+      body: JSON.stringify({ account_ids: accountIds }),
+    });
+  }
+
   // 邮箱分组相关 API
   async getEmailGroups(): Promise<ApiResponse<EmailGroup[]>> {
     return this.request('/groups');

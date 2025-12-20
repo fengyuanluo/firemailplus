@@ -12,9 +12,20 @@ interface AccountItemProps {
   draggable?: boolean;
   onDragStart?: (e: React.DragEvent) => void;
   onDragEnd?: (e: React.DragEvent) => void;
+  selectionMode?: boolean;
+  selected?: boolean;
+  onSelectToggle?: () => void;
 }
 
-export function AccountItem({ account, draggable = false, onDragStart, onDragEnd }: AccountItemProps) {
+export function AccountItem({
+  account,
+  draggable = false,
+  onDragStart,
+  onDragEnd,
+  selectionMode = false,
+  selected = false,
+  onSelectToggle,
+}: AccountItemProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { selectedAccount, selectAccount, folders, setFolders } = useMailboxStore();
@@ -42,6 +53,10 @@ export function AccountItem({ account, draggable = false, onDragStart, onDragEnd
 
   // 处理账户点击
   const handleAccountClick = () => {
+    if (selectionMode) {
+      onSelectToggle?.();
+      return;
+    }
     setIsExpanded(!isExpanded);
     selectAccount(account);
 
@@ -98,7 +113,7 @@ export function AccountItem({ account, draggable = false, onDragStart, onDragEnd
           flex items-center gap-2 p-2 rounded-md cursor-pointer transition-colors
           hover:bg-gray-100 dark:hover:bg-gray-700
           ${
-            selectedAccount?.id === account.id
+            selected || selectedAccount?.id === account.id
               ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
               : 'text-gray-700 dark:text-gray-300'
           }
