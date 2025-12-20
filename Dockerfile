@@ -48,7 +48,9 @@ chmod -R 755 /app/logs || true
 chmod +x /app/backend/firemail
 
 # 启动后端
+cd /app/backend
 HOST=$HOST PORT=$BACKEND_PORT /app/backend/firemail &
+cd /app
 
 # 启动前端
 cd /app/frontend
