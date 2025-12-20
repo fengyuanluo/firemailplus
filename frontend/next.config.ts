@@ -22,11 +22,11 @@ const nextConfig: NextConfig = {
   },
 
   async rewrites() {
-    // 将前端 /api/* 代理到后端 3001 端口，便于单容器部署时同域调用
+    // 将前端 /api/* 代理到后端 8080 端口，便于单容器部署时同域调用
     return [
       {
         source: '/api/:path*',
-        destination: 'http://localhost:3001/api/:path*',
+        destination: 'http://localhost:8080/api/:path*',
       },
     ];
   },

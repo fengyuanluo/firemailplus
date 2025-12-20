@@ -48,24 +48,24 @@ chmod -R 755 /app/logs || true
 chmod +x /app/backend/firemail
 
 # 启动后端
-/app/backend/firemail &
-BACK_PID=$!
+HOST=$HOST PORT=$BACKEND_PORT /app/backend/firemail &
 
 # 启动前端
 cd /app/frontend
-exec node server.js
+PORT=$FRONTEND_PORT HOSTNAME=0.0.0.0 NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL exec node server.js
 EOF
 
+ENV BACKEND_PORT=8080
+ENV FRONTEND_PORT=3000
 ENV HOST=0.0.0.0
-ENV PORT=3001
 ENV ENV=production
 ENV GIN_MODE=release
 ENV DB_PATH=/app/data/firemail.db
 ENV DB_BACKUP_DIR=/app/data/backups
 ENV CORS_ORIGINS=http://localhost:3000
 ENV NODE_ENV=production
-ENV NEXT_PUBLIC_API_BASE_URL=http://localhost:3001/api/v1
+ENV NEXT_PUBLIC_API_BASE_URL=/api/v1
 
-EXPOSE 3000 3001
+EXPOSE 3000 8080
 VOLUME ["/app/data", "/app/logs"]
 CMD ["/app/start.sh"]
