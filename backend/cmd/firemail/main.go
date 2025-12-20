@@ -190,6 +190,18 @@ func setupRoutes(router *gin.Engine, h *handlers.Handler) {
 			folders.PUT("/:id/sync", h.SyncFolder)
 		}
 
+		// 邮箱分组路由（需要认证）
+		groups := api.Group("/groups")
+		groups.Use(h.AuthRequired())
+		{
+			groups.GET("", h.GetEmailGroups)
+			groups.POST("", h.CreateEmailGroup)
+			groups.PUT("/reorder", h.ReorderEmailGroups)
+			groups.PUT("/:id", h.UpdateEmailGroup)
+			groups.PUT("/:id/default", h.SetDefaultEmailGroup)
+			groups.DELETE("/:id", h.DeleteEmailGroup)
+		}
+
 		// 附件处理路由（需要认证）
 		// 创建附件存储配置
 		attachmentStorageConfig := &services.AttachmentStorageConfig{
@@ -215,10 +227,10 @@ func setupRoutes(router *gin.Engine, h *handlers.Handler) {
 		// SSE路由（SSE端点有自己的认证逻辑）
 		sse := api.Group("/sse")
 		{
-			sse.GET("", h.HandleSSE)                    // 主SSE端点，支持token参数
-			sse.GET("/events", h.HandleSSE)             // 保持向后兼容
-			sse.GET("/stats", h.AuthRequired(), h.GetSSEStats)     // 统计需要认证
-			sse.POST("/test", h.AuthRequired(), h.SendTestEvent)   // 测试需要认证
+			sse.GET("", h.HandleSSE)                             // 主SSE端点，支持token参数
+			sse.GET("/events", h.HandleSSE)                      // 保持向后兼容
+			sse.GET("/stats", h.AuthRequired(), h.GetSSEStats)   // 统计需要认证
+			sse.POST("/test", h.AuthRequired(), h.SendTestEvent) // 测试需要认证
 		}
 	}
 

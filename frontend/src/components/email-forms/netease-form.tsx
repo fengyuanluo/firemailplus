@@ -13,6 +13,7 @@ import { ChevronDown, ChevronRight, ExternalLink, Eye, EyeOff } from 'lucide-rea
 import { apiClient } from '@/lib/api';
 import { useMailboxStore } from '@/lib/store';
 import { toast } from 'sonner';
+import { EmailGroupSelector } from './email-group-selector';
 
 // 客户端授权码验证函数
 const validateAuthCode = (authCode: string) => {
@@ -64,6 +65,7 @@ export function NetEaseForm({ onSuccess, onCancel }: NetEaseFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
   const { addAccount } = useMailboxStore();
 
   const {
@@ -98,6 +100,7 @@ export function NetEaseForm({ onSuccess, onCancel }: NetEaseFormProps) {
         provider: '163',
         auth_method: 'password',
         password: cleanAuthCode,
+        group_id: selectedGroupId || undefined,
       });
 
       if (response.success && response.data) {
@@ -169,6 +172,13 @@ export function NetEaseForm({ onSuccess, onCancel }: NetEaseFormProps) {
                 支持 @163.com, @126.com, @yeah.net, @188.com, @vip.163.com, @vip.126.com
               </p>
             </div>
+
+            <EmailGroupSelector
+              value={selectedGroupId}
+              onChange={setSelectedGroupId}
+              disabled={isSubmitting}
+              placeholder="选择分组（默认使用当前默认分组）"
+            />
 
             <div>
               <Label htmlFor="password" className="text-gray-700 dark:text-gray-300">

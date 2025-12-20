@@ -2,7 +2,7 @@
  * API 配置和基础请求函数
  */
 
-import type { EmailAccount, Email, EmailAddress, Attachment, Folder } from '@/types/email';
+import type { EmailAccount, Email, EmailAddress, Attachment, Folder, EmailGroup } from '@/types/email';
 import type {
   ApiResponse as TypedApiResponse,
   LoginRequest as TypedLoginRequest,
@@ -66,6 +66,7 @@ export interface CreateAccountRequest {
   smtp_host?: string;
   smtp_port?: number;
   smtp_security?: string;
+  group_id?: number;
 }
 
 // 基础请求函数
@@ -192,11 +193,12 @@ class ApiClient {
       imap_host?: string;
       imap_port?: number;
       imap_security?: string;
-      smtp_host?: string;
-      smtp_port?: number;
-      smtp_security?: string;
-      is_active?: boolean;
-    }
+    smtp_host?: string;
+    smtp_port?: number;
+    smtp_security?: string;
+    is_active?: boolean;
+    group_id?: number;
+  }
   ): Promise<ApiResponse<EmailAccount>> {
     return this.request<EmailAccount>(`/accounts/${id}`, {
       method: 'PUT',
@@ -213,6 +215,44 @@ class ApiClient {
   async deleteEmailAccount(id: number): Promise<ApiResponse> {
     return this.request(`/accounts/${id}`, {
       method: 'DELETE',
+    });
+  }
+
+  // 邮箱分组相关 API
+  async getEmailGroups(): Promise<ApiResponse<EmailGroup[]>> {
+    return this.request('/groups');
+  }
+
+  async createEmailGroup(payload: { name: string }): Promise<ApiResponse<EmailGroup>> {
+    return this.request<EmailGroup>('/groups', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateEmailGroup(id: number, payload: { name?: string }): Promise<ApiResponse<EmailGroup>> {
+    return this.request<EmailGroup>(`/groups/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteEmailGroup(id: number): Promise<ApiResponse> {
+    return this.request(`/groups/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async setDefaultEmailGroup(id: number): Promise<ApiResponse<EmailGroup>> {
+    return this.request<EmailGroup>(`/groups/${id}/default`, {
+      method: 'PUT',
+    });
+  }
+
+  async reorderEmailGroups(groupIds: number[]): Promise<ApiResponse<EmailGroup[]>> {
+    return this.request<EmailGroup[]>('/groups/reorder', {
+      method: 'PUT',
+      body: JSON.stringify({ group_ids: groupIds }),
     });
   }
 
@@ -267,6 +307,7 @@ class ApiClient {
     expires_at: number;
     scope?: string;
     client_id: string; // 必需，用于token刷新
+    group_id?: number;
   }): Promise<ApiResponse<EmailAccount>> {
     return this.request<EmailAccount>('/oauth/create-account', {
       method: 'POST',
@@ -284,6 +325,7 @@ class ApiClient {
     scope?: string;
     auth_url?: string;
     token_url?: string;
+    group_id?: number;
   }): Promise<ApiResponse<EmailAccount>> {
     return this.request<EmailAccount>('/oauth/manual-config', {
       method: 'POST',
@@ -303,6 +345,7 @@ class ApiClient {
     smtp_host?: string;
     smtp_port?: number;
     smtp_security?: string;
+    group_id?: number;
   }): Promise<ApiResponse<EmailAccount>> {
     return this.request<EmailAccount>('/accounts/custom', {
       method: 'POST',

@@ -140,8 +140,6 @@ func (h *Handler) InitGmailOAuth(c *gin.Context) {
 	h.respondWithSuccess(c, response, "Gmail OAuth2 authorization URL generated")
 }
 
-
-
 // InitOutlookOAuth 初始化Outlook OAuth2认证
 func (h *Handler) InitOutlookOAuth(c *gin.Context) {
 	// OAuth初始化不需要用户认证，因为这是OAuth流程的开始
@@ -250,6 +248,7 @@ type CreateOAuth2AccountRequest struct {
 	ExpiresAt    int64  `json:"expires_at" binding:"required"`
 	Scope        string `json:"scope"`
 	ClientID     string `json:"client_id" binding:"required"` // OAuth2客户端ID，必需用于后续token刷新
+	GroupID      *uint  `json:"group_id"`
 }
 
 // CreateManualOAuth2AccountRequest 手动创建OAuth2邮件账户请求
@@ -264,6 +263,7 @@ type CreateManualOAuth2AccountRequest struct {
 	// 可选的自定义端点配置
 	AuthURL  string `json:"auth_url,omitempty"`
 	TokenURL string `json:"token_url,omitempty"`
+	GroupID  *uint  `json:"group_id"`
 }
 
 // CreateOAuth2Account 使用OAuth2 token创建邮件账户
@@ -372,22 +372,27 @@ func (h *Handler) CreateOAuth2Account(c *gin.Context) {
 		return
 	}
 
+	if err := h.emailService.MoveAccountToGroup(ctx, userID, account.ID, req.GroupID); err != nil {
+		h.respondWithError(c, http.StatusBadRequest, "Failed to apply group: "+err.Error())
+		return
+	}
+
 	// 异步测试连接和同步，避免阻塞数据库事务
 	go func(accountID uint) {
 		// 测试连接
 		if err := h.emailService.TestEmailAccount(context.Background(), userID, accountID); err != nil {
 			// 如果测试失败，标记为错误状态但不删除账户
 			h.db.Model(&models.EmailAccount{}).Where("id = ?", accountID).Updates(map[string]interface{}{
-				"sync_status":    "error",
-				"error_message":  err.Error(),
+				"sync_status":   "error",
+				"error_message": err.Error(),
 			})
 		} else {
 			// 测试成功，开始同步文件夹
 			if err := h.syncService.SyncEmails(context.Background(), accountID); err != nil {
 				// 记录错误但不影响账户创建
 				h.db.Model(&models.EmailAccount{}).Where("id = ?", accountID).Updates(map[string]interface{}{
-					"sync_status":    "error",
-					"error_message":  fmt.Sprintf("Failed to sync: %v", err),
+					"sync_status":   "error",
+					"error_message": fmt.Sprintf("Failed to sync: %v", err),
 				})
 			}
 		}
@@ -541,6 +546,11 @@ func (h *Handler) CreateManualOAuth2Account(c *gin.Context) {
 		return
 	}
 
+	if err := h.emailService.MoveAccountToGroup(c.Request.Context(), userID, account.ID, req.GroupID); err != nil {
+		h.respondWithError(c, http.StatusBadRequest, "Failed to apply group: "+err.Error())
+		return
+	}
+
 	// 清除敏感信息
 	account.OAuth2Token = ""
 
@@ -557,24 +567,24 @@ func (h *Handler) CreateManualOAuth2Account(c *gin.Context) {
 		provider, err := h.providerFactory.CreateProvider(fullAccount.Provider)
 		if err != nil {
 			h.db.Model(&models.EmailAccount{}).Where("id = ?", accountID).Updates(map[string]interface{}{
-				"sync_status":    "error",
-				"error_message":  fmt.Sprintf("Failed to create provider: %v", err),
+				"sync_status":   "error",
+				"error_message": fmt.Sprintf("Failed to create provider: %v", err),
 			})
 			return
 		}
 
 		if err := provider.Connect(context.Background(), &fullAccount); err != nil {
 			h.db.Model(&models.EmailAccount{}).Where("id = ?", fullAccount.ID).Updates(map[string]interface{}{
-				"sync_status":    "error",
-				"error_message":  err.Error(),
+				"sync_status":   "error",
+				"error_message": err.Error(),
 			})
 		} else {
 			// 测试成功，开始同步文件夹
 			if err := h.syncService.SyncEmails(context.Background(), fullAccount.ID); err != nil {
 				// 记录错误但不影响账户创建
 				h.db.Model(&models.EmailAccount{}).Where("id = ?", fullAccount.ID).Updates(map[string]interface{}{
-					"sync_status":    "error",
-					"error_message":  fmt.Sprintf("Failed to sync: %v", err),
+					"sync_status":   "error",
+					"error_message": fmt.Sprintf("Failed to sync: %v", err),
 				})
 			}
 		}

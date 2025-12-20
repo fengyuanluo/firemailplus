@@ -14,23 +14,23 @@ type EventTrigger interface {
 	TriggerAccountConnected(ctx context.Context, account *models.EmailAccount, userID uint)
 	TriggerAccountDisconnected(ctx context.Context, account *models.EmailAccount, userID uint)
 	TriggerAccountError(ctx context.Context, account *models.EmailAccount, userID uint, err error)
-	
+
 	// 同步相关事件
 	TriggerSyncStarted(ctx context.Context, account *models.EmailAccount, userID uint)
 	TriggerSyncProgress(ctx context.Context, account *models.EmailAccount, userID uint, progress float64, processed, total int, folderName string)
 	TriggerSyncCompleted(ctx context.Context, account *models.EmailAccount, userID uint)
 	TriggerSyncError(ctx context.Context, account *models.EmailAccount, userID uint, err error)
-	
+
 	// 邮件相关事件
 	TriggerNewEmail(ctx context.Context, email *models.Email, userID uint)
 	TriggerEmailStatusChanged(ctx context.Context, emailID, accountID, userID uint, isRead, isStarred, isDeleted *bool)
-	
+
 	// 邮件发送事件
 	TriggerEmailSendStarted(ctx context.Context, sendID, emailID string, userID uint)
 	TriggerEmailSendProgress(ctx context.Context, sendID, emailID string, userID uint, progress float64)
 	TriggerEmailSendCompleted(ctx context.Context, sendID, emailID string, userID uint)
 	TriggerEmailSendFailed(ctx context.Context, sendID, emailID string, userID uint, err error)
-	
+
 	// 通知事件
 	TriggerNotification(ctx context.Context, title, message, notificationType string, userID uint)
 }
@@ -52,7 +52,7 @@ func (t *StandardEventTrigger) TriggerAccountConnected(ctx context.Context, acco
 	if t.eventPublisher == nil {
 		return
 	}
-	
+
 	event := sse.NewAccountEvent(sse.EventAccountConnected, account.ID, account.Email, account.Provider, userID)
 	if err := t.eventPublisher.PublishToUser(ctx, userID, event); err != nil {
 		log.Printf("Failed to publish account connected event: %v", err)
@@ -64,7 +64,7 @@ func (t *StandardEventTrigger) TriggerAccountDisconnected(ctx context.Context, a
 	if t.eventPublisher == nil {
 		return
 	}
-	
+
 	event := sse.NewAccountEvent(sse.EventAccountDisconnected, account.ID, account.Email, account.Provider, userID)
 	if err := t.eventPublisher.PublishToUser(ctx, userID, event); err != nil {
 		log.Printf("Failed to publish account disconnected event: %v", err)
@@ -76,14 +76,14 @@ func (t *StandardEventTrigger) TriggerAccountError(ctx context.Context, account 
 	if t.eventPublisher == nil {
 		return
 	}
-	
+
 	event := sse.NewAccountEvent(sse.EventAccountError, account.ID, account.Email, account.Provider, userID)
 	if event.Data != nil {
 		if accountData, ok := event.Data.(*sse.AccountEventData); ok {
 			accountData.ErrorMessage = err.Error()
 		}
 	}
-	
+
 	if publishErr := t.eventPublisher.PublishToUser(ctx, userID, event); publishErr != nil {
 		log.Printf("Failed to publish account error event: %v", publishErr)
 	}
@@ -94,7 +94,7 @@ func (t *StandardEventTrigger) TriggerSyncStarted(ctx context.Context, account *
 	if t.eventPublisher == nil {
 		return
 	}
-	
+
 	event := sse.NewSyncEvent(sse.EventSyncStarted, account.ID, account.Email, userID)
 	if err := t.eventPublisher.PublishToUser(ctx, userID, event); err != nil {
 		log.Printf("Failed to publish sync started event: %v", err)
@@ -106,7 +106,7 @@ func (t *StandardEventTrigger) TriggerSyncProgress(ctx context.Context, account 
 	if t.eventPublisher == nil {
 		return
 	}
-	
+
 	event := sse.NewSyncEvent(sse.EventSyncProgress, account.ID, account.Email, userID)
 	if event.Data != nil {
 		if syncData, ok := event.Data.(*sse.SyncEventData); ok {
@@ -116,7 +116,7 @@ func (t *StandardEventTrigger) TriggerSyncProgress(ctx context.Context, account 
 			syncData.FolderName = folderName
 		}
 	}
-	
+
 	if err := t.eventPublisher.PublishToUser(ctx, userID, event); err != nil {
 		log.Printf("Failed to publish sync progress event: %v", err)
 	}
@@ -127,7 +127,7 @@ func (t *StandardEventTrigger) TriggerSyncCompleted(ctx context.Context, account
 	if t.eventPublisher == nil {
 		return
 	}
-	
+
 	event := sse.NewSyncEvent(sse.EventSyncCompleted, account.ID, account.Email, userID)
 	if err := t.eventPublisher.PublishToUser(ctx, userID, event); err != nil {
 		log.Printf("Failed to publish sync completed event: %v", err)
@@ -139,14 +139,14 @@ func (t *StandardEventTrigger) TriggerSyncError(ctx context.Context, account *mo
 	if t.eventPublisher == nil {
 		return
 	}
-	
+
 	event := sse.NewSyncEvent(sse.EventSyncError, account.ID, account.Email, userID)
 	if event.Data != nil {
 		if syncData, ok := event.Data.(*sse.SyncEventData); ok {
 			syncData.ErrorMessage = err.Error()
 		}
 	}
-	
+
 	if publishErr := t.eventPublisher.PublishToUser(ctx, userID, event); publishErr != nil {
 		log.Printf("Failed to publish sync error event: %v", publishErr)
 	}
@@ -157,7 +157,7 @@ func (t *StandardEventTrigger) TriggerNewEmail(ctx context.Context, email *model
 	if t.eventPublisher == nil {
 		return
 	}
-	
+
 	event := sse.NewNewEmailEvent(email, userID)
 	if err := t.eventPublisher.PublishToUser(ctx, userID, event); err != nil {
 		log.Printf("Failed to publish new email event: %v", err)
@@ -169,8 +169,8 @@ func (t *StandardEventTrigger) TriggerEmailStatusChanged(ctx context.Context, em
 	if t.eventPublisher == nil {
 		return
 	}
-	
-	event := sse.NewEmailStatusEvent(emailID, accountID, userID, isRead, isStarred, isDeleted)
+
+	event := sse.NewEmailStatusEvent(emailID, accountID, userID, isRead, isStarred, nil, isDeleted)
 	if err := t.eventPublisher.PublishToUser(ctx, userID, event); err != nil {
 		log.Printf("Failed to publish email status event: %v", err)
 	}
@@ -181,7 +181,7 @@ func (t *StandardEventTrigger) TriggerEmailSendStarted(ctx context.Context, send
 	if t.eventPublisher == nil {
 		return
 	}
-	
+
 	event := sse.NewEmailSendEvent(sse.EventEmailSendStarted, sendID, emailID, userID)
 	if err := t.eventPublisher.PublishToUser(ctx, userID, event); err != nil {
 		log.Printf("Failed to publish email send started event: %v", err)
@@ -193,14 +193,14 @@ func (t *StandardEventTrigger) TriggerEmailSendProgress(ctx context.Context, sen
 	if t.eventPublisher == nil {
 		return
 	}
-	
+
 	event := sse.NewEmailSendEvent(sse.EventEmailSendProgress, sendID, emailID, userID)
 	if event.Data != nil {
 		if sendData, ok := event.Data.(*sse.EmailSendEventData); ok {
 			sendData.Progress = progress
 		}
 	}
-	
+
 	if err := t.eventPublisher.PublishToUser(ctx, userID, event); err != nil {
 		log.Printf("Failed to publish email send progress event: %v", err)
 	}
@@ -211,7 +211,7 @@ func (t *StandardEventTrigger) TriggerEmailSendCompleted(ctx context.Context, se
 	if t.eventPublisher == nil {
 		return
 	}
-	
+
 	event := sse.NewEmailSendEvent(sse.EventEmailSendCompleted, sendID, emailID, userID)
 	if err := t.eventPublisher.PublishToUser(ctx, userID, event); err != nil {
 		log.Printf("Failed to publish email send completed event: %v", err)
@@ -223,14 +223,14 @@ func (t *StandardEventTrigger) TriggerEmailSendFailed(ctx context.Context, sendI
 	if t.eventPublisher == nil {
 		return
 	}
-	
+
 	event := sse.NewEmailSendEvent(sse.EventEmailSendFailed, sendID, emailID, userID)
 	if event.Data != nil {
 		if sendData, ok := event.Data.(*sse.EmailSendEventData); ok {
 			sendData.Error = err.Error()
 		}
 	}
-	
+
 	if publishErr := t.eventPublisher.PublishToUser(ctx, userID, event); publishErr != nil {
 		log.Printf("Failed to publish email send failed event: %v", publishErr)
 	}
@@ -241,7 +241,7 @@ func (t *StandardEventTrigger) TriggerNotification(ctx context.Context, title, m
 	if t.eventPublisher == nil {
 		return
 	}
-	
+
 	event := sse.NewNotificationEvent(title, message, notificationType, userID)
 	if err := t.eventPublisher.PublishToUser(ctx, userID, event); err != nil {
 		log.Printf("Failed to publish notification event: %v", err)

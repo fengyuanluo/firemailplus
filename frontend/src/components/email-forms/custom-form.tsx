@@ -20,6 +20,7 @@ import { ChevronDown, ChevronRight, Eye, EyeOff, Server, Mail, Shield } from 'lu
 import { apiClient } from '@/lib/api';
 import { useMailboxStore } from '@/lib/store';
 import { toast } from 'sonner';
+import { EmailGroupSelector } from './email-group-selector';
 
 // 配置模式类型
 type ConfigMode = 'full' | 'imap-only' | 'smtp-only';
@@ -100,6 +101,7 @@ export function CustomForm({ onSuccess, onCancel }: CustomFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
   const { addAccount } = useMailboxStore();
 
   const {
@@ -141,6 +143,7 @@ export function CustomForm({ onSuccess, onCancel }: CustomFormProps) {
         auth_method: 'password',
         username: data.username,
         password: data.password,
+        group_id: selectedGroupId || undefined,
       };
 
       // 根据配置模式添加相应配置
@@ -287,6 +290,13 @@ export function CustomForm({ onSuccess, onCancel }: CustomFormProps) {
                 )}
               </div>
             </div>
+
+            <EmailGroupSelector
+              value={selectedGroupId}
+              onChange={setSelectedGroupId}
+              disabled={isSubmitting}
+              placeholder="选择分组（默认使用当前默认分组）"
+            />
           </div>
 
           {/* 配置模式选择 */}

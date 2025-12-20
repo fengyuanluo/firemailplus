@@ -13,6 +13,7 @@ import { ChevronDown, ChevronRight, ExternalLink, Eye, EyeOff } from 'lucide-rea
 import { useOAuth2 } from '@/hooks/use-oauth';
 import { useMailboxStore } from '@/lib/store';
 import { toast } from 'sonner';
+import { EmailGroupSelector } from './email-group-selector';
 
 // UUID格式验证
 const isValidUUID = (value: string) => {
@@ -49,6 +50,7 @@ export function OutlookManualOAuth2Form({ onSuccess, onCancel }: OutlookManualOA
   const [showInstructions, setShowInstructions] = useState(false);
   const [showClientSecret, setShowClientSecret] = useState(false);
   const [showRefreshToken, setShowRefreshToken] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
   const { createManualOAuth2Account } = useOAuth2();
   const { addAccount } = useMailboxStore();
 
@@ -77,6 +79,7 @@ export function OutlookManualOAuth2Form({ onSuccess, onCancel }: OutlookManualOA
         client_secret: data.client_secret || undefined,
         refresh_token: data.refresh_token,
         scope: data.scope || undefined,
+        group_id: selectedGroupId || undefined,
       });
 
       if (response.success && response.data) {
@@ -150,6 +153,13 @@ export function OutlookManualOAuth2Form({ onSuccess, onCancel }: OutlookManualOA
               />
               {errors.email && <p className="text-sm text-red-500 mt-1">{errors.email.message}</p>}
             </div>
+
+            <EmailGroupSelector
+              value={selectedGroupId}
+              onChange={setSelectedGroupId}
+              disabled={isSubmitting}
+              placeholder="选择分组（默认使用当前默认分组）"
+            />
 
             <div>
               <Label htmlFor="client_id" className="text-gray-700 dark:text-gray-300">

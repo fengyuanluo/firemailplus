@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useOAuth2 } from '@/hooks/use-oauth';
 import { toast } from 'sonner';
+import { EmailGroupSelector } from './email-group-selector';
 
 const gmailOAuth2Schema = z.object({
   name: z.string().min(1, '请输入账户名称'),
@@ -28,6 +29,7 @@ interface GmailOAuth2FormProps {
 
 export function GmailOAuth2Form({ onSuccess, onCancel }: GmailOAuth2FormProps) {
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
   const { authenticateGmail } = useOAuth2();
 
   const {
@@ -42,7 +44,7 @@ export function GmailOAuth2Form({ onSuccess, onCancel }: GmailOAuth2FormProps) {
   const onSubmit = async (data: GmailOAuth2Form) => {
     setIsAuthenticating(true);
     try {
-      await authenticateGmail(data.name, data.email);
+      await authenticateGmail(data.name, data.email, selectedGroupId || undefined);
       toast.success('Gmail账户添加成功');
       reset();
       onSuccess?.();
@@ -104,6 +106,13 @@ export function GmailOAuth2Form({ onSuccess, onCancel }: GmailOAuth2FormProps) {
               />
               {errors.email && <p className="text-sm text-red-500 mt-1">{errors.email.message}</p>}
             </div>
+
+            <EmailGroupSelector
+              value={selectedGroupId}
+              onChange={setSelectedGroupId}
+              disabled={isAuthenticating}
+              placeholder="选择分组（默认使用当前默认分组）"
+            />
           </div>
 
           <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">

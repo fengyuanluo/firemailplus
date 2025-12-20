@@ -608,13 +608,3 @@ func (v *ProviderValidator) applySuggestion(account *models.EmailAccount, sugges
 		}
 	}
 }
-
-func isMicrosoftPersonalDomain(domain string) bool {
-	if domain == "" {
-		return false
-	}
-	return strings.HasPrefix(domain, "outlook.") ||
-		strings.HasPrefix(domain, "hotmail.") ||
-		strings.HasPrefix(domain, "live.") ||
-		strings.HasPrefix(domain, "msn.")
-}

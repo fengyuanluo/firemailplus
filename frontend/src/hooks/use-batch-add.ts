@@ -120,7 +120,8 @@ export function useBatchAddAccounts() {
   // 处理单个账户
   const processAccount = async (
     accountData: BatchAccountData,
-    accountName: string
+    accountName: string,
+    groupId?: number
   ): Promise<BatchProcessResult> => {
     try {
       const response = await apiClient.createManualOAuth2Account({
@@ -131,6 +132,7 @@ export function useBatchAddAccounts() {
         refresh_token: accountData.refresh_token,
         scope:
           'https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send offline_access',
+        group_id: groupId,
       });
 
       if (response.success && response.data) {
@@ -158,7 +160,7 @@ export function useBatchAddAccounts() {
 
   // 批量处理账户
   const processBatch = useCallback(
-    async (accounts: BatchAccountData[], namePrefix: string = 'Outlook账户') => {
+    async (accounts: BatchAccountData[], namePrefix: string = 'Outlook账户', groupId?: number) => {
       if (accounts.length === 0) {
         toast.error('没有有效的账户数据');
         return;
@@ -189,7 +191,7 @@ export function useBatchAddAccounts() {
           // 并发处理当前批次
           const batchPromises = batch.map((account, batchIndex) => {
             const accountName = `${namePrefix} ${i + batchIndex + 1}`;
-            return processAccount(account, accountName);
+            return processAccount(account, accountName, groupId);
           });
 
           const batchResults = await Promise.allSettled(batchPromises);

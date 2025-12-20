@@ -577,7 +577,7 @@ interface ContextMenuState {
   isOpen: boolean;
   position: { x: number; y: number };
   target: {
-    type: 'account' | 'folder' | 'email';
+    type: 'account' | 'folder' | 'email' | 'group' | 'group-blank';
     id: number;
     data?: any;
   } | null;

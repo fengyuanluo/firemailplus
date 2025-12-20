@@ -12,6 +12,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
 import { useOAuth2 } from '@/hooks/use-oauth';
 import { toast } from 'sonner';
+import { EmailGroupSelector } from './email-group-selector';
 
 const OUTLOOK_DOMAIN_REGEX = /@(outlook|hotmail|live|msn)\.[^\s@]+$/i;
 
@@ -33,6 +34,7 @@ interface OutlookOAuth2FormProps {
 export function OutlookOAuth2Form({ onSuccess, onCancel }: OutlookOAuth2FormProps) {
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
   const { authenticateOutlook } = useOAuth2();
 
   const {
@@ -47,7 +49,7 @@ export function OutlookOAuth2Form({ onSuccess, onCancel }: OutlookOAuth2FormProp
   const onSubmit = async (data: OutlookOAuth2Form) => {
     setIsAuthenticating(true);
     try {
-      await authenticateOutlook(data.name, data.email);
+      await authenticateOutlook(data.name, data.email, selectedGroupId || undefined);
       // 注意：由于使用直接跳转，这里的代码不会执行
       // 成功处理在OAuth回调页面中进行
     } catch (error: any) {
@@ -110,6 +112,13 @@ export function OutlookOAuth2Form({ onSuccess, onCancel }: OutlookOAuth2FormProp
                 支持 @outlook.*, @hotmail.*, @live.*, @msn.*
               </p>
             </div>
+
+            <EmailGroupSelector
+              value={selectedGroupId}
+              onChange={setSelectedGroupId}
+              disabled={isAuthenticating}
+              placeholder="选择分组（默认使用当前默认分组）"
+            />
           </div>
 
           <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">

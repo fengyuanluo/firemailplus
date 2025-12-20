@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useBatchAddAccounts, parseBatchData } from '@/hooks/use-batch-add';
 import { toast } from 'sonner';
+import { EmailGroupSelector } from './email-group-selector';
 
 const outlookBatchSchema = z.object({
   batchData: z.string().min(1, '请输入批量数据'),
@@ -38,6 +39,7 @@ export function OutlookBatchForm({ onSuccess, onCancel }: OutlookBatchFormProps)
   const [showInstructions, setShowInstructions] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
 
   const { progress, processBatch, retryFailed, resetProgress } = useBatchAddAccounts();
 
@@ -83,7 +85,7 @@ export function OutlookBatchForm({ onSuccess, onCancel }: OutlookBatchFormProps)
     }
 
     setShowResults(true);
-    await processBatch(accounts, data.namePrefix);
+    await processBatch(accounts, data.namePrefix, selectedGroupId || undefined);
   };
 
   // 导出结果
@@ -154,6 +156,13 @@ export function OutlookBatchForm({ onSuccess, onCancel }: OutlookBatchFormProps)
                 {watch('namePrefix', 'Outlook账户')} 2...
               </p>
             </div>
+
+            <EmailGroupSelector
+              value={selectedGroupId}
+              onChange={setSelectedGroupId}
+              disabled={progress.isProcessing}
+              placeholder="选择分组（默认使用当前默认分组）"
+            />
 
             <div>
               <div className="flex items-center justify-between mb-1">

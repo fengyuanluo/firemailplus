@@ -13,6 +13,7 @@ import { ChevronDown, ChevronRight, ExternalLink, Eye, EyeOff } from 'lucide-rea
 import { apiClient } from '@/lib/api';
 import { useMailboxStore } from '@/lib/store';
 import { toast } from 'sonner';
+import { EmailGroupSelector } from './email-group-selector';
 
 // 授权码验证函数
 const validateAuthCode = (authCode: string) => {
@@ -57,6 +58,7 @@ export function QQForm({ onSuccess, onCancel }: QQFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
   const { addAccount } = useMailboxStore();
 
   const {
@@ -91,6 +93,7 @@ export function QQForm({ onSuccess, onCancel }: QQFormProps) {
         provider: 'qq',
         auth_method: 'password',
         password: cleanAuthCode,
+        group_id: selectedGroupId || undefined,
       });
 
       if (response.success && response.data) {
@@ -162,6 +165,13 @@ export function QQForm({ onSuccess, onCancel }: QQFormProps) {
                 支持 @qq.com, @vip.qq.com, @foxmail.com
               </p>
             </div>
+
+            <EmailGroupSelector
+              value={selectedGroupId}
+              onChange={setSelectedGroupId}
+              disabled={isSubmitting}
+              placeholder="选择分组（默认使用当前默认分组）"
+            />
 
             <div>
               <Label htmlFor="password" className="text-gray-700 dark:text-gray-300">

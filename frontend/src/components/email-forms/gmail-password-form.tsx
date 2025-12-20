@@ -13,6 +13,7 @@ import { ChevronDown, ChevronRight, ExternalLink, Eye, EyeOff } from 'lucide-rea
 import { apiClient } from '@/lib/api';
 import { useMailboxStore } from '@/lib/store';
 import { toast } from 'sonner';
+import { EmailGroupSelector } from './email-group-selector';
 
 // 应用专用密码验证函数
 const validateAppPassword = (password: string) => {
@@ -57,6 +58,7 @@ export function GmailPasswordForm({ onSuccess, onCancel }: GmailPasswordFormProp
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
   const { addAccount } = useMailboxStore();
 
   const {
@@ -91,6 +93,7 @@ export function GmailPasswordForm({ onSuccess, onCancel }: GmailPasswordFormProp
         provider: 'gmail',
         auth_method: 'password',
         password: cleanPassword,
+        group_id: selectedGroupId || undefined,
       });
 
       if (response.success && response.data) {
@@ -192,6 +195,13 @@ export function GmailPasswordForm({ onSuccess, onCancel }: GmailPasswordFormProp
                 16位字母和数字组合，可以用空格分隔
               </p>
             </div>
+
+            <EmailGroupSelector
+              value={selectedGroupId}
+              onChange={setSelectedGroupId}
+              disabled={isSubmitting}
+              placeholder="选择分组（默认使用当前默认分组）"
+            />
           </div>
 
           {/* 设置说明 */}

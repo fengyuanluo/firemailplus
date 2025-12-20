@@ -9,9 +9,12 @@ import { apiClient } from '@/lib/api';
 
 interface AccountItemProps {
   account: EmailAccount;
+  draggable?: boolean;
+  onDragStart?: (e: React.DragEvent) => void;
+  onDragEnd?: (e: React.DragEvent) => void;
 }
 
-export function AccountItem({ account }: AccountItemProps) {
+export function AccountItem({ account, draggable = false, onDragStart, onDragEnd }: AccountItemProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { selectedAccount, selectAccount, folders, setFolders } = useMailboxStore();
@@ -94,6 +97,15 @@ export function AccountItem({ account }: AccountItemProps) {
       <div
         onClick={handleAccountClick}
         onContextMenu={handleContextMenu}
+        draggable={draggable}
+        onDragStart={(e) => {
+          if (!draggable) return;
+          onDragStart?.(e);
+          e.dataTransfer.effectAllowed = 'move';
+        }}
+        onDragEnd={(e) => {
+          onDragEnd?.(e);
+        }}
         className={`
           flex items-center gap-2 p-2 rounded-md cursor-pointer transition-colors
           hover:bg-gray-100 dark:hover:bg-gray-700

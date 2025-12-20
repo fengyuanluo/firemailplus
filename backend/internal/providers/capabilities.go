@@ -3,7 +3,6 @@ package providers
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"firemail/internal/models"
@@ -280,6 +279,7 @@ func (d *StandardCapabilityDetector) addWarnings(config *OptimalConfig, capabili
 	}
 
 	// 基本认证弃用警告
+// 去中心化微软个人域名判断逻辑，避免重复定义
 	if config.AuthMethod == "password" {
 		domain := extractDomainFromEmail(account.Email)
 		if isMicrosoftPersonalDomain(domain) {
@@ -309,16 +309,6 @@ func (d *StandardCapabilityDetector) testIMAPConnection(ctx context.Context, acc
 	// 尝试连接IMAP服务器
 	err := d.provider.TestConnection(ctx, account)
 	return err == nil, err
-}
-
-func isMicrosoftPersonalDomain(domain string) bool {
-	if domain == "" {
-		return false
-	}
-	return strings.HasPrefix(domain, "outlook.") ||
-		strings.HasPrefix(domain, "hotmail.") ||
-		strings.HasPrefix(domain, "live.") ||
-		strings.HasPrefix(domain, "msn.")
 }
 
 // testSMTPConnection 测试SMTP连接

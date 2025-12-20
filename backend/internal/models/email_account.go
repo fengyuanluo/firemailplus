@@ -13,6 +13,7 @@ type EmailAccount struct {
 	Email      string `gorm:"not null;size:100" json:"email"`      // 邮箱地址
 	Provider   string `gorm:"not null;size:50" json:"provider"`    // 提供商名称 (gmail, outlook, qq, etc.)
 	AuthMethod string `gorm:"not null;size:20" json:"auth_method"` // 认证方式 (password, oauth2)
+	GroupID    *uint  `gorm:"index" json:"group_id,omitempty"`     // 分组ID，未分组时为空
 
 	// IMAP配置
 	IMAPHost     string `gorm:"size:100" json:"imap_host"`
@@ -42,9 +43,10 @@ type EmailAccount struct {
 	UnreadEmails int `gorm:"default:0" json:"unread_emails"`
 
 	// 关联关系
-	User    User     `gorm:"foreignKey:UserID" json:"user,omitempty"`
-	Emails  []Email  `gorm:"foreignKey:AccountID" json:"emails,omitempty"`
-	Folders []Folder `gorm:"foreignKey:AccountID" json:"folders,omitempty"`
+	User    User        `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	Emails  []Email     `gorm:"foreignKey:AccountID" json:"emails,omitempty"`
+	Folders []Folder    `gorm:"foreignKey:AccountID" json:"folders,omitempty"`
+	Group   *EmailGroup `gorm:"foreignKey:GroupID" json:"group,omitempty"`
 }
 
 // TableName 指定表名

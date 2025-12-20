@@ -4,7 +4,7 @@
  */
 
 import { create } from 'zustand';
-import type { EmailAccount, Email, Folder } from '@/types/email';
+import type { EmailAccount, Email, EmailGroup, Folder } from '@/types/email';
 
 // 搜索筛选条件
 interface SearchFilters {
@@ -33,6 +33,7 @@ interface MailboxState {
   // 账户状态
   accounts: EmailAccount[];
   selectedAccount: EmailAccount | null;
+  groups: EmailGroup[];
 
   // 文件夹状态
   folders: Folder[];
@@ -73,6 +74,10 @@ interface MailboxState {
   updateAccount: (account: EmailAccount) => void;
   removeAccount: (id: number) => void;
   selectAccount: (account: EmailAccount | null) => void;
+  setGroups: (groups: EmailGroup[]) => void;
+  addGroup: (group: EmailGroup) => void;
+  updateGroup: (group: EmailGroup) => void;
+  removeGroup: (groupId: number) => void;
 
   // 文件夹操作
   setFolders: (folders: Folder[]) => void;
@@ -126,6 +131,7 @@ export const useMailboxStore = create<MailboxState>((set, get) => ({
   // 初始状态
   accounts: [],
   selectedAccount: null,
+  groups: [],
   folders: [],
   selectedFolder: null,
   expandedFolders: new Set(),
@@ -176,6 +182,26 @@ export const useMailboxStore = create<MailboxState>((set, get) => ({
       selectedEmails: new Set(),
       page: 1,
     }),
+  setGroups: (groups) => set({ groups }),
+  addGroup: (group) =>
+    set((state) => ({
+      groups: [...state.groups.filter((g) => g.id !== group.id), group].sort((a, b) => {
+        if (a.is_default && !b.is_default) return -1;
+        if (!a.is_default && b.is_default) return 1;
+        return a.sort_order - b.sort_order;
+      }),
+    })),
+  updateGroup: (group) =>
+    set((state) => ({
+      groups: state.groups.map((g) => (g.id === group.id ? group : g)),
+    })),
+  removeGroup: (groupId) =>
+    set((state) => ({
+      groups: state.groups.filter((g) => g.id !== groupId),
+      accounts: state.accounts.map((acc) =>
+        acc.group_id === groupId ? { ...acc, group_id: undefined } : acc
+      ),
+    })),
 
   // 文件夹操作
   setFolders: (folders) => set({ folders }),

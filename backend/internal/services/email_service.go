@@ -3,6 +3,9 @@ package services
 import (
 	"bytes"
 	"context"
+	"crypto/md5"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"html"
 	"io"
@@ -11,9 +14,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-	"crypto/md5"
-	"encoding/hex"
-	"encoding/json"
 
 	"firemail/internal/cache"
 	"firemail/internal/config"
@@ -65,6 +65,15 @@ type EmailService interface {
 	MarkFolderAsRead(ctx context.Context, userID, folderID uint) error
 	SyncSpecificFolder(ctx context.Context, userID, folderID uint) error
 
+	// 邮箱分组管理
+	GetEmailGroups(ctx context.Context, userID uint) ([]*models.EmailGroup, error)
+	CreateEmailGroup(ctx context.Context, userID uint, req *CreateEmailGroupRequest) (*models.EmailGroup, error)
+	UpdateEmailGroup(ctx context.Context, userID, groupID uint, req *UpdateEmailGroupRequest) (*models.EmailGroup, error)
+	DeleteEmailGroup(ctx context.Context, userID, groupID uint) error
+	ReorderEmailGroups(ctx context.Context, userID uint, order []uint) ([]*models.EmailGroup, error)
+	MoveAccountToGroup(ctx context.Context, userID, accountID uint, groupID *uint) error
+	SetDefaultEmailGroup(ctx context.Context, userID, groupID uint) (*models.EmailGroup, error)
+
 	// 搜索
 	SearchEmails(ctx context.Context, userID uint, req *SearchEmailsRequest) (*GetEmailsResponse, error)
 }
@@ -115,6 +124,7 @@ type CreateEmailAccountRequest struct {
 	SMTPHost     string `json:"smtp_host"`
 	SMTPPort     int    `json:"smtp_port"`
 	SMTPSecurity string `json:"smtp_security"`
+	GroupID      *uint  `json:"group_id"`
 }
 
 // UpdateEmailAccountRequest 更新邮件账户请求
@@ -128,6 +138,7 @@ type UpdateEmailAccountRequest struct {
 	SMTPPort     *int    `json:"smtp_port"`
 	SMTPSecurity *string `json:"smtp_security"`
 	IsActive     *bool   `json:"is_active"`
+	GroupID      *uint   `json:"group_id"`
 }
 
 // GetEmailsRequest 获取邮件列表请求
@@ -190,6 +201,16 @@ type UpdateFolderRequest struct {
 	Name        *string `json:"name"`
 	DisplayName *string `json:"display_name"`
 	ParentID    *uint   `json:"parent_id"`
+}
+
+// CreateEmailGroupRequest 创建邮箱分组请求
+type CreateEmailGroupRequest struct {
+	Name string `json:"name" binding:"required"`
+}
+
+// UpdateEmailGroupRequest 更新邮箱分组请求
+type UpdateEmailGroupRequest struct {
+	Name *string `json:"name"`
 }
 
 // SearchEmailsRequest 搜索邮件请求
@@ -256,6 +277,12 @@ func (s *EmailServiceImpl) CreateEmailAccount(ctx context.Context, userID uint, 
 		return nil, fmt.Errorf("unknown provider: %s", req.Provider)
 	}
 
+	// 解析目标分组（为空则回退到默认分组）
+	targetGroup, err := s.resolveAccountGroup(ctx, userID, req.GroupID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid group: %w", err)
+	}
+
 	// 创建邮件账户
 	account := &models.EmailAccount{
 		UserID:     userID,
@@ -265,6 +292,7 @@ func (s *EmailServiceImpl) CreateEmailAccount(ctx context.Context, userID uint, 
 		AuthMethod: req.AuthMethod,
 		IsActive:   true,
 		SyncStatus: "pending",
+		GroupID:    &targetGroup.ID,
 	}
 
 	// 根据邮箱类型设置配置
@@ -319,6 +347,21 @@ func (s *EmailServiceImpl) GetEmailAccounts(ctx context.Context, userID uint) ([
 		return nil, fmt.Errorf("failed to get email accounts: %w", err)
 	}
 
+	// 确保存在默认分组并回填缺失的分组信息
+	defaultGroup, err := s.ensureDefaultGroup(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to ensure default group: %w", err)
+	}
+
+	for _, account := range accounts {
+		if account.GroupID == nil && defaultGroup != nil {
+			account.GroupID = &defaultGroup.ID
+			_ = s.db.Model(&models.EmailAccount{}).
+				Where("id = ?", account.ID).
+				Update("group_id", defaultGroup.ID).Error
+		}
+	}
+
 	return accounts, nil
 }
 
@@ -370,6 +413,13 @@ func (s *EmailServiceImpl) UpdateEmailAccount(ctx context.Context, userID, accou
 	}
 	if req.IsActive != nil {
 		account.IsActive = *req.IsActive
+	}
+	if req.GroupID != nil {
+		targetGroup, err := s.resolveAccountGroup(ctx, userID, req.GroupID)
+		if err != nil {
+			return nil, fmt.Errorf("invalid group: %w", err)
+		}
+		account.GroupID = &targetGroup.ID
 	}
 
 	// 验证更新后的配置
@@ -576,6 +626,366 @@ func (s *EmailServiceImpl) syncFoldersForAccount(ctx context.Context, accountID 
 	}
 
 	return nil
+}
+
+// ensureDefaultGroup 确保存在默认分组
+func (s *EmailServiceImpl) ensureDefaultGroup(ctx context.Context, userID uint) (*models.EmailGroup, error) {
+	var group models.EmailGroup
+	err := s.db.WithContext(ctx).
+		Where("user_id = ? AND is_default = ?", userID, true).
+		First(&group).Error
+
+	if err == gorm.ErrRecordNotFound {
+		group = models.EmailGroup{
+			UserID:    userID,
+			Name:      "未分组",
+			SortOrder: 0,
+			IsDefault: true,
+		}
+		if createErr := s.db.WithContext(ctx).Create(&group).Error; createErr != nil {
+			return nil, fmt.Errorf("failed to create default group: %w", createErr)
+		}
+		return &group, nil
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to load default group: %w", err)
+	}
+
+	return &group, nil
+}
+
+// resolveAccountGroup 解析账户分组（为空时返回默认分组）
+func (s *EmailServiceImpl) resolveAccountGroup(ctx context.Context, userID uint, groupID *uint) (*models.EmailGroup, error) {
+	defaultGroup, err := s.ensureDefaultGroup(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	if groupID == nil {
+		return defaultGroup, nil
+	}
+
+	var group models.EmailGroup
+	err = s.db.WithContext(ctx).
+		Where("id = ? AND user_id = ?", *groupID, userID).
+		First(&group).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("分组不存在")
+		}
+		return nil, err
+	}
+
+	return &group, nil
+}
+
+// GetEmailGroups 获取分组列表（包含账户数量）
+func (s *EmailServiceImpl) GetEmailGroups(ctx context.Context, userID uint) ([]*models.EmailGroup, error) {
+	if _, err := s.ensureDefaultGroup(ctx, userID); err != nil {
+		return nil, err
+	}
+
+	var groups []*models.EmailGroup
+	if err := s.db.WithContext(ctx).
+		Where("user_id = ?", userID).
+		Order("is_default DESC, sort_order ASC, id ASC").
+		Find(&groups).Error; err != nil {
+		return nil, fmt.Errorf("failed to load groups: %w", err)
+	}
+
+	var counts []struct {
+		GroupID *uint
+		Count   int64
+	}
+	if err := s.db.WithContext(ctx).
+		Model(&models.EmailAccount{}).
+		Select("group_id, COUNT(*) as count").
+		Where("user_id = ?", userID).
+		Group("group_id").
+		Scan(&counts).Error; err != nil {
+		return nil, fmt.Errorf("failed to count accounts: %w", err)
+	}
+
+	countMap := make(map[uint]int64)
+	var ungroupedCount int64
+	for _, c := range counts {
+		if c.GroupID == nil {
+			ungroupedCount += c.Count
+			continue
+		}
+		countMap[*c.GroupID] = c.Count
+	}
+
+	for _, group := range groups {
+		group.AccountCnt = countMap[group.ID]
+		if group.IsDefault {
+			group.AccountCnt += ungroupedCount
+		}
+	}
+
+	return groups, nil
+}
+
+// CreateEmailGroup 创建分组
+func (s *EmailServiceImpl) CreateEmailGroup(ctx context.Context, userID uint, req *CreateEmailGroupRequest) (*models.EmailGroup, error) {
+	if req == nil || strings.TrimSpace(req.Name) == "" {
+		return nil, fmt.Errorf("分组名称不能为空")
+	}
+
+	if _, err := s.ensureDefaultGroup(ctx, userID); err != nil {
+		return nil, err
+	}
+
+	var maxOrder int
+	if err := s.db.WithContext(ctx).
+		Model(&models.EmailGroup{}).
+		Where("user_id = ? AND is_default = 0", userID).
+		Select("COALESCE(MAX(sort_order), 0)").
+		Scan(&maxOrder).Error; err != nil {
+		return nil, fmt.Errorf("failed to calculate sort order: %w", err)
+	}
+
+	group := &models.EmailGroup{
+		UserID:    userID,
+		Name:      strings.TrimSpace(req.Name),
+		SortOrder: maxOrder + 1,
+		IsDefault: false,
+	}
+
+	if err := s.db.WithContext(ctx).Create(group).Error; err != nil {
+		return nil, fmt.Errorf("failed to create group: %w", err)
+	}
+
+	// 如果这是用户创建的第一个自定义分组，则将其设为默认分组
+	var nonDefaultCount int64
+	if err := s.db.WithContext(ctx).Model(&models.EmailGroup{}).
+		Where("user_id = ? AND is_default = 0", userID).
+		Count(&nonDefaultCount).Error; err == nil && nonDefaultCount == 1 {
+		if _, err := s.SetDefaultEmailGroup(ctx, userID, group.ID); err != nil {
+			log.Printf("Warning: failed to set first group as default: %v", err)
+		}
+	}
+
+	return group, nil
+}
+
+// UpdateEmailGroup 更新分组
+func (s *EmailServiceImpl) UpdateEmailGroup(ctx context.Context, userID, groupID uint, req *UpdateEmailGroupRequest) (*models.EmailGroup, error) {
+	var group models.EmailGroup
+	if err := s.db.WithContext(ctx).
+		Where("id = ? AND user_id = ?", groupID, userID).
+		First(&group).Error; err != nil {
+		return nil, fmt.Errorf("group not found: %w", err)
+	}
+
+	if group.IsDefault {
+		return nil, fmt.Errorf("默认分组不可编辑")
+	}
+
+	if req.Name != nil {
+		name := strings.TrimSpace(*req.Name)
+		if name == "" {
+			return nil, fmt.Errorf("分组名称不能为空")
+		}
+		group.Name = name
+	}
+
+	if err := s.db.WithContext(ctx).Save(&group).Error; err != nil {
+		return nil, fmt.Errorf("failed to update group: %w", err)
+	}
+
+	return &group, nil
+}
+
+// DeleteEmailGroup 删除分组并将账户回退到默认分组
+func (s *EmailServiceImpl) DeleteEmailGroup(ctx context.Context, userID, groupID uint) error {
+	var group models.EmailGroup
+	if err := s.db.WithContext(ctx).
+		Where("id = ? AND user_id = ?", groupID, userID).
+		First(&group).Error; err != nil {
+		return fmt.Errorf("group not found: %w", err)
+	}
+
+	if group.IsDefault {
+		return fmt.Errorf("默认分组不可删除")
+	}
+
+	defaultGroup, err := s.ensureDefaultGroup(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.EmailAccount{}).
+			Where("user_id = ? AND group_id = ?", userID, groupID).
+			Update("group_id", defaultGroup.ID).Error; err != nil {
+			return fmt.Errorf("failed to move accounts to default group: %w", err)
+		}
+
+		if err := tx.Delete(&group).Error; err != nil {
+			return fmt.Errorf("failed to delete group: %w", err)
+		}
+
+		return nil
+	})
+}
+
+// ReorderEmailGroups 调整分组排序
+func (s *EmailServiceImpl) ReorderEmailGroups(ctx context.Context, userID uint, order []uint) ([]*models.EmailGroup, error) {
+	if _, err := s.ensureDefaultGroup(ctx, userID); err != nil {
+		return nil, err
+	}
+
+	var groups []models.EmailGroup
+	if err := s.db.WithContext(ctx).
+		Where("user_id = ?", userID).
+		Find(&groups).Error; err != nil {
+		return nil, fmt.Errorf("failed to load groups: %w", err)
+	}
+
+	groupMap := make(map[uint]models.EmailGroup)
+	for _, g := range groups {
+		groupMap[g.ID] = g
+	}
+
+	for _, id := range order {
+		if g, ok := groupMap[id]; !ok || g.UserID != userID {
+			return nil, fmt.Errorf("invalid group id: %d", id)
+		}
+	}
+
+	listed := make(map[uint]bool)
+	sortOrder := 1
+
+	tx := s.db.WithContext(ctx).Begin()
+	for _, id := range order {
+		g := groupMap[id]
+		if g.IsDefault {
+			continue
+		}
+		listed[id] = true
+		if err := tx.Model(&models.EmailGroup{}).
+			Where("id = ? AND user_id = ?", id, userID).
+			Update("sort_order", sortOrder).Error; err != nil {
+			tx.Rollback()
+			return nil, fmt.Errorf("failed to update sort order: %w", err)
+		}
+		sortOrder++
+	}
+
+	for _, g := range groups {
+		if g.IsDefault || listed[g.ID] {
+			continue
+		}
+		if err := tx.Model(&models.EmailGroup{}).
+			Where("id = ? AND user_id = ?", g.ID, userID).
+			Update("sort_order", sortOrder).Error; err != nil {
+			tx.Rollback()
+			return nil, fmt.Errorf("failed to finalize sort order: %w", err)
+		}
+		sortOrder++
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return nil, fmt.Errorf("failed to commit sort order: %w", err)
+	}
+
+	return s.GetEmailGroups(ctx, userID)
+}
+
+// MoveAccountToGroup 将账户移动到指定分组
+func (s *EmailServiceImpl) MoveAccountToGroup(ctx context.Context, userID, accountID uint, groupID *uint) error {
+	account, err := s.GetEmailAccount(ctx, userID, accountID)
+	if err != nil {
+		return err
+	}
+
+	targetGroup, err := s.resolveAccountGroup(ctx, userID, groupID)
+	if err != nil {
+		return err
+	}
+
+	account.GroupID = &targetGroup.ID
+	return s.db.WithContext(ctx).Save(account).Error
+}
+
+// SetDefaultEmailGroup 设置默认分组
+func (s *EmailServiceImpl) SetDefaultEmailGroup(ctx context.Context, userID, groupID uint) (*models.EmailGroup, error) {
+	var target models.EmailGroup
+	if err := s.db.WithContext(ctx).
+		Where("id = ? AND user_id = ?", groupID, userID).
+		First(&target).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("分组不存在")
+		}
+		return nil, err
+	}
+
+	if target.IsDefault {
+		return &target, nil
+	}
+
+	var prevDefault models.EmailGroup
+	_ = s.db.WithContext(ctx).
+		Where("user_id = ? AND is_default = 1", userID).
+		First(&prevDefault).Error
+
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// 取消其他默认
+		if err := tx.Model(&models.EmailGroup{}).
+			Where("user_id = ?", userID).
+			Update("is_default", false).Error; err != nil {
+			return fmt.Errorf("failed to reset default flag: %w", err)
+		}
+
+		// 将目标设为默认并置顶排序
+		if err := tx.Model(&models.EmailGroup{}).
+			Where("id = ? AND user_id = ?", groupID, userID).
+			Updates(map[string]interface{}{
+				"is_default": true,
+				"sort_order": 0,
+			}).Error; err != nil {
+			return fmt.Errorf("failed to set default group: %w", err)
+		}
+
+		// 将其他分组排序顺延，保持默认在前
+		if err := tx.Model(&models.EmailGroup{}).
+			Where("user_id = ? AND id != ?", userID, groupID).
+			Update("sort_order", gorm.Expr("sort_order + 1")).Error; err != nil {
+			return fmt.Errorf("failed to normalize sort order: %w", err)
+		}
+
+		// 若存在旧默认分组，将其账户及未分组账户迁移到新默认
+		var defaultID uint = groupID
+		if prevDefault.ID != 0 {
+			if err := tx.Model(&models.EmailAccount{}).
+				Where("user_id = ? AND (group_id IS NULL OR group_id = ?)", userID, prevDefault.ID).
+				Update("group_id", defaultID).Error; err != nil {
+				return fmt.Errorf("failed to move accounts to new default: %w", err)
+			}
+		} else {
+			if err := tx.Model(&models.EmailAccount{}).
+				Where("user_id = ? AND group_id IS NULL", userID).
+				Update("group_id", defaultID).Error; err != nil {
+				return fmt.Errorf("failed to move ungrouped accounts: %w", err)
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.db.WithContext(ctx).
+		Where("id = ?", groupID).
+		First(&target).Error; err != nil {
+		return nil, err
+	}
+
+	return &target, nil
 }
 
 // configureAccountByProvider 根据提供商类型配置账户
@@ -965,13 +1375,7 @@ func (s *EmailServiceImpl) DeleteEmail(ctx context.Context, userID, emailID uint
 	// 发布邮件删除事件
 	if s.eventPublisher != nil {
 		isDeleted := true
-		event := sse.NewEmailStatusEvent(emailID, email.AccountID, userID, nil, nil, nil)
-		event.Type = sse.EventEmailDeleted
-		if event.Data != nil {
-			if statusData, ok := event.Data.(*sse.EmailStatusEventData); ok {
-				statusData.IsDeleted = &isDeleted
-			}
-		}
+		event := sse.NewEmailStatusEvent(emailID, email.AccountID, userID, nil, nil, nil, &isDeleted)
 		if err := s.eventPublisher.PublishToUser(ctx, userID, event); err != nil {
 			// 记录错误但不影响主要操作
 			fmt.Printf("Failed to publish email delete event: %v\n", err)
@@ -1010,7 +1414,7 @@ func (s *EmailServiceImpl) MarkEmailAsRead(ctx context.Context, userID, emailID 
 	// 发布邮件状态变更事件
 	if s.eventPublisher != nil {
 		isRead := true
-		event := sse.NewEmailStatusEvent(emailID, email.AccountID, userID, &isRead, nil, nil)
+		event := sse.NewEmailStatusEvent(emailID, email.AccountID, userID, &isRead, nil, nil, nil)
 		if err := s.eventPublisher.PublishToUser(ctx, userID, event); err != nil {
 			// 记录错误但不影响主要操作
 			fmt.Printf("Failed to publish email read event: %v\n", err)
@@ -1049,7 +1453,7 @@ func (s *EmailServiceImpl) MarkEmailAsUnread(ctx context.Context, userID, emailI
 	// 发布邮件状态变更事件
 	if s.eventPublisher != nil {
 		isRead := false
-		event := sse.NewEmailStatusEvent(emailID, email.AccountID, userID, &isRead, nil, nil)
+		event := sse.NewEmailStatusEvent(emailID, email.AccountID, userID, &isRead, nil, nil, nil)
 		if err := s.eventPublisher.PublishToUser(ctx, userID, event); err != nil {
 			// 记录错误但不影响主要操作
 			fmt.Printf("Failed to publish email unread event: %v\n", err)
@@ -1087,10 +1491,10 @@ func (s *EmailServiceImpl) ToggleEmailStar(ctx context.Context, userID, emailID 
 		var event *sse.Event
 
 		if isStarred {
-			event = sse.NewEmailStatusEvent(emailID, email.AccountID, userID, nil, &isStarred, nil)
+			event = sse.NewEmailStatusEvent(emailID, email.AccountID, userID, nil, &isStarred, nil, nil)
 			event.Type = sse.EventEmailStarred
 		} else {
-			event = sse.NewEmailStatusEvent(emailID, email.AccountID, userID, nil, &isStarred, nil)
+			event = sse.NewEmailStatusEvent(emailID, email.AccountID, userID, nil, &isStarred, nil, nil)
 			event.Type = sse.EventEmailUnstarred
 		}
 
@@ -1131,10 +1535,10 @@ func (s *EmailServiceImpl) ToggleEmailImportant(ctx context.Context, userID, ema
 		var event *sse.Event
 
 		if isImportant {
-			event = sse.NewEmailStatusEvent(emailID, email.AccountID, userID, nil, nil, &isImportant)
+			event = sse.NewEmailStatusEvent(emailID, email.AccountID, userID, nil, nil, &isImportant, nil)
 			event.Type = sse.EventEmailImportant
 		} else {
-			event = sse.NewEmailStatusEvent(emailID, email.AccountID, userID, nil, nil, &isImportant)
+			event = sse.NewEmailStatusEvent(emailID, email.AccountID, userID, nil, nil, &isImportant, nil)
 			event.Type = sse.EventEmailUnimportant
 		}
 

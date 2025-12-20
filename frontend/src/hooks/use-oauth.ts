@@ -64,6 +64,7 @@ export function useOAuth2() {
       expires_at: number;
       scope?: string;
       client_id: string; // 必需，用于token刷新
+      group_id?: number;
     }) => apiClient.createOAuth2Account(account),
     onSuccess: (response) => {
       if (response.success && response.data) {
@@ -89,6 +90,7 @@ export function useOAuth2() {
       scope?: string;
       auth_url?: string;
       token_url?: string;
+      group_id?: number;
     }) => apiClient.createManualOAuth2Account(account),
     onSuccess: (response) => {
       if (response.success && response.data) {
@@ -159,7 +161,7 @@ export function useOAuth2() {
   };
 
   // Gmail OAuth2 完整流程 - 直接跳转模式
-  const authenticateGmail = async (accountName: string, email: string) => {
+  const authenticateGmail = async (accountName: string, email: string, groupId?: number) => {
     try {
       // 1. 将账户信息编码到回调URL中
       const accountInfo = encodeURIComponent(
@@ -167,6 +169,7 @@ export function useOAuth2() {
           name: accountName,
           email: email,
           provider: 'gmail',
+          group_id: groupId,
         })
       );
       const callbackUrl = `${window.location.origin}/oauth/callback?account_info=${accountInfo}`;
@@ -183,7 +186,7 @@ export function useOAuth2() {
   };
 
   // Outlook OAuth2 完整流程 - 直接跳转模式
-  const authenticateOutlook = async (accountName: string, email: string) => {
+  const authenticateOutlook = async (accountName: string, email: string, groupId?: number) => {
     try {
       // 1. 将账户信息编码到回调URL中
       const accountInfo = encodeURIComponent(
@@ -191,6 +194,7 @@ export function useOAuth2() {
           name: accountName,
           email: email,
           provider: 'outlook',
+          group_id: groupId,
         })
       );
       const callbackUrl = `${window.location.origin}/oauth/callback?account_info=${accountInfo}`;

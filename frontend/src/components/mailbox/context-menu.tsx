@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { CheckCheck, RefreshCw, Settings, Trash2, Edit, FolderPlus, Download } from 'lucide-react';
+import { CheckCheck, RefreshCw, Settings, Trash2, Edit, FolderPlus, Star } from 'lucide-react';
 import { useContextMenuStore } from '@/lib/store';
 import { apiClient } from '@/lib/api';
 import { toast } from 'sonner';
@@ -13,6 +13,10 @@ interface ContextMenuProps {
   onRename?: (targetId: number) => void;
   onSettings?: (targetId: number) => void;
   onDeleteAccount?: (targetId: number) => void;
+  onCreateGroup?: () => void;
+  onEditGroup?: (targetId: number) => void;
+  onDeleteGroup?: (targetId: number) => void;
+  onSetDefaultGroup?: (targetId: number) => void;
 }
 
 export function ContextMenu({
@@ -22,6 +26,10 @@ export function ContextMenu({
   onRename,
   onSettings,
   onDeleteAccount,
+  onCreateGroup,
+  onEditGroup,
+  onDeleteGroup,
+  onSetDefaultGroup,
 }: ContextMenuProps) {
   const { isOpen, position, target, closeMenu } = useContextMenuStore();
   const menuRef = useRef<HTMLDivElement>(null);
@@ -103,6 +111,28 @@ export function ContextMenu({
             onDeleteAccount?.(target.id);
           }
           break;
+
+        case 'createGroup':
+          onCreateGroup?.();
+          break;
+
+        case 'editGroup':
+          if (target.type === 'group') {
+            onEditGroup?.(target.id);
+          }
+          break;
+
+        case 'deleteGroup':
+          if (target.type === 'group') {
+            onDeleteGroup?.(target.id);
+          }
+          break;
+
+        case 'setDefaultGroup':
+          if (target.type === 'group' && !target.data?.is_default) {
+            onSetDefaultGroup?.(target.id);
+          }
+          break;
       }
     } catch (error: any) {
       toast.error(error.message || '操作失败');
@@ -136,6 +166,33 @@ export function ContextMenu({
           danger: true,
         }
       );
+    } else if (target.type === 'group') {
+      if (!target.data?.is_default) {
+        items.push({
+          icon: Star,
+          label: '设为默认',
+          action: 'setDefaultGroup',
+        });
+      }
+      items.push(
+        {
+          icon: Edit,
+          label: '重命名分组',
+          action: 'editGroup',
+        },
+        {
+          icon: Trash2,
+          label: '删除分组',
+          action: 'deleteGroup',
+          danger: true,
+        }
+      );
+    } else if (target.type === 'group-blank') {
+      items.push({
+        icon: FolderPlus,
+        label: '新建分组',
+        action: 'createGroup',
+      });
     } else if (target.type === 'folder') {
       items.push(
         {

@@ -17,6 +17,7 @@ export interface EmailAccount {
   provider: string;
   auth_method: string;
   username?: string; // 用户名（用于自定义邮箱）
+  group_id?: number;
 
   // IMAP配置
   imap_host: string;
@@ -44,6 +45,7 @@ export interface EmailAccount {
 
   // 关联关系
   folders?: Folder[];
+  group?: EmailGroup;
 }
 
 // 文件夹接口
@@ -251,6 +253,18 @@ export interface EmailStats {
     total: number;
     unread: number;
   }>;
+}
+
+// 邮箱分组
+export interface EmailGroup {
+  id: number;
+  user_id: number;
+  name: string;
+  sort_order: number;
+  is_default: boolean;
+  account_count: number;
+  created_at: string;
+  updated_at: string;
 }
 
 // 工具函数：解析邮件地址JSON字符串

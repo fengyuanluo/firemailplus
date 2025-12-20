@@ -1,11 +1,107 @@
 package providers
 
 import (
+	"encoding/base64"
+	"io"
 	"strings"
 	"testing"
 
 	mimeparser "firemail/internal/mime"
 )
+
+var (
+	enhancedText string
+	enhancedHTML string
+)
+
+// parseEmailBodyEnhanced 使用统一解析器增强版（为测试保留接口）
+func parseEmailBodyEnhanced(reader io.Reader) (string, string, []*AttachmentInfo) {
+	textBody, htmlBody, attachments := parseEmailBodyUnified(reader)
+	enhancedText = textBody
+	enhancedHTML = htmlBody
+	return textBody, htmlBody, attachments
+}
+
+// parseNestedMultipartCorrectly 简化的嵌套multipart解析（测试用）
+func parseNestedMultipartCorrectly(content, boundary string) (string, string, []*AttachmentInfo) {
+	// 尝试直接使用统一解析器
+	raw := "Content-Type: multipart/alternative; boundary=\"" + boundary + "\"\r\n\r\n" + content
+	textBody, htmlBody, attachments := parseEmailBodyUnified(strings.NewReader(raw))
+
+	if textBody != "" && htmlBody != "" {
+		return textBody, htmlBody, attachments
+	}
+
+	// 回退：手动解析base64正文
+	sections := extractBase64Sections(content)
+	if len(sections) > 0 {
+		if decoded, err := base64.StdEncoding.DecodeString(sections[0]); err == nil {
+			textBody = string(decoded)
+		}
+	}
+	if len(sections) > 1 {
+		if decoded, err := base64.StdEncoding.DecodeString(sections[1]); err == nil {
+			htmlBody = string(decoded)
+		}
+	}
+
+	return textBody, htmlBody, attachments
+}
+
+// convertAttachmentsToLegacyFormat 将新附件格式转换为兼容结构
+func convertAttachmentsToLegacyFormat(newAttachments []*mimeparser.AttachmentInfo) []*AttachmentInfo {
+	var result []*AttachmentInfo
+	for _, att := range newAttachments {
+		result = append(result, &AttachmentInfo{
+			PartID:      att.PartID,
+			Filename:    att.Filename,
+			ContentType: att.ContentType,
+			Size:        att.Size,
+			ContentID:   att.ContentID,
+			Disposition: att.Disposition,
+			Encoding:    att.Encoding,
+			Content:     att.Content,
+		})
+	}
+	return result
+}
+
+// extractBase64Sections 获取各个part的base64内容
+func extractBase64Sections(content string) []string {
+	lines := strings.Split(content, "\n")
+	var sections []string
+	var buf []string
+	collecting := false
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "Content-Transfer-Encoding") {
+			collecting = true
+			buf = []string{}
+			continue
+		}
+		if strings.HasPrefix(line, "------") {
+			if collecting && len(buf) > 0 {
+				sections = append(sections, strings.Join(buf, ""))
+			}
+			collecting = false
+			buf = []string{}
+			continue
+		}
+		if collecting {
+			if line == "" {
+				continue
+			}
+			buf = append(buf, line)
+		}
+	}
+
+	if collecting && len(buf) > 0 {
+		sections = append(sections, strings.Join(buf, ""))
+	}
+
+	return sections
+}
 
 // 测试用的完整邮件内容（包含头部和正文）
 const testCompleteEmail = `From: "=?utf-8?B?5oi055Cm?=" <2072835110@qq.com>

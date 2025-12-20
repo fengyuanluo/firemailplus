@@ -15,13 +15,13 @@ type EventType string
 
 const (
 	// 邮件相关事件
-	EventNewEmail        EventType = "new_email"
-	EventEmailRead       EventType = "email_read"
-	EventEmailUnread     EventType = "email_unread"
-	EventEmailDeleted    EventType = "email_deleted"
-	EventEmailStarred    EventType = "email_starred"
-	EventEmailUnstarred  EventType = "email_unstarred"
-	EventEmailImportant  EventType = "email_important"
+	EventNewEmail         EventType = "new_email"
+	EventEmailRead        EventType = "email_read"
+	EventEmailUnread      EventType = "email_unread"
+	EventEmailDeleted     EventType = "email_deleted"
+	EventEmailStarred     EventType = "email_starred"
+	EventEmailUnstarred   EventType = "email_unstarred"
+	EventEmailImportant   EventType = "email_important"
 	EventEmailUnimportant EventType = "email_unimportant"
 
 	// 邮件发送事件
@@ -42,8 +42,8 @@ const (
 	EventAccountError        EventType = "account_error"
 
 	// 系统事件
-	EventHeartbeat     EventType = "heartbeat"
-	EventNotification  EventType = "notification"
+	EventHeartbeat    EventType = "heartbeat"
+	EventNotification EventType = "notification"
 )
 
 // EventPriority 事件优先级
@@ -70,21 +70,21 @@ type Event struct {
 
 // NewEmailEventData 新邮件事件数据
 type NewEmailEventData struct {
-	EmailID   uint   `json:"email_id"`
-	AccountID uint   `json:"account_id"`
-	FolderID  *uint  `json:"folder_id,omitempty"`
-	Subject   string `json:"subject"`
-	From      string `json:"from"`
-	Date      time.Time `json:"date"`
-	IsRead    bool   `json:"is_read"`
-	HasAttachment bool `json:"has_attachment"`
-	Preview   string `json:"preview,omitempty"` // 邮件预览文本
+	EmailID       uint      `json:"email_id"`
+	AccountID     uint      `json:"account_id"`
+	FolderID      *uint     `json:"folder_id,omitempty"`
+	Subject       string    `json:"subject"`
+	From          string    `json:"from"`
+	Date          time.Time `json:"date"`
+	IsRead        bool      `json:"is_read"`
+	HasAttachment bool      `json:"has_attachment"`
+	Preview       string    `json:"preview,omitempty"` // 邮件预览文本
 }
 
 // EmailStatusEventData 邮件状态变更事件数据
 type EmailStatusEventData struct {
-	EmailID     uint `json:"email_id"`
-	AccountID   uint `json:"account_id"`
+	EmailID     uint  `json:"email_id"`
+	AccountID   uint  `json:"account_id"`
 	IsRead      *bool `json:"is_read,omitempty"`
 	IsStarred   *bool `json:"is_starred,omitempty"`
 	IsImportant *bool `json:"is_important,omitempty"`
@@ -95,7 +95,7 @@ type EmailStatusEventData struct {
 type SyncEventData struct {
 	AccountID       uint    `json:"account_id"`
 	AccountName     string  `json:"account_name"`
-	Status          string  `json:"status"` // started, progress, completed, error
+	Status          string  `json:"status"`             // started, progress, completed, error
 	Progress        float64 `json:"progress,omitempty"` // 0.0-1.0
 	TotalEmails     int     `json:"total_emails,omitempty"`
 	ProcessedEmails int     `json:"processed_emails,omitempty"`
@@ -105,10 +105,10 @@ type SyncEventData struct {
 
 // AccountEventData 账户事件数据
 type AccountEventData struct {
-	AccountID   uint   `json:"account_id"`
-	AccountName string `json:"account_name"`
-	Provider    string `json:"provider"`
-	Status      string `json:"status"` // connected, disconnected, error
+	AccountID    uint   `json:"account_id"`
+	AccountName  string `json:"account_name"`
+	Provider     string `json:"provider"`
+	Status       string `json:"status"` // connected, disconnected, error
 	ErrorMessage string `json:"error_message,omitempty"`
 }
 
@@ -116,7 +116,7 @@ type AccountEventData struct {
 type NotificationEventData struct {
 	Title    string `json:"title"`
 	Message  string `json:"message"`
-	Type     string `json:"type"` // info, success, warning, error
+	Type     string `json:"type"`               // info, success, warning, error
 	Duration *int   `json:"duration,omitempty"` // 显示时长（毫秒）
 }
 
@@ -130,35 +130,35 @@ type HeartbeatEventData struct {
 func (e *Event) ToSSEFormat() ([]byte, error) {
 	// 构建SSE消息
 	var sseMessage []byte
-	
+
 	// 添加事件ID
 	if e.ID != "" {
 		sseMessage = append(sseMessage, []byte("id: "+e.ID+"\n")...)
 	}
-	
+
 	// 添加事件类型
 	sseMessage = append(sseMessage, []byte("event: "+string(e.Type)+"\n")...)
-	
+
 	// 添加重试间隔
 	if e.Retry != nil {
 		sseMessage = append(sseMessage, []byte(fmt.Sprintf("retry: %d\n", *e.Retry))...)
 	}
-	
+
 	// 序列化数据
 	dataBytes, err := json.Marshal(e)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// 添加数据（可能需要多行）
 	dataLines := strings.Split(string(dataBytes), "\n")
 	for _, line := range dataLines {
 		sseMessage = append(sseMessage, []byte("data: "+line+"\n")...)
 	}
-	
+
 	// 添加结束标记
 	sseMessage = append(sseMessage, []byte("\n")...)
-	
+
 	return sseMessage, nil
 }
 
@@ -177,36 +177,39 @@ func NewEvent(eventType EventType, data interface{}, userID uint) *Event {
 // NewNewEmailEvent 创建新邮件事件
 func NewNewEmailEvent(email *models.Email, userID uint) *Event {
 	data := &NewEmailEventData{
-		EmailID:   email.ID,
-		AccountID: email.AccountID,
-		FolderID:  email.FolderID,
-		Subject:   email.Subject,
-		From:      email.From,
-		Date:      email.Date,
-		IsRead:    email.IsRead,
+		EmailID:       email.ID,
+		AccountID:     email.AccountID,
+		FolderID:      email.FolderID,
+		Subject:       email.Subject,
+		From:          email.From,
+		Date:          email.Date,
+		IsRead:        email.IsRead,
 		HasAttachment: email.HasAttachment,
-		Preview:   truncateText(email.TextBody, 100),
+		Preview:       truncateText(email.TextBody, 100),
 	}
-	
+
 	event := NewEvent(EventNewEmail, data, userID)
 	event.AccountID = &email.AccountID
 	event.Priority = PriorityHigh
-	
+
 	return event
 }
 
 // NewEmailStatusEvent 创建邮件状态变更事件
-func NewEmailStatusEvent(emailID, accountID, userID uint, isRead, isStarred, isImportant *bool) *Event {
+func NewEmailStatusEvent(emailID, accountID, userID uint, isRead, isStarred, isImportant, isDeleted *bool) *Event {
 	data := &EmailStatusEventData{
 		EmailID:     emailID,
 		AccountID:   accountID,
 		IsRead:      isRead,
 		IsStarred:   isStarred,
 		IsImportant: isImportant,
+		IsDeleted:   isDeleted,
 	}
 
 	event := NewEvent(EventEmailRead, data, userID)
-	if isRead != nil && *isRead {
+	if isDeleted != nil && *isDeleted {
+		event.Type = EventEmailDeleted
+	} else if isRead != nil && *isRead {
 		event.Type = EventEmailRead
 	} else if isRead != nil && !*isRead {
 		event.Type = EventEmailUnread
@@ -232,10 +235,10 @@ func NewSyncEvent(eventType EventType, accountID uint, accountName string, userI
 		AccountName: accountName,
 		Status:      string(eventType)[5:], // 移除"sync_"前缀
 	}
-	
+
 	event := NewEvent(eventType, data, userID)
 	event.AccountID = &accountID
-	
+
 	return event
 }
 
@@ -246,10 +249,10 @@ func NewNotificationEvent(title, message, notificationType string, userID uint) 
 		Message: message,
 		Type:    notificationType,
 	}
-	
+
 	event := NewEvent(EventNotification, data, userID)
 	event.Priority = PriorityHigh
-	
+
 	return event
 }
 
@@ -259,7 +262,7 @@ func NewHeartbeatEvent(clientID string) *Event {
 		ServerTime: time.Now(),
 		ClientID:   clientID,
 	}
-	
+
 	event := &Event{
 		ID:        generateEventID(),
 		Type:      EventHeartbeat,
@@ -267,7 +270,7 @@ func NewHeartbeatEvent(clientID string) *Event {
 		Priority:  PriorityLow,
 		Timestamp: time.Now(),
 	}
-	
+
 	return event
 }
 
