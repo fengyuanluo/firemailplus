@@ -16,7 +16,7 @@ RUN npm install -g pnpm
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY frontend/ ./
-ENV NEXT_PUBLIC_API_BASE_URL=http://localhost:3001/api/v1
+ENV NEXT_PUBLIC_API_BASE_URL=/api/v1
 ENV NODE_ENV=production
 RUN pnpm build
 
