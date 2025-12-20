@@ -12,7 +12,7 @@ import type { EmailAccount, EmailGroup } from '@/types/email';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Plus, FolderPlus, Hash } from 'lucide-react';
+import { Plus, FolderPlus, Hash, RefreshCw, Trash2, X, CheckSquare } from 'lucide-react';
 
 export function LeftSidebar() {
   const {
@@ -27,6 +27,7 @@ export function LeftSidebar() {
     selectedAccountIds,
     toggleSelectAccount,
     clearAccountSelection,
+    setSelectedAccountIds,
   } = useMailboxStore();
   const { openMenu } = useContextMenuStore();
   const [settingsAccount, setSettingsAccount] = useState<EmailAccount | null>(null);
@@ -305,6 +306,20 @@ export function LeftSidebar() {
     }
   };
 
+  const handleToggleGroupSelection = (group: EmailGroup) => {
+    const accountsInGroup = accountsByGroup.get(group.id) || [];
+    if (accountsInGroup.length === 0) return;
+    const ids = accountsInGroup.map((a) => a.id);
+    const allSelected = ids.every((id) => selectedAccountIds.has(id));
+    const next = new Set(selectedAccountIds);
+    if (allSelected) {
+      ids.forEach((id) => next.delete(id));
+    } else {
+      ids.forEach((id) => next.add(id));
+    }
+    setSelectedAccountIds(Array.from(next));
+  };
+
   const handleSetDefaultGroup = async (group: EmailGroup) => {
     if (group.is_default) return;
     const confirmed = confirm(`是否将分组“${group.name}”设为默认分组？`);
@@ -403,6 +418,26 @@ export function LeftSidebar() {
               </div>
             </div>
             </div>
+            {selectionMode && accountsInGroup.length > 0 && (
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleToggleGroupSelection(group);
+                }}
+                title="选择/取消选择此分组全部邮箱"
+              >
+                <CheckSquare
+                  className={`w-4 h-4 ${
+                    accountsInGroup.every((a) => selectedAccountIds.has(a.id))
+                      ? 'text-blue-500'
+                      : 'text-gray-400'
+                  }`}
+                />
+              </Button>
+            )}
             <div
               className={`text-xs text-gray-400 ${group.is_default ? '' : 'cursor-grab'}`}
               draggable={!group.is_default}
@@ -495,21 +530,30 @@ export function LeftSidebar() {
 
       <div className="flex-1 overflow-y-auto">
         {selectionMode && (
-          <div className="px-4 pb-2 flex items-center gap-3 text-sm text-gray-600 dark:text-gray-300">
-            <div>已选 {selectedAccountIds.size} 个邮箱</div>
-            <Button size="sm" variant="secondary" onClick={handleBatchSync} disabled={selectedAccountIds.size === 0}>
-              批量同步
+          <div className="px-4 pb-2 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+            <div className="px-2 py-1 rounded bg-gray-100 dark:bg-gray-800 text-xs">
+              已选 {selectedAccountIds.size} 个邮箱
+            </div>
+            <Button
+              size="icon"
+              variant="secondary"
+              onClick={handleBatchSync}
+              disabled={selectedAccountIds.size === 0}
+              title="批量同步"
+            >
+              <RefreshCw className="w-4 h-4" />
             </Button>
             <Button
-              size="sm"
+              size="icon"
               variant="destructive"
               onClick={handleBatchDelete}
               disabled={selectedAccountIds.size === 0}
+              title="批量删除"
             >
-              批量删除
+              <Trash2 className="w-4 h-4" />
             </Button>
-            <Button size="sm" variant="ghost" onClick={clearAccountSelection}>
-              清空选择
+            <Button size="icon" variant="ghost" onClick={clearAccountSelection} title="清空选择">
+              <X className="w-4 h-4" />
             </Button>
           </div>
         )}

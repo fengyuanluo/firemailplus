@@ -66,6 +66,7 @@ interface MailboxState {
   // 选择模式
   selectionMode: boolean;
   selectedAccountIds: Set<number>;
+  setSelectedAccountIds: (ids: number[]) => void;
 
   // 加载状态
   isLoading: boolean;
@@ -81,6 +82,7 @@ interface MailboxState {
   setSelectionMode: (enabled: boolean) => void;
   toggleSelectAccount: (id: number) => void;
   clearAccountSelection: () => void;
+  setSelectedAccountIds: (ids: number[]) => void;
   setGroups: (groups: EmailGroup[]) => void;
   addGroup: (group: EmailGroup) => void;
   updateGroup: (group: EmailGroup) => void;
@@ -195,6 +197,10 @@ export const useMailboxStore = create<MailboxState>((set, get) => ({
     set(() => ({
       selectionMode: enabled,
       selectedAccountIds: enabled ? new Set() : new Set(),
+    })),
+  setSelectedAccountIds: (ids) =>
+    set(() => ({
+      selectedAccountIds: new Set(ids),
     })),
   toggleSelectAccount: (id) =>
     set((state) => {
