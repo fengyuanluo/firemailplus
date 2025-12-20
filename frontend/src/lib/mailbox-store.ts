@@ -82,7 +82,6 @@ interface MailboxState {
   setSelectionMode: (enabled: boolean) => void;
   toggleSelectAccount: (id: number) => void;
   clearAccountSelection: () => void;
-  setSelectedAccountIds: (ids: number[]) => void;
   setGroups: (groups: EmailGroup[]) => void;
   addGroup: (group: EmailGroup) => void;
   updateGroup: (group: EmailGroup) => void;
