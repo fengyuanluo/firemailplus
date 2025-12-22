@@ -4,15 +4,16 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
-	"log"
-	"strings"
-	"time"
 	"firemail/internal/cache"
 	"firemail/internal/encoding/transfer"
 	"firemail/internal/models"
 	"firemail/internal/providers"
 	"firemail/internal/sse"
+	"fmt"
+	"log"
+	"strings"
+	"sync"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -24,8 +25,9 @@ type SyncService struct {
 	eventPublisher      sse.EventPublisher
 	deduplicatorFactory DeduplicatorFactory
 	retryManager        *providers.RetryManager
-	attachmentStorage   AttachmentStorage // 添加附件存储
+	attachmentStorage   AttachmentStorage   // 添加附件存储
 	cacheManager        *cache.CacheManager // 添加缓存管理器
+	accountLocks        sync.Map
 }
 
 // NewSyncService 创建同步服务实例
@@ -43,9 +45,13 @@ func NewSyncService(db *gorm.DB, providerFactory providers.ProviderFactoryInterf
 
 // SyncEmails 同步指定账户的邮件
 func (s *SyncService) SyncEmails(ctx context.Context, accountID uint) error {
-	// 为邮件同步创建一个更长的超时上下文（10分钟）
-	syncCtx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	// 为邮件同步创建一个更长的超时上下文（10分钟），继承上游取消信号
+	syncCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
+
+	lock := s.getAccountLock(accountID)
+	lock.Lock()
+	defer lock.Unlock()
 
 	var account models.EmailAccount
 	if err := s.db.WithContext(syncCtx).First(&account, accountID).Error; err != nil {
@@ -623,10 +629,6 @@ func (s *SyncService) updateSyncError(account *models.EmailAccount, err error) {
 	s.db.Save(account)
 }
 
-
-
-
-
 // performIncrementalSync 执行真正的增量同步
 func (s *SyncService) performIncrementalSync(ctx context.Context, provider providers.EmailProvider, imapClient providers.IMAPClient, folder *models.Folder, account *models.EmailAccount) ([]*providers.EmailMessage, error) {
 	fmt.Printf("🔍 [INCREMENTAL] Starting incremental sync for folder: %s\n", folder.Name)
@@ -710,7 +712,12 @@ func (s *SyncService) performFullSync(ctx context.Context, provider providers.Em
 	log.Printf("Performing full sync for folder %s", folder.Name)
 
 	// 删除该文件夹的所有现有邮件（因为UIDVALIDITY变化，所有UID都无效了）
-	// 使用硬删除来避免UNIQUE约束冲突
+	// 使用硬删除来避免UNIQUE约束冲突，同时先清理附件防止孤儿数据
+	if err := s.db.WithContext(ctx).
+		Where("email_id IN (?)", s.db.Model(&models.Email{}).Select("id").Where("account_id = ? AND folder_id = ?", account.ID, folder.ID)).
+		Delete(&models.Attachment{}).Error; err != nil {
+		log.Printf("Warning: failed to delete attachments for folder %s: %v", folder.Name, err)
+	}
 	if err := s.db.WithContext(ctx).Unscoped().Where("account_id = ? AND folder_id = ?", account.ID, folder.ID).Delete(&models.Email{}).Error; err != nil {
 		log.Printf("Warning: failed to delete existing emails for folder %s: %v", folder.Name, err)
 	}
@@ -721,8 +728,16 @@ func (s *SyncService) performFullSync(ctx context.Context, provider providers.Em
 		return s.getEmailsBySequenceRange(ctx, imapClient, folder, 1, uint32(folder.TotalEmails))
 	}
 
-	// 获取所有邮件（从UID 1开始）
-	return s.getEmailsInBatches(ctx, provider, imapClient, folder, account, 1, 0)
+	// 获取所有邮件（从UID 1开始），使用UIDNext限定上界，避免无限抓取
+	var endUID uint32
+	if folder.UIDNext > 0 {
+		endUID = folder.UIDNext - 1
+	}
+	if endUID == 0 {
+		return []*providers.EmailMessage{}, nil
+	}
+
+	return s.getEmailsInBatches(ctx, provider, imapClient, folder, account, 1, endUID)
 }
 
 // performDeltaSync 执行增量同步
@@ -744,6 +759,7 @@ func (s *SyncService) performDeltaSync(ctx context.Context, provider providers.E
 	}
 
 	// 特殊处理：如果UIDNext和Total不匹配，可能存在UID不连续的情况
+	var gapEmails []*providers.EmailMessage
 	if status.UIDNext-1 != uint32(status.TotalEmails) && status.TotalEmails > 0 {
 		fmt.Printf("⚠️ [INCREMENTAL] UID/Total mismatch - UIDNext: %d, Total: %d, checking for UID gaps\n",
 			status.UIDNext, status.TotalEmails)
@@ -763,7 +779,7 @@ func (s *SyncService) performDeltaSync(ctx context.Context, provider providers.E
 				// 降级到原有逻辑
 			} else if len(missingEmails) > 0 {
 				log.Printf("Found %d missing emails in UID gaps for folder %s", len(missingEmails), folder.Name)
-				return missingEmails, nil
+				gapEmails = append(gapEmails, missingEmails...)
 			}
 		}
 	}
@@ -771,13 +787,18 @@ func (s *SyncService) performDeltaSync(ctx context.Context, provider providers.E
 	// 如果没有新邮件，直接返回
 	if status.UIDNext <= lastUID+1 {
 		log.Printf("No new emails in folder %s (UIDNext: %d, lastUID: %d)", folder.Name, status.UIDNext, lastUID)
-		return []*providers.EmailMessage{}, nil
+		return gapEmails, nil
 	}
 
 	log.Printf("Fetching new emails for folder %s from UID %d to %d", folder.Name, lastUID+1, status.UIDNext-1)
 
 	// 获取新邮件（从lastUID+1到UIDNext-1）
-	return s.getEmailsInBatches(ctx, provider, imapClient, folder, account, lastUID+1, status.UIDNext-1)
+	latestEmails, err := s.getEmailsInBatches(ctx, provider, imapClient, folder, account, lastUID+1, status.UIDNext-1)
+	if err != nil {
+		return nil, err
+	}
+
+	return append(gapEmails, latestEmails...), nil
 }
 
 // getEmailsInBatches 分批获取邮件
@@ -795,12 +816,6 @@ func (s *SyncService) getEmailsInBatches(ctx context.Context, provider providers
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to get emails from UID %d: %w", startUID, err)
-		}
-
-		// 限制批次大小
-		if len(emails) > maxBatchSize {
-			log.Printf("Large number of emails (%d) detected, limiting to %d", len(emails), maxBatchSize)
-			return emails[:maxBatchSize], nil
 		}
 
 		return emails, nil
@@ -828,16 +843,16 @@ func (s *SyncService) getEmailsInBatches(ctx context.Context, provider providers
 
 		allEmails = append(allEmails, batchEmails...)
 
-		// 如果这批邮件数量已经达到总限制，停止获取
-		if len(allEmails) >= maxBatchSize {
-			log.Printf("Reached batch limit (%d emails), stopping", len(allEmails))
-			break
-		}
-
 		currentUID = batchEndUID + 1
 	}
 
 	return allEmails, nil
+}
+
+// 获取账户级锁，确保单账户同步串行化
+func (s *SyncService) getAccountLock(accountID uint) *sync.Mutex {
+	lock, _ := s.accountLocks.LoadOrStore(accountID, &sync.Mutex{})
+	return lock.(*sync.Mutex)
 }
 
 // isConnectionError 检查是否是连接错误
@@ -992,9 +1007,9 @@ func (s *SyncService) isFolderNotExistError(err error) bool {
 
 	errStr := strings.ToLower(err.Error())
 	return strings.Contains(errStr, "folder not exist") ||
-		   strings.Contains(errStr, "mailbox does not exist") ||
-		   strings.Contains(errStr, "no such mailbox") ||
-		   strings.Contains(errStr, "mailbox not found")
+		strings.Contains(errStr, "mailbox does not exist") ||
+		strings.Contains(errStr, "no such mailbox") ||
+		strings.Contains(errStr, "mailbox not found")
 }
 
 // handleMissingFolder 处理缺失的文件夹
