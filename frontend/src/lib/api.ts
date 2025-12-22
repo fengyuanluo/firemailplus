@@ -232,6 +232,19 @@ class ApiClient {
     });
   }
 
+  async markAccountAsRead(accountId: number): Promise<ApiResponse> {
+    return this.request(`/accounts/${accountId}/mark-read`, {
+      method: 'PUT',
+    });
+  }
+
+  async batchMarkAccountsAsRead(accountIds: number[]): Promise<ApiResponse> {
+    return this.request('/accounts/batch/mark-read', {
+      method: 'POST',
+      body: JSON.stringify({ account_ids: accountIds }),
+    });
+  }
+
   // 邮箱分组相关 API
   async getEmailGroups(): Promise<ApiResponse<EmailGroup[]>> {
     return this.request('/groups');

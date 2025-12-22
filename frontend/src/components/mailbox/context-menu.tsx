@@ -2,9 +2,10 @@
 
 import { useEffect, useRef } from 'react';
 import { CheckCheck, RefreshCw, Settings, Trash2, Edit, FolderPlus, Star } from 'lucide-react';
-import { useContextMenuStore } from '@/lib/store';
+import { useContextMenuStore, useMailboxStore } from '@/lib/store';
 import { apiClient } from '@/lib/api';
 import { toast } from 'sonner';
+import type { EmailAccount, Folder, Email } from '@/types/email';
 
 interface ContextMenuProps {
   onMarkAllAsRead?: (targetId: number) => void;
@@ -32,6 +33,7 @@ export function ContextMenu({
   onSetDefaultGroup,
 }: ContextMenuProps) {
   const { isOpen, position, target, closeMenu } = useContextMenuStore();
+  const { accounts, folders, setFolders, setEmails, updateAccount, emails } = useMailboxStore();
   const menuRef = useRef<HTMLDivElement>(null);
 
   // 点击外部关闭菜单
@@ -65,11 +67,68 @@ export function ContextMenu({
 
     try {
       switch (action) {
+        case 'markAccountAsRead':
+          if (target.type === 'account') {
+            await apiClient.markAccountAsRead(target.id);
+            toast.success('已标记该邮箱所有邮件为已读');
+
+            const account = accounts.find((acc) => acc.id === target.id);
+            if (account) {
+              const updatedAccount: EmailAccount = { ...account, unread_emails: 0 };
+              updateAccount(updatedAccount);
+            }
+
+            // 将该账户的文件夹未读清零
+            setFolders(
+              folders.map((f) =>
+                f.account_id === target.id ? { ...f, unread_emails: 0 } : f
+              )
+            );
+
+            // 将当前列表中属于该账户的邮件标记为已读
+            if (emails.length > 0) {
+              const updatedEmails: Email[] = emails.map((mail) =>
+                mail.account_id === target.id ? { ...mail, is_read: true } : mail
+              );
+              setEmails(updatedEmails);
+            }
+          }
+          break;
+
         case 'markAllAsRead':
           if (target.type === 'folder') {
             await apiClient.markFolderAsRead(target.id);
             toast.success('已标记文件夹内所有邮件为已读');
             onMarkAllAsRead?.(target.id);
+
+            // 本地同步未读计数和邮件状态
+            const folderData = target.data as Folder | undefined;
+            const unreadDelta = folderData?.unread_emails ?? 0;
+
+            if (folderData) {
+              // 更新文件夹未读为 0
+              setFolders(
+                folders.map((f) => (f.id === folderData.id ? { ...f, unread_emails: 0 } : f))
+              );
+
+              // 更新账户未读计数
+              if (unreadDelta > 0) {
+                const account = accounts.find((acc) => acc.id === folderData.account_id);
+                if (account) {
+                  const nextCount = Math.max(0, account.unread_emails - unreadDelta);
+                  const updatedAccount: EmailAccount = { ...account, unread_emails: nextCount };
+                  updateAccount(updatedAccount);
+                }
+              }
+            }
+
+            // 将当前列表中该文件夹的邮件标记为已读
+            if (emails.length > 0) {
+              const updatedEmails: Email[] = emails.map((mail) =>
+                mail.folder_id === target.id ? { ...mail, is_read: true } : mail
+              );
+              setEmails(updatedEmails);
+            }
           }
           break;
 
@@ -149,6 +208,11 @@ export function ContextMenu({
 
     if (target.type === 'account') {
       items.push(
+        {
+          icon: CheckCheck,
+          label: '全部已读',
+          action: 'markAccountAsRead',
+        },
         {
           icon: RefreshCw,
           label: '同步邮件',

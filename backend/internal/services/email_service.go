@@ -46,6 +46,8 @@ type EmailService interface {
 	DeleteEmail(ctx context.Context, userID, emailID uint) error
 	MarkEmailAsRead(ctx context.Context, userID, emailID uint) error
 	MarkEmailAsUnread(ctx context.Context, userID, emailID uint) error
+	MarkAccountAsRead(ctx context.Context, userID, accountID uint) error
+	MarkAccountsAsRead(ctx context.Context, userID uint, accountIDs []uint) error
 	ToggleEmailStar(ctx context.Context, userID, emailID uint) error
 	ToggleEmailImportant(ctx context.Context, userID, emailID uint) error
 	MoveEmail(ctx context.Context, userID, emailID uint, targetFolderID uint) error
@@ -1411,6 +1413,11 @@ func (s *EmailServiceImpl) MarkEmailAsRead(ctx context.Context, userID, emailID 
 		return fmt.Errorf("failed to update email status: %w", err)
 	}
 
+	// 更新未读计数并清理缓存
+	if err := s.updateUnreadCounters(ctx, userID, email.AccountID, email.FolderID); err != nil {
+		return err
+	}
+
 	// 发布邮件状态变更事件
 	if s.eventPublisher != nil {
 		isRead := true
@@ -1448,6 +1455,11 @@ func (s *EmailServiceImpl) MarkEmailAsUnread(ctx context.Context, userID, emailI
 	email.MarkAsUnread()
 	if err := s.db.Save(&email).Error; err != nil {
 		return fmt.Errorf("failed to update email status: %w", err)
+	}
+
+	// 更新未读计数并清理缓存
+	if err := s.updateUnreadCounters(ctx, userID, email.AccountID, email.FolderID); err != nil {
+		return err
 	}
 
 	// 发布邮件状态变更事件
@@ -2066,6 +2078,11 @@ func (s *EmailServiceImpl) MarkFolderAsRead(ctx context.Context, userID, folderI
 		return fmt.Errorf("failed to mark emails as read: %w", err)
 	}
 
+	// 更新未读计数并清理缓存
+	if err := s.updateUnreadCounters(ctx, userID, folder.AccountID, &folderID); err != nil {
+		return err
+	}
+
 	// 发布文件夹标记已读事件
 	if s.eventPublisher != nil {
 		event := sse.NewNotificationEvent(
@@ -2076,6 +2093,58 @@ func (s *EmailServiceImpl) MarkFolderAsRead(ctx context.Context, userID, folderI
 		)
 		if err := s.eventPublisher.PublishToUser(ctx, userID, event); err != nil {
 			log.Printf("Failed to publish folder mark as read event: %v", err)
+		}
+	}
+
+	return nil
+}
+
+// MarkAccountAsRead 标记账户下所有邮件为已读
+func (s *EmailServiceImpl) MarkAccountAsRead(ctx context.Context, userID, accountID uint) error {
+	// 验证账户归属
+	account, err := s.GetEmailAccount(ctx, userID, accountID)
+	if err != nil {
+		return err
+	}
+
+	// 批量更新邮件为已读状态
+	if err := s.db.WithContext(ctx).
+		Model(&models.Email{}).
+		Where("account_id = ? AND is_read = ?", accountID, false).
+		Update("is_read", true).Error; err != nil {
+		return fmt.Errorf("failed to mark account emails as read: %w", err)
+	}
+
+	// 更新未读计数并清理缓存
+	if err := s.updateUnreadCounters(ctx, userID, accountID, nil); err != nil {
+		return err
+	}
+
+	// 发布通知事件（非关键路径，失败不阻断）
+	if s.eventPublisher != nil {
+		event := sse.NewNotificationEvent(
+			"邮箱已标记为已读",
+			fmt.Sprintf("账户 %s 的所有邮件已标记为已读", account.Email),
+			"success",
+			userID,
+		)
+		if err := s.eventPublisher.PublishToUser(ctx, userID, event); err != nil {
+			log.Printf("Failed to publish account mark as read event: %v", err)
+		}
+	}
+
+	return nil
+}
+
+// MarkAccountsAsRead 批量标记多个账户的邮件为已读
+func (s *EmailServiceImpl) MarkAccountsAsRead(ctx context.Context, userID uint, accountIDs []uint) error {
+	if len(accountIDs) == 0 {
+		return fmt.Errorf("accountIDs cannot be empty")
+	}
+
+	for _, accountID := range accountIDs {
+		if err := s.MarkAccountAsRead(ctx, userID, accountID); err != nil {
+			return err
 		}
 	}
 
@@ -2192,6 +2261,48 @@ func (s *EmailServiceImpl) generateEmailListCacheKey(userID uint, req *GetEmails
 	// 生成MD5哈希
 	hash := md5.Sum([]byte(fmt.Sprintf("emails:%d:%s", userID, string(reqBytes))))
 	return hex.EncodeToString(hash[:])
+}
+
+// updateUnreadCounters 更新账户/文件夹的未读计数并清理相关缓存
+func (s *EmailServiceImpl) updateUnreadCounters(ctx context.Context, userID, accountID uint, folderID *uint) error {
+	// 账户未读计数
+	var accountUnread int64
+	if err := s.db.WithContext(ctx).
+		Model(&models.Email{}).
+		Where("account_id = ? AND is_read = ? AND is_deleted = ?", accountID, false, false).
+		Count(&accountUnread).Error; err != nil {
+		return fmt.Errorf("failed to count account unread emails: %w", err)
+	}
+
+	if err := s.db.WithContext(ctx).
+		Model(&models.EmailAccount{}).
+		Where("id = ?", accountID).
+		Update("unread_emails", accountUnread).Error; err != nil {
+		return fmt.Errorf("failed to update account unread count: %w", err)
+	}
+
+	// 文件夹未读计数
+	if folderID != nil {
+		var folderUnread int64
+		if err := s.db.WithContext(ctx).
+			Model(&models.Email{}).
+			Where("folder_id = ? AND is_read = ? AND is_deleted = ?", *folderID, false, false).
+			Count(&folderUnread).Error; err != nil {
+			return fmt.Errorf("failed to count folder unread emails: %w", err)
+		}
+
+		if err := s.db.WithContext(ctx).
+			Model(&models.Folder{}).
+			Where("id = ?", *folderID).
+			Update("unread_emails", folderUnread).Error; err != nil {
+			return fmt.Errorf("failed to update folder unread count: %w", err)
+		}
+	}
+
+	// 清理邮件列表缓存，避免返回陈旧数据
+	s.invalidateEmailListCache(userID)
+
+	return nil
 }
 
 // invalidateEmailListCache 使邮件列表缓存失效

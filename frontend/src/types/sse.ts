@@ -7,7 +7,11 @@
 export type SSEEventType =
   | 'new_email'
   | 'email_read'
+  | 'email_unread'
   | 'email_starred'
+  | 'email_unstarred'
+  | 'email_important'
+  | 'email_unimportant'
   | 'email_deleted'
   | 'sync_started'
   | 'sync_progress'

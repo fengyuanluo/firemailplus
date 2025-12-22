@@ -3,7 +3,7 @@
  */
 
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
-import { useAuthStore } from '@/lib/store';
+import { useAuthStore, useMailboxStore } from '@/lib/store';
 import { FireMailSSEClient } from '@/lib/sse-client';
 import type {
   SSEClientState,
@@ -15,6 +15,7 @@ import type {
   SyncEventData,
   NotificationEventData,
 } from '@/types/sse';
+import type { Email } from '@/types/email';
 
 interface UseSSEOptions {
   autoConnect?: boolean;
@@ -109,7 +110,19 @@ export function useSSE(options: UseSSEOptions = {}): UseSSEReturn {
       client.on('email_read', (event) => {
         stableOptions.onEmailStatusChange!(event.data as EmailStatusEventData);
       });
+      client.on('email_unread', (event) => {
+        stableOptions.onEmailStatusChange!(event.data as EmailStatusEventData);
+      });
       client.on('email_starred', (event) => {
+        stableOptions.onEmailStatusChange!(event.data as EmailStatusEventData);
+      });
+      client.on('email_unstarred', (event) => {
+        stableOptions.onEmailStatusChange!(event.data as EmailStatusEventData);
+      });
+      client.on('email_important', (event) => {
+        stableOptions.onEmailStatusChange!(event.data as EmailStatusEventData);
+      });
+      client.on('email_unimportant', (event) => {
         stableOptions.onEmailStatusChange!(event.data as EmailStatusEventData);
       });
       client.on('email_deleted', (event) => {
@@ -252,6 +265,8 @@ export function useSSE(options: UseSSEOptions = {}): UseSSEReturn {
 export function useMailboxSSE() {
   const [newEmailCount, setNewEmailCount] = useState(0);
   const [syncStatus, setSyncStatus] = useState<Record<number, SyncEventData>>({});
+  const updateEmail = useMailboxStore((state) => state.updateEmail);
+  const removeEmail = useMailboxStore((state) => state.removeEmail);
 
   // 稳定化事件处理器，避免每次渲染都创建新的函数
   const handleNewEmail = useCallback((data: NewEmailEventData) => {
@@ -274,8 +289,26 @@ export function useMailboxSSE() {
     if (process.env.NODE_ENV === 'development') {
       console.log('📝 [useMailboxSSE] 邮件状态变更:', data);
     }
-    // 这里可以触发邮件列表的更新
-  }, []);
+    if (data.is_deleted) {
+      removeEmail(data.email_id);
+      return;
+    }
+
+    const updates: Partial<Email> = {};
+    if (typeof data.is_read === 'boolean') {
+      updates.is_read = data.is_read;
+    }
+    if (typeof data.is_starred === 'boolean') {
+      updates.is_starred = data.is_starred;
+    }
+    if (typeof data.is_important === 'boolean') {
+      updates.is_important = data.is_important;
+    }
+
+    if (Object.keys(updates).length > 0) {
+      updateEmail(data.email_id, updates);
+    }
+  }, [removeEmail, updateEmail]);
 
   const handleSyncEvent = useCallback((data: SyncEventData) => {
     if (process.env.NODE_ENV === 'development') {

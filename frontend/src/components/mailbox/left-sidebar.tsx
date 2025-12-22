@@ -20,6 +20,11 @@ export function LeftSidebar() {
     setAccounts,
     removeAccount,
     updateAccount,
+    folders,
+    setFolders,
+    emails,
+    setEmails,
+    selectedAccount,
     groups,
     setGroups,
     selectionMode,
@@ -284,6 +289,47 @@ export function LeftSidebar() {
     }
   };
 
+  const handleBatchMarkRead = async () => {
+    const ids = Array.from(selectedAccountIds);
+    if (ids.length === 0) {
+      toast.error('请先选择要标记已读的邮箱');
+      return;
+    }
+
+    try {
+      const resp = await apiClient.batchMarkAccountsAsRead(ids);
+      if (resp.success) {
+        toast.success(`已标记 ${ids.length} 个邮箱的邮件为已读`);
+
+        // 更新账户未读计数
+        ids.forEach((id) => {
+          const acc = accounts.find((a) => a.id === id);
+          if (acc) {
+            updateAccount({ ...acc, unread_emails: 0 });
+          }
+        });
+
+        // 更新已加载的文件夹未读计数
+        if (folders.length > 0) {
+          setFolders(
+            folders.map((f) =>
+              ids.includes(f.account_id) ? { ...f, unread_emails: 0 } : f
+            )
+          );
+        }
+
+        // 如果当前列表属于其中一个账户，乐观置为已读
+        if (emails.length > 0 && selectedAccount && ids.includes(selectedAccount.id)) {
+          setEmails(emails.map((mail) => ({ ...mail, is_read: true })));
+        }
+      } else {
+        throw new Error(resp.message || '批量标记已读失败');
+      }
+    } catch (error: any) {
+      toast.error(error.message || '批量标记已读失败');
+    }
+  };
+
   const handleBatchDelete = async () => {
     const ids = Array.from(selectedAccountIds);
     if (ids.length === 0) {
@@ -542,6 +588,15 @@ export function LeftSidebar() {
               title="批量同步"
             >
               <RefreshCw className="w-4 h-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant="secondary"
+              onClick={handleBatchMarkRead}
+              disabled={selectedAccountIds.size === 0}
+              title="批量已读"
+            >
+              <CheckSquare className="w-4 h-4" />
             </Button>
             <Button
               size="icon"

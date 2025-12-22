@@ -227,6 +227,50 @@ func (h *Handler) BatchSyncEmailAccounts(c *gin.Context) {
 	h.respondWithSuccess(c, nil, "Batch email sync started")
 }
 
+// MarkAccountAsRead 标记账户所有邮件为已读
+func (h *Handler) MarkAccountAsRead(c *gin.Context) {
+	userID, exists := h.getCurrentUserID(c)
+	if !exists {
+		return
+	}
+
+	accountID, exists := h.parseUintParam(c, "id")
+	if !exists {
+		return
+	}
+
+	if err := h.emailService.MarkAccountAsRead(c.Request.Context(), userID, accountID); err != nil {
+		h.respondWithError(c, http.StatusBadRequest, "Failed to mark account as read: "+err.Error())
+		return
+	}
+
+	h.respondWithSuccess(c, nil, "Account marked as read successfully")
+}
+
+// BatchMarkAccountsAsRead 批量标记多个账户为已读
+func (h *Handler) BatchMarkAccountsAsRead(c *gin.Context) {
+	userID, exists := h.getCurrentUserID(c)
+	if !exists {
+		return
+	}
+
+	var req BatchAccountRequest
+	if !h.bindJSON(c, &req) {
+		return
+	}
+	if len(req.AccountIDs) == 0 {
+		h.respondWithError(c, http.StatusBadRequest, "account_ids cannot be empty")
+		return
+	}
+
+	if err := h.emailService.MarkAccountsAsRead(c.Request.Context(), userID, req.AccountIDs); err != nil {
+		h.respondWithError(c, http.StatusBadRequest, "Failed to mark accounts as read: "+err.Error())
+		return
+	}
+
+	h.respondWithSuccess(c, nil, "Accounts marked as read successfully")
+}
+
 // GetProviders 获取支持的邮件提供商列表
 func (h *Handler) GetProviders(c *gin.Context) {
 	providers := h.providerFactory.GetAvailableProviders()

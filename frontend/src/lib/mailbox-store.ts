@@ -285,13 +285,61 @@ export const useMailboxStore = create<MailboxState>((set, get) => ({
       total: state.total + 1,
     })),
   updateEmail: (id, updates) =>
-    set((state) => ({
-      emails: state.emails.map((email) => (email.id === id ? { ...email, ...updates } : email)),
-      selectedEmail:
+    set((state) => {
+      const targetEmail =
+        state.emails.find((email) => email.id === id) ||
+        (state.selectedEmail?.id === id ? state.selectedEmail : undefined);
+
+      let unreadDelta = 0;
+      if (
+        targetEmail &&
+        typeof updates.is_read === 'boolean' &&
+        updates.is_read !== targetEmail.is_read
+      ) {
+        unreadDelta = updates.is_read ? -1 : 1;
+      }
+
+      const updatedEmails = state.emails.map((email) =>
+        email.id === id ? { ...email, ...updates } : email
+      );
+
+      const updatedSelectedEmail =
         state.selectedEmail?.id === id
           ? { ...state.selectedEmail, ...updates }
-          : state.selectedEmail,
-    })),
+          : state.selectedEmail;
+
+      let updatedAccounts = state.accounts;
+      let updatedFolders = state.folders;
+
+      if (unreadDelta !== 0 && targetEmail) {
+        updatedAccounts = state.accounts.map((account) =>
+          account.id === targetEmail.account_id
+            ? {
+                ...account,
+                unread_emails: Math.max(0, account.unread_emails + unreadDelta),
+              }
+            : account
+        );
+
+        if (typeof targetEmail.folder_id === 'number') {
+          updatedFolders = state.folders.map((folder) =>
+            folder.id === targetEmail.folder_id
+              ? {
+                  ...folder,
+                  unread_emails: Math.max(0, folder.unread_emails + unreadDelta),
+                }
+              : folder
+          );
+        }
+      }
+
+      return {
+        emails: updatedEmails,
+        selectedEmail: updatedSelectedEmail,
+        accounts: updatedAccounts,
+        folders: updatedFolders,
+      };
+    }),
   removeEmail: (id) =>
     set((state) => {
       const newSelectedEmails = new Set(state.selectedEmails);
