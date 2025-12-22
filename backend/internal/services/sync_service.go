@@ -45,8 +45,12 @@ func NewSyncService(db *gorm.DB, providerFactory providers.ProviderFactoryInterf
 
 // SyncEmails 同步指定账户的邮件
 func (s *SyncService) SyncEmails(ctx context.Context, accountID uint) error {
-	// 为邮件同步创建一个更长的超时上下文（10分钟），继承上游取消信号
-	syncCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	// 为邮件同步创建一个更长的超时上下文（10分钟）；避免直接使用可能已被 HTTP 关闭的请求上下文导致立即取消
+	baseCtx := context.Background()
+	if ctx != nil && ctx.Err() == nil {
+		baseCtx = ctx
+	}
+	syncCtx, cancel := context.WithTimeout(baseCtx, 10*time.Minute)
 	defer cancel()
 
 	lock := s.getAccountLock(accountID)
