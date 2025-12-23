@@ -1,6 +1,6 @@
 'use client';
 
-import { X, File, Image, FileText, Archive, Video, Music, Loader2 } from 'lucide-react';
+import { X, File, Image as ImageIcon, FileText, Archive, Video, Music, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { formatFileSize } from '@/types/email';
@@ -26,7 +26,7 @@ interface AttachmentBarProps {
 // 获取文件图标
 const getFileIcon = (type: string) => {
   if (type.startsWith('image/')) {
-    return <Image className="w-4 h-4 text-blue-500" />;
+    return <ImageIcon className="w-4 h-4 text-blue-500" />;
   }
   if (type.startsWith('video/')) {
     return <Video className="w-4 h-4 text-purple-500" />;

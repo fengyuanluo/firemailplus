@@ -1,7 +1,17 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import { Upload, X, File, Image, FileText, Archive, Video, Music, Loader2 } from 'lucide-react';
+import {
+  Upload,
+  X,
+  File,
+  Image as ImageIcon,
+  FileText,
+  Archive,
+  Video,
+  Music,
+  Loader2,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { formatFileSize } from '@/types/email';
@@ -45,7 +55,7 @@ export function AttachmentManager({
     const iconClass = 'w-5 h-5';
 
     if (type.startsWith('image/')) {
-      return <Image className={`${iconClass} text-green-600`} />;
+      return <ImageIcon className={`${iconClass} text-green-600`} />;
     } else if (type.startsWith('video/')) {
       return <Video className={`${iconClass} text-purple-600`} />;
     } else if (type.startsWith('audio/')) {

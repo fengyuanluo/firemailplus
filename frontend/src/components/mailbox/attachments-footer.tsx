@@ -1,6 +1,6 @@
 'use client';
 
-import { Download, FileText, Image, Archive, Video, Music, File } from 'lucide-react';
+import { Download, FileText, Image as ImageIcon, Archive, Video, Music, File } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Attachment } from '@/types/email';
 import { formatFileSize } from '@/types/email';
@@ -21,7 +21,7 @@ export function AttachmentsFooter({ attachments }: AttachmentsFooterProps) {
     const iconClass = 'w-5 h-5';
 
     if (contentType.startsWith('image/')) {
-      return <Image className={`${iconClass} text-green-600`} />;
+      return <ImageIcon className={`${iconClass} text-green-600`} />;
     } else if (contentType.startsWith('video/')) {
       return <Video className={`${iconClass} text-purple-600`} />;
     } else if (contentType.startsWith('audio/')) {

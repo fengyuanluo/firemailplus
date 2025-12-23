@@ -9,7 +9,7 @@ import {
   ListOrdered,
   Quote,
   Link,
-  Image,
+  Image as ImageIcon,
   Table,
   Palette,
   AlignLeft,
@@ -200,7 +200,7 @@ export function EditorToolbar({ editor, onAttachmentClick }: EditorToolbarProps)
           className="p-2 h-8"
           title="插入图片"
         >
-          <Image className="w-4 h-4" />
+          <ImageIcon className="w-4 h-4" />
         </Button>
         <Button
           variant="ghost"
