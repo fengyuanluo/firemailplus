@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronDown, ChevronRight, Eye, EyeOff, Server, Mail } from 'lucide-react';
-import { apiClient, type CreateAccountRequest } from '@/lib/api';
+import { apiClient } from '@/lib/api';
 import { useMailboxStore } from '@/lib/store';
 import { toast } from 'sonner';
 import { EmailGroupSelector } from './email-group-selector';
@@ -82,6 +82,8 @@ const customSchema = z
 
 type CustomForm = z.infer<typeof customSchema>;
 
+type CustomAccountRequest = Parameters<typeof apiClient.createCustomEmailAccount>[0];
+
 interface CustomFormProps {
   onSuccess?: () => void;
   onCancel?: () => void;
@@ -125,7 +127,7 @@ export function CustomForm({ onSuccess, onCancel }: CustomFormProps) {
   const onSubmit = async (data: CustomForm) => {
     setIsSubmitting(true);
     try {
-      const requestData: CreateAccountRequest = {
+      const requestData: CustomAccountRequest = {
         name: data.name,
         email: data.email,
         auth_method: 'password',

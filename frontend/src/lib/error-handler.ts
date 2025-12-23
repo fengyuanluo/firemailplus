@@ -31,7 +31,7 @@ export interface AppError {
   severity: ErrorSeverity;
   message: string;
   code?: string | number;
-  details?: any;
+  details?: unknown;
   timestamp: number;
   context?: string;
 }
@@ -53,18 +53,33 @@ const DEFAULT_CONFIG: ErrorHandlerConfig = {
   maxRetries: 0,
 };
 
+type ErrorInfo = {
+  name?: string;
+  type?: string;
+  code?: string | number;
+  status?: number;
+  response?: { status?: number };
+  message?: string;
+};
+
+const toErrorInfo = (error: unknown): ErrorInfo =>
+  typeof error === 'object' && error !== null ? (error as ErrorInfo) : {};
+
 // 错误分类器
 export class ErrorClassifier {
-  static classify(error: any): AppError {
+  static classify(error: unknown): AppError {
     const timestamp = Date.now();
+    const errorInfo = toErrorInfo(error);
+    const message = typeof errorInfo.message === 'string' ? errorInfo.message : '';
+    const status = errorInfo.status ?? errorInfo.response?.status;
 
     // 网络错误
-    if (error.name === 'NetworkError' || error.code === 'NETWORK_ERROR') {
+    if (errorInfo.name === 'NetworkError' || errorInfo.code === 'NETWORK_ERROR') {
       return {
         type: ErrorType.NETWORK,
         severity: ErrorSeverity.MEDIUM,
         message: '网络连接失败，请检查网络设置',
-        code: error.code,
+        code: errorInfo.code,
         details: error,
         timestamp,
         context: 'network',
@@ -72,9 +87,7 @@ export class ErrorClassifier {
     }
 
     // HTTP状态码错误
-    if (error.status || error.response?.status) {
-      const status = error.status || error.response?.status;
-
+    if (status) {
       switch (status) {
         case 401:
           return {
@@ -113,7 +126,7 @@ export class ErrorClassifier {
           return {
             type: ErrorType.VALIDATION,
             severity: ErrorSeverity.LOW,
-            message: error.message || '输入数据格式错误',
+            message: message || '输入数据格式错误',
             code: status,
             details: error,
             timestamp,
@@ -137,7 +150,7 @@ export class ErrorClassifier {
           return {
             type: ErrorType.UNKNOWN,
             severity: ErrorSeverity.MEDIUM,
-            message: error.message || '发生未知错误',
+            message: message || '发生未知错误',
             code: status,
             details: error,
             timestamp,
@@ -147,12 +160,12 @@ export class ErrorClassifier {
     }
 
     // 验证错误
-    if (error.name === 'ValidationError' || error.type === 'validation') {
+    if (errorInfo.name === 'ValidationError' || errorInfo.type === 'validation') {
       return {
         type: ErrorType.VALIDATION,
         severity: ErrorSeverity.LOW,
-        message: error.message || '数据验证失败',
-        code: error.code,
+        message: message || '数据验证失败',
+        code: errorInfo.code,
         details: error,
         timestamp,
         context: 'validation',
@@ -163,8 +176,8 @@ export class ErrorClassifier {
     return {
       type: ErrorType.UNKNOWN,
       severity: ErrorSeverity.MEDIUM,
-      message: error.message || '发生未知错误',
-      code: error.code,
+      message: message || '发生未知错误',
+      code: errorInfo.code,
       details: error,
       timestamp,
       context: 'unknown',
@@ -183,7 +196,7 @@ export class ErrorHandler {
   }
 
   // 处理错误
-  handle(error: any, context?: string, config?: Partial<ErrorHandlerConfig>): AppError {
+  handle(error: unknown, context?: string, config?: Partial<ErrorHandlerConfig>): AppError {
     const finalConfig = { ...this.config, ...config };
     const appError = ErrorClassifier.classify(error);
 
@@ -314,20 +327,24 @@ export class ErrorHandler {
 export const globalErrorHandler = new ErrorHandler();
 
 // 便捷的错误处理函数
-export const handleError = (error: any, context?: string, config?: Partial<ErrorHandlerConfig>) => {
+export const handleError = (
+  error: unknown,
+  context?: string,
+  config?: Partial<ErrorHandlerConfig>
+) => {
   return globalErrorHandler.handle(error, context, config);
 };
 
 // 特定类型的错误处理函数
-export const handleNetworkError = (error: any) => {
+export const handleNetworkError = (error: unknown) => {
   return handleError(error, 'network', { autoRetry: true, maxRetries: 3 });
 };
 
-export const handleAuthError = (error: any) => {
+export const handleAuthError = (error: unknown) => {
   return handleError(error, 'auth', { showToast: true, reportToService: true });
 };
 
-export const handleValidationError = (error: any) => {
+export const handleValidationError = (error: unknown) => {
   return handleError(error, 'validation', { showToast: true, logToConsole: false });
 };
 

@@ -8,6 +8,9 @@ import { apiClient } from '@/lib/api';
 import type { EmailAddress } from '@/types/email';
 import { useMailboxStore } from '@/lib/store';
 
+const getErrorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error && error.message ? error.message : fallback;
+
 interface UseEmailsParams {
   account_id?: number;
   folder_id?: number;
@@ -86,8 +89,8 @@ export function useEmails(params?: UseEmailsParams) {
       queryClient.invalidateQueries({ queryKey: ['emails'] });
       toast.success('邮件发送成功');
     },
-    onError: (error: any) => {
-      toast.error(error.message || '邮件发送失败');
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, '邮件发送失败'));
     },
   });
 
@@ -98,8 +101,8 @@ export function useEmails(params?: UseEmailsParams) {
       updateEmail(id, { is_read: true });
       toast.success('已标记为已读');
     },
-    onError: (error: any) => {
-      toast.error(error.message || '标记失败');
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, '标记失败'));
     },
   });
 
@@ -110,8 +113,8 @@ export function useEmails(params?: UseEmailsParams) {
       updateEmail(id, { is_read: false });
       toast.success('已标记为未读');
     },
-    onError: (error: any) => {
-      toast.error(error.message || '标记失败');
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, '标记失败'));
     },
   });
 
@@ -125,8 +128,8 @@ export function useEmails(params?: UseEmailsParams) {
         toast.success(email.is_starred ? '已取消星标' : '已添加星标');
       }
     },
-    onError: (error: any) => {
-      toast.error(error.message || '操作失败');
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, '操作失败'));
     },
   });
 
@@ -140,8 +143,8 @@ export function useEmails(params?: UseEmailsParams) {
       }
       toast.success('邮件删除成功');
     },
-    onError: (error: any) => {
-      toast.error(error.message || '删除失败');
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, '删除失败'));
     },
   });
 

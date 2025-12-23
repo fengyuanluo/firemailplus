@@ -7,7 +7,7 @@ import { useEffect, useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { apiClient, type LoginRequest } from '@/lib/api';
+import { apiClient, type LoginRequest, type User } from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 import { useHydration } from './use-hydration';
 import { useTokenValidation } from './use-token-validation';
@@ -26,9 +26,24 @@ export interface AuthStatus {
   isAuthenticated: boolean;
   isHydrated: boolean;
   isLoading: boolean;
-  user: any | null;
+  user: User | null;
   error: string | null;
 }
+
+const getErrorMessage = (error: unknown, fallback = '') =>
+  error instanceof Error && error.message ? error.message : fallback;
+
+const getErrorStatus = (error: unknown): number | undefined => {
+  if (
+    typeof error === 'object' &&
+    error &&
+    'status' in error &&
+    typeof (error as { status?: unknown }).status === 'number'
+  ) {
+    return (error as { status: number }).status;
+  }
+  return undefined;
+};
 
 export function useAuth() {
   const { user, isAuthenticated, login, logout } = useAuthStore();
@@ -69,8 +84,8 @@ export function useAuth() {
         throw new Error(response.message || '登录失败');
       }
     },
-    onError: (error: any) => {
-      const errorMessage = error.message || '登录失败';
+    onError: (error: unknown) => {
+      const errorMessage = getErrorMessage(error, '登录失败');
       toast.error(errorMessage);
       console.error('Login error:', error);
     },
@@ -82,7 +97,7 @@ export function useAuth() {
     onSuccess: () => {
       performLogout(true);
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       // 即使 API 调用失败，也要清除本地状态
       console.error('Logout API error:', error);
       performLogout(false);
@@ -104,18 +119,18 @@ export function useAuth() {
           return response.data;
         }
         throw new Error(response.message || '获取用户信息失败');
-      } catch (error: any) {
+      } catch (error: unknown) {
         // 根据错误类型进行分类处理
-        if (error.status === 401) {
+        if (getErrorStatus(error) === 401) {
           throw new Error('TOKEN_EXPIRED');
         }
         throw error;
       }
     },
     enabled: isAuthenticated && hydrationComplete,
-    retry: (failureCount, error: any) => {
+    retry: (failureCount, error: unknown) => {
       // 如果是token过期，不重试
-      if (error.message === 'TOKEN_EXPIRED') {
+      if (getErrorMessage(error) === 'TOKEN_EXPIRED') {
         return false;
       }
       // 其他错误最多重试1次
@@ -128,7 +143,7 @@ export function useAuth() {
   // 处理token验证失败
   useEffect(() => {
     if (userError && isAuthenticated && hydrationComplete) {
-      const errorMessage = userError.message || '';
+      const errorMessage = getErrorMessage(userError);
 
       if (errorMessage === 'TOKEN_EXPIRED' || errorMessage.includes('401')) {
         console.log('Token expired, performing automatic logout');
@@ -144,12 +159,13 @@ export function useAuth() {
 
   // 检查认证状态
   const checkAuthStatus = useCallback((): AuthStatus => {
+    const errorMessage = getErrorMessage(userError);
     return {
       isAuthenticated,
       isHydrated: hydrationComplete,
       isLoading: isLoadingUser || loginMutation.isPending || logoutMutation.isPending,
       user: currentUser || user,
-      error: userError?.message || null,
+      error: errorMessage || null,
     };
   }, [
     isAuthenticated,
@@ -189,9 +205,9 @@ export function useAuth() {
     isLoading: isLoadingUser || loginMutation.isPending || logoutMutation.isPending || isValidating,
 
     // 错误状态
-    error: userError?.message || null,
-    loginError: loginMutation.error?.message || null,
-    logoutError: logoutMutation.error?.message || null,
+    error: getErrorMessage(userError) || null,
+    loginError: getErrorMessage(loginMutation.error) || null,
+    logoutError: getErrorMessage(logoutMutation.error) || null,
   };
 }
 

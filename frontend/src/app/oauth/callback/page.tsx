@@ -7,6 +7,16 @@ import { useMailboxStore } from '@/lib/store';
 import { toast } from 'sonner';
 import { ProtectedRoute } from '@/components/auth/route-guard';
 
+interface OAuthAccountData {
+  name: string;
+  email: string;
+  provider: string;
+  group_id?: number;
+}
+
+const getErrorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error && error.message ? error.message : fallback;
+
 function OAuthCallbackContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -42,17 +52,17 @@ function OAuthCallbackContent() {
 
         // 从URL参数获取账户信息
         const accountInfoParam = searchParams.get('account_info');
-        let accountData: any;
+        let accountData: OAuthAccountData;
         if (!accountInfoParam) {
           // 如果URL参数中没有账户信息，尝试从sessionStorage获取（向后兼容）
           const accountDataStr = sessionStorage.getItem('oauth_account_data');
           if (!accountDataStr) {
             throw new Error('未找到账户信息，请重新开始授权流程');
           }
-          accountData = JSON.parse(accountDataStr);
+          accountData = JSON.parse(accountDataStr) as OAuthAccountData;
         } else {
           // 从URL参数解码账户信息
-          accountData = JSON.parse(decodeURIComponent(accountInfoParam));
+          accountData = JSON.parse(decodeURIComponent(accountInfoParam)) as OAuthAccountData;
         }
 
         // 注意：移除state验证，因为我们现在使用account_info参数传递账户信息
@@ -127,11 +137,12 @@ function OAuthCallbackContent() {
         } else {
           throw new Error(createResponse.message || '创建邮箱账户失败');
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('OAuth callback error:', error);
         setStatus('error');
-        setMessage(error.message || 'OAuth认证失败');
-        toast.error(error.message || 'OAuth认证失败');
+        const message = getErrorMessage(error, 'OAuth认证失败');
+        setMessage(message);
+        toast.error(message);
 
         // 清除临时数据
         sessionStorage.removeItem('oauth_account_data');

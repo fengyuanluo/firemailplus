@@ -4,6 +4,7 @@
  */
 
 import { useMailboxStore } from './store';
+import type { Folder } from '@/types/email';
 
 // 状态协调器类
 export class StoreCoordinator {
@@ -72,7 +73,7 @@ export class StoreCoordinator {
   }
 
   // 文件夹切换处理
-  private handleFolderChange(folder: any) {
+  private handleFolderChange(folder: Folder | null) {
     const mailboxStore = useMailboxStore.getState();
 
     // 清理邮件选择状态
@@ -84,7 +85,7 @@ export class StoreCoordinator {
   }
 
   // 执行搜索
-  public async performSearch(query: string, filters: any = {}) {
+  public async performSearch(query: string, filters: Record<string, unknown> = {}) {
     const mailboxStore = useMailboxStore.getState();
 
     try {

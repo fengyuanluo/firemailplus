@@ -6,6 +6,7 @@ import { useState, useCallback } from 'react';
 import { apiClient } from '@/lib/api';
 import { useMailboxStore } from '@/lib/store';
 import { toast } from 'sonner';
+import type { EmailAccount } from '@/types/email';
 
 export interface BatchAccountData {
   email: string;
@@ -16,10 +17,13 @@ export interface BatchAccountData {
 
 export interface BatchProcessResult {
   success: boolean;
-  account?: any;
+  account?: EmailAccount;
   error?: string;
   data: BatchAccountData;
 }
+
+const getErrorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error && error.message ? error.message : fallback;
 
 export interface BatchProgress {
   total: number;
@@ -150,10 +154,10 @@ export function useBatchAddAccounts() {
             data: accountData,
           };
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         return {
           success: false,
-          error: error.message || '网络错误',
+          error: getErrorMessage(error, '网络错误'),
           data: accountData,
         };
       }
@@ -208,7 +212,7 @@ export function useBatchAddAccounts() {
             } else {
               processResult = {
                 success: false,
-                error: result.reason?.message || '处理失败',
+                error: getErrorMessage(result.reason, '处理失败'),
                 data: batch[batchIndex],
               };
             }
@@ -246,13 +250,13 @@ export function useBatchAddAccounts() {
         } else {
           toast.error(`批量添加失败：所有 ${failCount} 个账户都添加失败`);
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         setProgress((prev) => ({
           ...prev,
           isProcessing: false,
           currentItem: undefined,
         }));
-        toast.error('批量处理过程中发生错误：' + error.message);
+        toast.error(`批量处理过程中发生错误：${getErrorMessage(error, '未知错误')}`);
       }
     },
     [processAccount]

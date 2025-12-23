@@ -16,6 +16,18 @@ interface ProvidersProps {
   children: React.ReactNode;
 }
 
+const getErrorStatus = (error: unknown): number | undefined => {
+  if (
+    typeof error === 'object' &&
+    error &&
+    'status' in error &&
+    typeof (error as { status?: unknown }).status === 'number'
+  ) {
+    return (error as { status: number }).status;
+  }
+  return undefined;
+};
+
 export function Providers({ children }: ProvidersProps) {
   const [queryClient] = useState(
     () =>
@@ -27,13 +39,14 @@ export function Providers({ children }: ProvidersProps) {
             gcTime: 1000 * 60 * 30, // 30分钟后清理未使用的缓存
 
             // 重试策略优化
-            retry: (failureCount, error: any) => {
+            retry: (failureCount, error: unknown) => {
+              const status = getErrorStatus(error);
               // 认证错误不重试
-              if (error?.status === 401 || error?.status === 403) {
+              if (status === 401 || status === 403) {
                 return false;
               }
               // 客户端错误（4xx）不重试
-              if (error?.status >= 400 && error?.status < 500) {
+              if (status && status >= 400 && status < 500) {
                 return false;
               }
               // 最多重试3次
@@ -50,13 +63,14 @@ export function Providers({ children }: ProvidersProps) {
           },
           mutations: {
             // 变更重试策略
-            retry: (failureCount, error: any) => {
+            retry: (failureCount, error: unknown) => {
+              const status = getErrorStatus(error);
               // 认证错误不重试
-              if (error?.status === 401 || error?.status === 403) {
+              if (status === 401 || status === 403) {
                 return false;
               }
               // 客户端错误不重试
-              if (error?.status >= 400 && error?.status < 500) {
+              if (status && status >= 400 && status < 500) {
                 return false;
               }
               // 网络错误重试1次
@@ -65,7 +79,7 @@ export function Providers({ children }: ProvidersProps) {
             retryDelay: 1000, // 1秒后重试
 
             // 错误处理
-            onError: (error: any) => {
+            onError: (error: unknown) => {
               handleError(error, 'react_query_mutation');
             },
           },

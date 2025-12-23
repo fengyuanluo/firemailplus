@@ -179,7 +179,7 @@ export const uploadFile = async (
       updateAttachment(attachmentFile.id, updateData);
 
       toast.success(`${attachmentFile.name} 上传成功`);
-    } catch (fetchError: any) {
+    } catch (fetchError: unknown) {
       // 处理fetch相关的错误（网络错误、超时等）
       clearTimeout(timeoutId);
       if (progressInterval) {
@@ -187,7 +187,7 @@ export const uploadFile = async (
       }
       throw fetchError;
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     // 清理资源
     if (progressInterval) {
       clearInterval(progressInterval);
@@ -196,22 +196,24 @@ export const uploadFile = async (
     // 分析错误类型并提供友好的错误信息
     let errorMessage = '上传失败';
     let errorType = 'unknown';
+    const errorName = error instanceof Error ? error.name : '';
+    const errorMessageText = error instanceof Error ? error.message : '';
 
-    if (error.name === 'TypeError' && error.message.includes('fetch')) {
+    if (errorName === 'TypeError' && errorMessageText.includes('fetch')) {
       // 网络连接错误
       errorMessage = '网络连接失败，请检查网络连接后重试';
       errorType = 'network';
-    } else if (error.name === 'AbortError') {
+    } else if (errorName === 'AbortError') {
       // 请求被取消
       errorMessage = '上传被取消';
       errorType = 'cancelled';
-    } else if (error.message.includes('timeout')) {
+    } else if (errorMessageText.includes('timeout')) {
       // 超时错误
       errorMessage = '上传超时，请检查网络连接或稍后重试';
       errorType = 'timeout';
-    } else if (error.message) {
+    } else if (errorMessageText) {
       // 使用服务器返回的错误信息
-      errorMessage = error.message;
+      errorMessage = errorMessageText;
       errorType = 'server';
     }
 

@@ -66,7 +66,7 @@ export class PerformanceMonitor {
   getReport() {
     if (process.env.NODE_ENV !== 'development') return null;
 
-    const report: Record<string, any> = {};
+    const report: Record<string, { avg: number; min: number; max: number; count: number }> = {};
 
     for (const [name, values] of this.metrics.entries()) {
       const avg = values.reduce((a, b) => a + b, 0) / values.length;
@@ -111,7 +111,14 @@ export function monitorMemory() {
   if (process.env.NODE_ENV !== 'development') return;
   if (!('memory' in performance)) return;
 
-  const memory = (performance as any).memory;
+  interface PerformanceMemory {
+    usedJSHeapSize: number;
+    totalJSHeapSize: number;
+    jsHeapSizeLimit: number;
+  }
+
+  const memory = (performance as Performance & { memory?: PerformanceMemory }).memory;
+  if (!memory) return;
 
   console.log('Memory usage:', {
     used: `${(memory.usedJSHeapSize / 1024 / 1024).toFixed(2)} MB`,
@@ -156,7 +163,7 @@ export function monitorNetworkRequests() {
 export function trackStateChanges<T>(storeName: string, state: T, prevState: T) {
   if (process.env.NODE_ENV !== 'development') return;
 
-  const changes: Record<string, { from: any; to: any }> = {};
+  const changes: Record<string, { from: unknown; to: unknown }> = {};
 
   for (const key in state) {
     if (state[key] !== prevState[key]) {
@@ -173,7 +180,7 @@ export function trackStateChanges<T>(storeName: string, state: T, prevState: T) 
 }
 
 // 错误边界增强
-export function enhanceErrorBoundary(error: Error, errorInfo: any) {
+export function enhanceErrorBoundary(error: Error, errorInfo: { componentStack?: string }) {
   if (process.env.NODE_ENV !== 'development') return;
 
   console.group('Error Boundary Caught Error');
@@ -204,8 +211,22 @@ export function setupDevConsole() {
   if (process.env.NODE_ENV !== 'development') return;
   if (typeof window === 'undefined') return;
 
+  interface DevToolsAPI {
+    performance: PerformanceMonitor;
+    memory: () => void;
+    clear: () => void;
+    getState: () => Record<string, unknown>;
+    simulateNetworkDelay: (delay: number) => void;
+    simulateNetworkError: (probability?: number) => void;
+    resetNetworkSimulation: () => void;
+  }
+
+  interface DevToolsWindow extends Window {
+    __DEV_TOOLS__?: DevToolsAPI;
+  }
+
   // 添加全局开发工具
-  (window as any).__DEV_TOOLS__ = {
+  (window as DevToolsWindow).__DEV_TOOLS__ = {
     // 性能监控
     performance: PerformanceMonitor.getInstance(),
 
@@ -274,7 +295,9 @@ export function visualizeComponentTree() {
 // 热重载增强
 export function enhanceHotReload() {
   if (process.env.NODE_ENV !== 'development') return;
-  if (typeof module === 'undefined' || !(module as any).hot) return;
+  type HotModule = typeof module & { hot?: { accept: (callback: () => void) => void } };
+  const hotModule = module as HotModule;
+  if (typeof module === 'undefined' || !hotModule.hot) return;
 
   // 保存状态到sessionStorage
   const saveState = () => {
@@ -305,7 +328,7 @@ export function enhanceHotReload() {
   };
 
   // 监听热重载事件
-  (module as any).hot.accept(() => {
+  hotModule.hot.accept(() => {
     console.log('Hot reload triggered');
     saveState();
   });
@@ -350,6 +373,6 @@ export function cleanupDevTools() {
 
   // 清理全局变量
   if (typeof window !== 'undefined') {
-    delete (window as any).__DEV_TOOLS__;
+    delete (window as Window & { __DEV_TOOLS__?: unknown }).__DEV_TOOLS__;
   }
 }

@@ -7,6 +7,9 @@ import { toast } from 'sonner';
 import { apiClient } from '@/lib/api';
 import { useMailboxStore } from '@/lib/store';
 
+const getErrorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error && error.message ? error.message : fallback;
+
 interface OAuth2WindowOptions {
   width?: number;
   height?: number;
@@ -34,8 +37,8 @@ export function useOAuth2() {
       }
       throw new Error(response.message || '获取Gmail授权URL失败');
     },
-    onError: (error: any) => {
-      toast.error(error.message || 'Gmail OAuth2初始化失败');
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, 'Gmail OAuth2初始化失败'));
     },
   });
 
@@ -48,8 +51,8 @@ export function useOAuth2() {
       }
       throw new Error(response.message || '获取Outlook授权URL失败');
     },
-    onError: (error: any) => {
-      toast.error(error.message || 'Outlook OAuth2初始化失败');
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, 'Outlook OAuth2初始化失败'));
     },
   });
 
@@ -73,8 +76,8 @@ export function useOAuth2() {
         toast.success('OAuth2邮箱账户创建成功');
       }
     },
-    onError: (error: any) => {
-      toast.error(error.message || '创建OAuth2账户失败');
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, '创建OAuth2账户失败'));
     },
   });
 
@@ -99,8 +102,8 @@ export function useOAuth2() {
         toast.success('手动OAuth2账户创建成功');
       }
     },
-    onError: (error: any) => {
-      toast.error(error.message || '创建手动OAuth2账户失败');
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, '创建手动OAuth2账户失败'));
     },
   });
 
@@ -179,8 +182,8 @@ export function useOAuth2() {
 
       // 3. 直接跳转到外部OAuth服务器
       window.location.href = authData.auth_url;
-    } catch (error: any) {
-      toast.error(error.message || 'Gmail认证失败');
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, 'Gmail认证失败'));
       throw error;
     }
   };
@@ -204,8 +207,8 @@ export function useOAuth2() {
 
       // 3. 直接跳转到外部OAuth服务器
       window.location.href = authData.auth_url;
-    } catch (error: any) {
-      toast.error(error.message || 'Outlook认证失败');
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, 'Outlook认证失败'));
       throw error;
     }
   };

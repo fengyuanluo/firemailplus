@@ -37,7 +37,7 @@ export class ComponentPerformanceAnalyzer {
   static getReport() {
     if (process.env.NODE_ENV !== 'development') return null;
 
-    const report: Record<string, any> = {};
+    const report: Record<string, { [key: string]: string | number }> = {};
 
     // 渲染性能报告
     for (const [component, times] of this.renderTimes.entries()) {
@@ -144,7 +144,7 @@ export class MemoryLeakDetector {
 }
 
 // 依赖数组检查
-export function checkDependencyArray(hookName: string, deps: any[], prevDeps?: any[]) {
+export function checkDependencyArray(hookName: string, deps: unknown[], prevDeps?: unknown[]) {
   if (process.env.NODE_ENV !== 'development') return;
 
   if (!prevDeps) return;
@@ -158,7 +158,7 @@ export function checkDependencyArray(hookName: string, deps: any[], prevDeps?: a
   }
 
   // 检查依赖项变化
-  const changes: Array<{ index: number; from: any; to: any }> = [];
+  const changes: Array<{ index: number; from: unknown; to: unknown }> = [];
 
   for (let i = 0; i < deps.length; i++) {
     if (deps[i] !== prevDeps[i]) {
@@ -193,13 +193,16 @@ export function checkDependencyArray(hookName: string, deps: any[], prevDeps?: a
 }
 
 // Props 验证
-export function validateProps<T extends Record<string, any>>(
+type PropValidationRule = {
+  required?: boolean;
+  type?: string;
+  validator?: (value: unknown) => boolean;
+};
+
+export function validateProps<T extends Record<string, unknown>>(
   componentName: string,
   props: T,
-  schema: Record<
-    keyof T,
-    { required?: boolean; type?: string; validator?: (value: any) => boolean }
-  >
+  schema: Record<keyof T, PropValidationRule>
 ) {
   if (process.env.NODE_ENV !== 'development') return;
 
@@ -264,13 +267,17 @@ export function checkStateUpdates<T>(
   // 检查频繁更新
   const updateKey = `${componentName}:${key}`;
   const now = Date.now();
-  const lastUpdate = (checkStateUpdates as any).lastUpdates?.[updateKey] || 0;
+  type StateUpdateTracker = typeof checkStateUpdates & {
+    lastUpdates?: Record<string, number>;
+  };
+  const stateUpdateTracker = checkStateUpdates as StateUpdateTracker;
+  const lastUpdate = stateUpdateTracker.lastUpdates?.[updateKey] || 0;
 
-  if (!(checkStateUpdates as any).lastUpdates) {
-    (checkStateUpdates as any).lastUpdates = {};
+  if (!stateUpdateTracker.lastUpdates) {
+    stateUpdateTracker.lastUpdates = {};
   }
 
-  (checkStateUpdates as any).lastUpdates[updateKey] = now;
+  stateUpdateTracker.lastUpdates[updateKey] = now;
 
   if (now - lastUpdate < 16) {
     // 小于一帧的时间
@@ -281,7 +288,11 @@ export function checkStateUpdates<T>(
 }
 
 // 渲染优化建议
-export function analyzeRenderOptimization(componentName: string, props: any, prevProps?: any) {
+export function analyzeRenderOptimization(
+  componentName: string,
+  props: Record<string, unknown>,
+  prevProps?: Record<string, unknown>
+) {
   if (process.env.NODE_ENV !== 'development') return;
 
   if (!prevProps) return;
@@ -358,7 +369,16 @@ export function startQualityMonitoring() {
 
 // 导出开发工具到全局
 if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
-  (window as any).__QUALITY_TOOLS__ = {
+  interface QualityToolsWindow extends Window {
+    __QUALITY_TOOLS__?: {
+      performance: typeof ComponentPerformanceAnalyzer;
+      memoryLeaks: typeof MemoryLeakDetector;
+      generateReport: typeof generateQualityReport;
+      startMonitoring: typeof startQualityMonitoring;
+    };
+  }
+
+  (window as QualityToolsWindow).__QUALITY_TOOLS__ = {
     performance: ComponentPerformanceAnalyzer,
     memoryLeaks: MemoryLeakDetector,
     generateReport: generateQualityReport,

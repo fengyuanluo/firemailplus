@@ -7,6 +7,9 @@ import { toast } from 'sonner';
 import { apiClient, type CreateAccountRequest } from '@/lib/api';
 import { useMailboxStore } from '@/lib/store';
 
+const getErrorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error && error.message ? error.message : fallback;
+
 export function useEmailAccounts() {
   const { accounts, selectedAccount, setAccounts, addAccount, removeAccount, selectAccount } =
     useMailboxStore();
@@ -35,8 +38,8 @@ export function useEmailAccounts() {
         toast.success('邮箱账户创建成功');
       }
     },
-    onError: (error: any) => {
-      toast.error(error.message || '创建邮箱账户失败');
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, '创建邮箱账户失败'));
     },
   });
 
@@ -48,8 +51,8 @@ export function useEmailAccounts() {
       queryClient.invalidateQueries({ queryKey: ['emailAccounts'] });
       toast.success('邮箱账户删除成功');
     },
-    onError: (error: any) => {
-      toast.error(error.message || '删除邮箱账户失败');
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, '删除邮箱账户失败'));
     },
   });
 
