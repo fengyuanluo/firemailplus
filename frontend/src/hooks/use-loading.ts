@@ -151,7 +151,7 @@ export function useLoading(config: LoadingConfig = {}) {
 }
 
 // 异步操作加载Hook
-export function useAsyncLoading<T = any>(config: LoadingConfig = {}) {
+export function useAsyncLoading<T = unknown>(config: LoadingConfig = {}) {
   const loading = useLoading(config);
 
   const execute = useCallback(
@@ -347,7 +347,7 @@ export function usePageLoading() {
 }
 
 // 懒加载Hook
-export function useLazyLoading<T>(loadFn: () => Promise<T>, deps: any[] = []) {
+export function useLazyLoading<T>(loadFn: () => Promise<T>, deps: ReadonlyArray<unknown> = []) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<Error | null>(null);
   const loading = useLoading({ message: '正在加载...' });

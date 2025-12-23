@@ -47,7 +47,7 @@ export function useThrottle<T>(value: T, limit: number): T {
 }
 
 // 稳定的回调Hook
-export function useStableCallback<T extends (...args: any[]) => any>(callback: T): T {
+export function useStableCallback<T extends (...args: unknown[]) => unknown>(callback: T): T {
   const callbackRef = useRef<T>(callback);
 
   // 更新ref但不触发重渲染
@@ -56,17 +56,12 @@ export function useStableCallback<T extends (...args: any[]) => any>(callback: T
   });
 
   // 返回稳定的回调函数
-  return useCallback(
-    ((...args: any[]) => {
-      return callbackRef.current(...args);
-    }) as T,
-    []
-  );
+  return useCallback(((...args: Parameters<T>) => callbackRef.current(...args)) as T, []);
 }
 
 // 深度比较的useMemo
-export function useDeepMemo<T>(factory: () => T, deps: any[]): T {
-  const ref = useRef<{ deps: any[]; value: T } | null>(null);
+export function useDeepMemo<T>(factory: () => T, deps: ReadonlyArray<unknown>): T {
+  const ref = useRef<{ deps: ReadonlyArray<unknown>; value: T } | null>(null);
 
   if (!ref.current || !deepEqual(ref.current.deps, deps)) {
     ref.current = {
@@ -79,8 +74,11 @@ export function useDeepMemo<T>(factory: () => T, deps: any[]): T {
 }
 
 // 深度相等比较
-function deepEqual(a: any, b: any): boolean {
-  if (a === b) return true;
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true;
 
   if (a == null || b == null) return false;
 
@@ -92,7 +90,7 @@ function deepEqual(a: any, b: any): boolean {
     return true;
   }
 
-  if (typeof a === 'object' && typeof b === 'object') {
+  if (isRecord(a) && isRecord(b)) {
     const keysA = Object.keys(a);
     const keysB = Object.keys(b);
 
@@ -133,13 +131,13 @@ export function useRenderCount(componentName?: string): number {
 }
 
 // 为什么重渲染Hook（开发环境调试用）
-export function useWhyDidYouUpdate(name: string, props: Record<string, any>) {
-  const previousProps = useRef<Record<string, any> | undefined>(undefined);
+export function useWhyDidYouUpdate(name: string, props: Record<string, unknown>) {
+  const previousProps = useRef<Record<string, unknown> | undefined>(undefined);
 
   useEffect(() => {
     if (previousProps.current) {
       const allKeys = Object.keys({ ...previousProps.current, ...props });
-      const changedProps: Record<string, { from: any; to: any }> = {};
+      const changedProps: Record<string, { from: unknown; to: unknown }> = {};
 
       allKeys.forEach((key) => {
         if (previousProps.current![key] !== props[key]) {

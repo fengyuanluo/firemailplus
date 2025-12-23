@@ -16,7 +16,7 @@ import { handleError } from '@/lib/error-handler';
 import { toast } from 'sonner';
 
 // API响应类型
-interface ApiResponse<T = any> {
+interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   message?: string;
@@ -24,7 +24,7 @@ interface ApiResponse<T = any> {
 }
 
 // API状态
-interface ApiState<T = any> {
+interface ApiState<T = unknown> {
   data: T | null;
   isLoading: boolean;
   error: string | null;
@@ -49,8 +49,20 @@ const DEFAULT_CONFIG: ApiConfig = {
   maxRetries: 3,
 };
 
+type ErrorWithStatus = {
+  status?: number;
+};
+
+const getErrorStatus = (error: unknown): number | undefined => {
+  if (!error || typeof error !== 'object') {
+    return undefined;
+  }
+  const status = (error as ErrorWithStatus).status;
+  return typeof status === 'number' ? status : undefined;
+};
+
 // 通用API Hook
-export function useApi<T = any>(config: ApiConfig = {}) {
+export function useApi<T = unknown>(config: ApiConfig = {}) {
   const finalConfig = { ...DEFAULT_CONFIG, ...config };
   const [state, setState] = useState<ApiState<T>>({
     data: null,
@@ -84,7 +96,7 @@ export function useApi<T = any>(config: ApiConfig = {}) {
         } else {
           throw new Error(response.message || '操作失败');
         }
-      } catch (error: any) {
+      } catch (error) {
         const appError = handleError(error, 'api_call', {
           showToast: finalConfig.showErrorToast,
         });
@@ -121,7 +133,7 @@ export function useApi<T = any>(config: ApiConfig = {}) {
 }
 
 // 查询Hook
-export function useApiQuery<T = any>(
+export function useApiQuery<T = unknown>(
   queryKey: string[],
   queryFn: () => Promise<ApiResponse<T>>,
   options: Partial<UseQueryOptions<T>> & ApiConfig = {}
@@ -137,16 +149,16 @@ export function useApiQuery<T = any>(
           return response.data;
         }
         throw new Error(response.message || '查询失败');
-      } catch (error: any) {
+      } catch (error) {
         handleError(error, 'api_query', {
           showToast: showErrorToast,
         });
         throw error;
       }
     },
-    retry: (failureCount, error: any) => {
+    retry: (failureCount, error) => {
       // 认证错误不重试
-      if (error.status === 401) return false;
+      if (getErrorStatus(error) === 401) return false;
       return failureCount < 3;
     },
     staleTime: 5 * 60 * 1000, // 5分钟
@@ -155,7 +167,7 @@ export function useApiQuery<T = any>(
 }
 
 // 变更Hook
-export function useApiMutation<TData = any, TVariables = any>(
+export function useApiMutation<TData = unknown, TVariables = unknown>(
   mutationFn: (variables: TVariables) => Promise<ApiResponse<TData>>,
   options: UseMutationOptions<TData, Error, TVariables> & ApiConfig = {}
 ) {
@@ -174,7 +186,7 @@ export function useApiMutation<TData = any, TVariables = any>(
           return response.data;
         }
         throw new Error(response.message || '操作失败');
-      } catch (error: any) {
+      } catch (error) {
         handleError(error, 'api_mutation', {
           showToast: showErrorToast,
         });
@@ -198,6 +210,7 @@ export function useApiMutation<TData = any, TVariables = any>(
 // 邮件相关API Hooks
 export function useEmailsApi() {
   const queryClient = useQueryClient();
+  type SendEmailPayload = Parameters<typeof apiClient.sendEmail>[0];
 
   // 获取邮件列表
   const getEmails = useApiQuery(['emails'], () => apiClient.getEmails(), {
@@ -206,7 +219,7 @@ export function useEmailsApi() {
   });
 
   // 发送邮件
-  const sendEmail = useApiMutation((data: any) => apiClient.sendEmail(data), {
+  const sendEmail = useApiMutation((data: SendEmailPayload) => apiClient.sendEmail(data), {
     showSuccessToast: true,
     successMessage: '邮件发送成功',
     onSuccess: () => {
@@ -233,6 +246,7 @@ export function useEmailsApi() {
 // 账户相关API Hooks
 export function useAccountsApi() {
   const queryClient = useQueryClient();
+  type CreateEmailAccountPayload = Parameters<typeof apiClient.createEmailAccount>[0];
 
   // 获取账户列表
   const getAccounts = useApiQuery(['accounts'], () => apiClient.getEmailAccounts(), {
@@ -241,13 +255,16 @@ export function useAccountsApi() {
   });
 
   // 添加账户
-  const addAccount = useApiMutation((data: any) => apiClient.createEmailAccount(data), {
-    showSuccessToast: true,
-    successMessage: '账户添加成功',
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['accounts'] });
-    },
-  });
+  const addAccount = useApiMutation(
+    (data: CreateEmailAccountPayload) => apiClient.createEmailAccount(data),
+    {
+      showSuccessToast: true,
+      successMessage: '账户添加成功',
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      },
+    }
+  );
 
   // 删除账户
   const deleteAccount = useApiMutation((id: number) => apiClient.deleteEmailAccount(id), {
@@ -266,7 +283,7 @@ export function useAccountsApi() {
 }
 
 // 通用CRUD Hook
-export function useCrudApi<T = any>(
+export function useCrudApi<T = unknown>(
   resource: string,
   apiMethods: {
     getList: () => Promise<ApiResponse<T[]>>;
@@ -331,11 +348,11 @@ export function useCrudApi<T = any>(
 
 // 批量操作Hook
 export function useBatchApi() {
-  const [operations, setOperations] = useState<Array<() => Promise<any>>>([]);
+  const [operations, setOperations] = useState<Array<() => Promise<unknown>>>([]);
   const [isExecuting, setIsExecuting] = useState(false);
-  const [results, setResults] = useState<any[]>([]);
+  const [results, setResults] = useState<unknown[]>([]);
 
-  const addOperation = useCallback((operation: () => Promise<any>) => {
+  const addOperation = useCallback((operation: () => Promise<unknown>) => {
     setOperations((prev) => [...prev, operation]);
   }, []);
 
@@ -343,7 +360,7 @@ export function useBatchApi() {
     if (operations.length === 0) return;
 
     setIsExecuting(true);
-    const batchResults: any[] = [];
+    const batchResults: unknown[] = [];
 
     try {
       for (const operation of operations) {
