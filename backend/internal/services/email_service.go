@@ -12,6 +12,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -2159,12 +2160,87 @@ func (s *EmailServiceImpl) MarkAccountsAsRead(ctx context.Context, userID uint, 
 	return nil
 }
 
+type parsedSearchQuery struct {
+	FreeText  string
+	From      string
+	To        string
+	Subject   string
+	Body      string
+	HasTokens bool
+}
+
+var searchQueryTokenRegexp = regexp.MustCompile(`(?i)\b(from|to|subject|body):`)
+
+// 解析搜索语法：from:xxx subject:xxx body:xxx
+func parseSearchQueryTokens(input string) parsedSearchQuery {
+	trimmed := strings.TrimSpace(input)
+	if trimmed == "" {
+		return parsedSearchQuery{}
+	}
+
+	matches := searchQueryTokenRegexp.FindAllStringSubmatchIndex(trimmed, -1)
+	if len(matches) == 0 {
+		return parsedSearchQuery{FreeText: trimmed}
+	}
+
+	result := parsedSearchQuery{HasTokens: true}
+	if matches[0][0] > 0 {
+		result.FreeText = strings.TrimSpace(trimmed[:matches[0][0]])
+	}
+
+	for i, match := range matches {
+		key := strings.ToLower(trimmed[match[2]:match[3]])
+		valueStart := match[1]
+		valueEnd := len(trimmed)
+		if i+1 < len(matches) {
+			valueEnd = matches[i+1][0]
+		}
+		value := strings.TrimSpace(trimmed[valueStart:valueEnd])
+		value = strings.Trim(value, "\"'")
+		if value == "" {
+			continue
+		}
+		switch key {
+		case "from":
+			result.From = value
+		case "to":
+			result.To = value
+		case "subject":
+			result.Subject = value
+		case "body":
+			result.Body = value
+		}
+	}
+
+	return result
+}
+
 // SearchEmails 搜索邮件
 func (s *EmailServiceImpl) SearchEmails(ctx context.Context, userID uint, req *SearchEmailsRequest) (*GetEmailsResponse, error) {
 	// 构建基础查询
 	query := s.db.WithContext(ctx).Model(&models.Email{}).
 		Joins("JOIN email_accounts ON emails.account_id = email_accounts.id").
 		Where("email_accounts.user_id = ?", userID)
+
+	parsedQuery := parseSearchQueryTokens(req.Query)
+	if parsedQuery.HasTokens {
+		hasParsedValue := parsedQuery.FreeText != "" || parsedQuery.From != "" || parsedQuery.To != "" || parsedQuery.Subject != "" || parsedQuery.Body != ""
+		if hasParsedValue {
+			if req.From == "" {
+				req.From = parsedQuery.From
+			}
+			if req.To == "" {
+				req.To = parsedQuery.To
+			}
+			if req.Subject == "" {
+				req.Subject = parsedQuery.Subject
+			}
+			if req.Body == "" {
+				req.Body = parsedQuery.Body
+			}
+			req.Query = parsedQuery.FreeText
+		}
+	}
 
 	// 应用过滤条件
 	if req.AccountID != nil {
@@ -2190,8 +2266,8 @@ func (s *EmailServiceImpl) SearchEmails(ctx context.Context, userID uint, req *S
 	// 应用搜索条件
 	if req.Query != "" {
 		searchTerm := "%" + req.Query + "%"
-		query = query.Where("(emails.subject LIKE ? OR emails.text_body LIKE ? OR emails.html_body LIKE ?)",
-			searchTerm, searchTerm, searchTerm)
+		query = query.Where("(emails.subject LIKE ? OR emails.text_body LIKE ? OR emails.html_body LIKE ? OR emails.from_address LIKE ? OR emails.to_addresses LIKE ?)",
+			searchTerm, searchTerm, searchTerm, searchTerm, searchTerm)
 	}
 
 	if req.Subject != "" {
@@ -2199,11 +2275,11 @@ func (s *EmailServiceImpl) SearchEmails(ctx context.Context, userID uint, req *S
 	}
 
 	if req.From != "" {
-		query = query.Where("emails.from LIKE ?", "%"+req.From+"%")
+		query = query.Where("emails.from_address LIKE ?", "%"+req.From+"%")
 	}
 
 	if req.To != "" {
-		query = query.Where("emails.to LIKE ?", "%"+req.To+"%")
+		query = query.Where("emails.to_addresses LIKE ?", "%"+req.To+"%")
 	}
 
 	if req.Body != "" {
