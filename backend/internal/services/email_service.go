@@ -2115,6 +2115,14 @@ func (s *EmailServiceImpl) MarkAccountAsRead(ctx context.Context, userID, accoun
 		return fmt.Errorf("failed to mark account emails as read: %w", err)
 	}
 
+	// 将账户下所有文件夹的未读计数重置为 0，避免前端显示残留未读
+	if err := s.db.WithContext(ctx).
+		Model(&models.Folder{}).
+		Where("account_id = ?", accountID).
+		Update("unread_emails", 0).Error; err != nil {
+		return fmt.Errorf("failed to reset folder unread count: %w", err)
+	}
+
 	// 更新未读计数并清理缓存
 	if err := s.updateUnreadCounters(ctx, userID, accountID, nil); err != nil {
 		return err
