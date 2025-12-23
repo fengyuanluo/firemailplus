@@ -5,6 +5,7 @@ import { SidebarHeader } from './sidebar-header';
 import { AccountItem } from './account-item';
 import { ContextMenu } from './context-menu';
 import { AccountSettingsModal } from './account-settings-modal';
+import { EmailGroupCard } from './email-group-card';
 import { apiClient } from '@/lib/api';
 import { toast } from 'sonner';
 import { useContextMenuStore, useMailboxStore } from '@/lib/store';
@@ -12,7 +13,7 @@ import type { EmailAccount, EmailGroup } from '@/types/email';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Plus, FolderPlus, Hash, RefreshCw, Trash2, X, CheckSquare } from 'lucide-react';
+import { Plus, RefreshCw, Trash2, X, CheckSquare } from 'lucide-react';
 
 export function LeftSidebar() {
   const {
@@ -421,114 +422,57 @@ export function LeftSidebar() {
     const accountsInGroup = accountsByGroup.get(group.id) || [];
     const isDropTarget = dragOverGroupId === group.id;
     const collapsed = collapsedGroups.has(group.id);
+    const allSelected =
+      accountsInGroup.length > 0 && accountsInGroup.every((a) => selectedAccountIds.has(a.id));
     return (
-      <div
+      <EmailGroupCard
         key={group.id}
-        className={`border rounded-lg p-3 transition-colors ${
-          isDropTarget
-            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-            : 'border-gray-200 dark:border-gray-700'
-        }`}
-        onDragOver={(e) => {
-          e.preventDefault();
-          setDragOverGroupId(group.id);
-        }}
-        onDrop={(e) => {
-          e.preventDefault();
-          handleGroupDrop(group);
-        }}
+        group={group}
+        accountsCount={accountsInGroup.length}
+        isDropTarget={isDropTarget}
+        collapsed={collapsed}
+        selectionMode={selectionMode}
+        allSelected={allSelected}
+        onToggleCollapse={() => toggleCollapse(group.id)}
+        onToggleGroupSelection={() => handleToggleGroupSelection(group)}
+        onDragOver={() => setDragOverGroupId(group.id)}
+        onDrop={() => handleGroupDrop(group)}
         onDragEnd={() => {
           setDraggingGroupId(null);
           setDragOverGroupId(null);
         }}
         onContextMenu={(e) => handleGroupContextMenu(e, group)}
+        draggable={!group.is_default}
+        onDragStart={(e) => handleGroupDragStart(e, group)}
       >
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <div
-                className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 cursor-pointer"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleCollapse(group.id);
-                }}
-              >
-                {group.is_default ? <FolderPlus className="w-4 h-4" /> : <Hash className="w-4 h-4" />}
-              </div>
-            <div>
-              <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                {group.name}
-              </div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">
-                {accountsInGroup.length} 个邮箱
-                {group.is_default ? ' · 默认' : ' · 可拖动排序'}
-              </div>
-            </div>
-            </div>
-            {selectionMode && accountsInGroup.length > 0 && (
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-8 w-8"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleToggleGroupSelection(group);
-                }}
-                title="选择/取消选择此分组全部邮箱"
-              >
-                <CheckSquare
-                  className={`w-4 h-4 ${
-                    accountsInGroup.every((a) => selectedAccountIds.has(a.id))
-                      ? 'text-blue-500'
-                      : 'text-gray-400'
-                  }`}
-                />
-              </Button>
-            )}
-            <div
-              className={`text-xs text-gray-400 ${group.is_default ? '' : 'cursor-grab'}`}
-              draggable={!group.is_default}
-              onDragStart={(e) => handleGroupDragStart(e, group)}
+        {accountsInGroup.length === 0 ? (
+          <div className="text-xs text-gray-500 dark:text-gray-400 border border-dashed border-gray-300 dark:border-gray-700 rounded-md p-3">
+            将邮箱拖拽到此分组
+          </div>
+        ) : (
+          accountsInGroup.map((account) => (
+            <AccountItem
+              key={account.id}
+              account={account}
+              draggable={!selectionMode}
+              selectionMode={selectionMode}
+              selected={selectedAccountIds.has(account.id)}
+              onSelectToggle={() => toggleSelectAccount(account.id)}
+              onDragStart={(e) => {
+                if (!e) return;
+                e.dataTransfer.setData('text/plain', String(account.id));
+                e.dataTransfer.effectAllowed = 'move';
+                setDraggingAccountId(account.id);
+                setDragOverGroupId(group.id);
+              }}
               onDragEnd={() => {
-                setDraggingGroupId(null);
+                setDraggingAccountId(null);
                 setDragOverGroupId(null);
               }}
-            >
-              {group.is_default ? '默认分组' : '拖动排序'}
-            </div>
-          </div>
-
-        {!collapsed && (
-          <div className="mt-2 space-y-2">
-            {accountsInGroup.length === 0 ? (
-              <div className="text-xs text-gray-500 dark:text-gray-400 border border-dashed border-gray-300 dark:border-gray-700 rounded-md p-3">
-                将邮箱拖拽到此分组
-              </div>
-            ) : (
-              accountsInGroup.map((account) => (
-                <AccountItem
-                  key={account.id}
-                  account={account}
-                  draggable={!selectionMode}
-                  selectionMode={selectionMode}
-                  selected={selectedAccountIds.has(account.id)}
-                  onSelectToggle={() => toggleSelectAccount(account.id)}
-                  onDragStart={(e) => {
-                    if (!e) return;
-                    e.dataTransfer.setData('text/plain', String(account.id));
-                    e.dataTransfer.effectAllowed = 'move';
-                    setDraggingAccountId(account.id);
-                    setDragOverGroupId(group.id);
-                  }}
-                  onDragEnd={() => {
-                    setDraggingAccountId(null);
-                    setDragOverGroupId(null);
-                  }}
-                />
-              ))
-            )}
-          </div>
+            />
+          ))
         )}
-      </div>
+      </EmailGroupCard>
     );
   };
 

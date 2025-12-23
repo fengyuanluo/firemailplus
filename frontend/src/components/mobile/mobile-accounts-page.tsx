@@ -1,29 +1,41 @@
 'use client';
 
-import { useEffect, useCallback, useState } from 'react';
+'use client';
+
+import { useEffect, useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Mail, Plus, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useMailboxStore } from '@/lib/store';
 import { apiClient } from '@/lib/api';
 import { toast } from 'sonner';
+import { EmailGroupCard } from '../mailbox/email-group-card';
 import {
   MobileLayout,
   MobilePage,
   MobileContent,
   MobileList,
-  MobileListItem,
   MobileEmptyState,
   MobileLoading,
 } from './mobile-layout';
 import { MobileAccountItem } from './mobile-account-item';
 import { AccountsHeader } from './mobile-header';
-import type { EmailAccount } from '@/types/email';
+import type { EmailAccount, EmailGroup } from '@/types/email';
 
 export function MobileAccountsPage() {
-  const { accounts, selectedAccount, selectAccount, isLoading, setAccounts, removeAccount } =
-    useMailboxStore();
+  const {
+    accounts,
+    selectedAccount,
+    selectAccount,
+    isLoading,
+    setAccounts,
+    removeAccount,
+    groups,
+    setGroups,
+  } = useMailboxStore();
   const router = useRouter();
+  const [loadingGroups, setLoadingGroups] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<number>>(new Set());
 
   // 加载邮箱账户列表 - 使用useCallback避免重复请求
   const loadAccounts = useCallback(async () => {
@@ -37,12 +49,65 @@ export function MobileAccountsPage() {
     }
   }, [setAccounts]);
 
+  const loadGroups = useCallback(async () => {
+    setLoadingGroups(true);
+    try {
+      const response = await apiClient.getEmailGroups();
+      if (response.success && response.data) {
+        setGroups(response.data);
+      }
+    } catch (error) {
+      console.error('Failed to load groups:', error);
+    } finally {
+      setLoadingGroups(false);
+    }
+  }, [setGroups]);
+
   useEffect(() => {
     // 只在账户列表为空时加载
     if (accounts.length === 0) {
       loadAccounts();
     }
   }, [accounts.length, loadAccounts]);
+
+  useEffect(() => {
+    if (groups.length === 0) {
+      loadGroups();
+    }
+  }, [groups.length, loadGroups]);
+
+  const defaultGroup = useMemo(() => groups.find((g) => g.is_default), [groups]);
+
+  const orderedGroups = useMemo(() => {
+    const sorted = [...groups].sort((a, b) => a.sort_order - b.sort_order);
+    if (!defaultGroup) return sorted;
+    const others = sorted.filter((g) => !g.is_default);
+    return [defaultGroup, ...others];
+  }, [groups, defaultGroup]);
+
+  const accountsByGroup = useMemo(() => {
+    const map = new Map<number, EmailAccount[]>();
+    const fallbackId = defaultGroup?.id ?? -1;
+    accounts.forEach((account) => {
+      const gid = account.group_id ?? fallbackId;
+      const list = map.get(gid) ?? [];
+      list.push(account);
+      map.set(gid, list);
+    });
+    return map;
+  }, [accounts, defaultGroup]);
+
+  const toggleCollapse = (groupId: number) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupId)) {
+        next.delete(groupId);
+      } else {
+        next.add(groupId);
+      }
+      return next;
+    });
+  };
 
   // 处理添加邮箱
   const handleAddAccount = () => {
@@ -87,7 +152,9 @@ export function MobileAccountsPage() {
     router.push(`/mailbox/mobile/account/${account.id}`);
   };
 
-  if (isLoading) {
+  const hasGroups = orderedGroups.length > 0;
+
+  if (isLoading || loadingGroups) {
     return (
       <MobileLayout>
         <MobilePage>
@@ -107,18 +174,56 @@ export function MobileAccountsPage() {
 
         <MobileContent padding={false}>
           {accounts.length > 0 ? (
-            <MobileList>
-              {accounts.map((account) => (
-                <MobileAccountItem
-                  key={account.id}
-                  account={account}
-                  onClick={() => handleAccountClick(account)}
-                  onSettings={handleAccountSettings}
-                  onDelete={handleAccountDelete}
-                  active={selectedAccount?.id === account.id}
-                />
-              ))}
-            </MobileList>
+            hasGroups ? (
+              <div className="p-4 space-y-3">
+                {orderedGroups.map((group: EmailGroup) => {
+                  const accountsInGroup = accountsByGroup.get(group.id) || [];
+                  return (
+                    <EmailGroupCard
+                      key={group.id}
+                      group={group}
+                      accountsCount={accountsInGroup.length}
+                      collapsed={collapsedGroups.has(group.id)}
+                      onToggleCollapse={() => toggleCollapse(group.id)}
+                      showHandle={false}
+                      draggable={false}
+                      subtitleSuffix={group.is_default ? '默认' : ''}
+                      className="bg-white dark:bg-gray-800 shadow-sm"
+                    >
+                      {accountsInGroup.length === 0 ? (
+                        <div className="text-xs text-gray-500 dark:text-gray-400 border border-dashed border-gray-300 dark:border-gray-700 rounded-md p-3">
+                          暂无邮箱，添加或移动邮箱到此分组
+                        </div>
+                      ) : (
+                        accountsInGroup.map((account) => (
+                          <MobileAccountItem
+                            key={account.id}
+                            account={account}
+                            onClick={() => handleAccountClick(account)}
+                            onSettings={handleAccountSettings}
+                            onDelete={handleAccountDelete}
+                            active={selectedAccount?.id === account.id}
+                          />
+                        ))
+                      )}
+                    </EmailGroupCard>
+                  );
+                })}
+              </div>
+            ) : (
+              <MobileList>
+                {accounts.map((account) => (
+                  <MobileAccountItem
+                    key={account.id}
+                    account={account}
+                    onClick={() => handleAccountClick(account)}
+                    onSettings={handleAccountSettings}
+                    onDelete={handleAccountDelete}
+                    active={selectedAccount?.id === account.id}
+                  />
+                ))}
+              </MobileList>
+            )
           ) : (
             <MobileEmptyState
               icon={<Mail className="w-8 h-8 text-gray-400" />}
