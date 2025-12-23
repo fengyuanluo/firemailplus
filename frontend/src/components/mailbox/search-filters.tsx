@@ -6,13 +6,15 @@ import { useMailboxStore } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
 import type { SearchParams } from '@/hooks/use-search-emails';
+import { apiClient } from '@/lib/api';
+import type { Folder } from '@/types/email';
 
 interface SearchFiltersProps {
   onFiltersChange: (filters: Partial<SearchParams>) => void;
 }
 
 export function SearchFilters({ onFiltersChange }: SearchFiltersProps) {
-  const { accounts, folders } = useMailboxStore();
+  const { accounts, folders, setAccounts, setFolders } = useMailboxStore();
   const isInitialMount = useRef(true);
   const onFiltersChangeRef = useRef(onFiltersChange);
 
@@ -29,6 +31,80 @@ export function SearchFilters({ onFiltersChange }: SearchFiltersProps) {
     has_attachment: undefined as boolean | undefined,
     date_range: { start: undefined, end: undefined } as { start?: string; end?: string },
   });
+
+  // 刷新搜索页时补拉账户与文件夹，避免筛选项为空
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadAccountsIfNeeded = async () => {
+      if (accounts.length > 0) return;
+      try {
+        const response = await apiClient.getEmailAccounts();
+        if (!cancelled && response.success && response.data) {
+          setAccounts(response.data);
+        }
+      } catch (error) {
+        console.error('Failed to load accounts for search filters:', error);
+      }
+    };
+
+    void loadAccountsIfNeeded();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [accounts.length, setAccounts]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const mergeFolders = (responses: Array<{ success: boolean; data?: Folder[] }>) => {
+      const folderMap = new Map<number, Folder>();
+      responses.forEach((response) => {
+        if (!response.success || !response.data) return;
+        response.data.forEach((folder) => {
+          folderMap.set(folder.id, folder);
+        });
+      });
+      return Array.from(folderMap.values());
+    };
+
+    const loadFoldersIfNeeded = async () => {
+      if (folders.length > 0) return;
+
+      try {
+        const response = await apiClient.getFolders();
+        if (response.success && response.data) {
+          if (!cancelled) {
+            setFolders(response.data);
+          }
+          return;
+        }
+      } catch (error) {
+        console.warn('Failed to load folders without account id:', error);
+      }
+
+      if (accounts.length === 0) return;
+
+      try {
+        const responses = await Promise.all(
+          accounts.map((account) => apiClient.getFolders(account.id))
+        );
+        const merged = mergeFolders(responses);
+        if (!cancelled && merged.length > 0) {
+          setFolders(merged);
+        }
+      } catch (error) {
+        console.error('Failed to load folders for search filters:', error);
+      }
+    };
+
+    void loadFoldersIfNeeded();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [accounts, folders.length, setFolders]);
 
   // 同步到全局状态和触发搜索
   useEffect(() => {
