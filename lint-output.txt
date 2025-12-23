@@ -1,0 +1,268 @@
+
+> frontend@0.1.0 lint /root/应用/TEMP/firemailplus/frontend
+> next lint
+
+
+./src/app/oauth/callback/page.tsx
+45:26  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+130:23  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/components/account-edit/basic-edit-form.tsx
+72:25  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+96:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+113:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/components/account-edit/custom-edit-form.tsx
+93:25  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+142:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+159:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/components/account-edit/oauth2-edit-form.tsx
+80:25  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+126:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+143:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+161:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/components/auth/route-guard.tsx
+37:9  Warning: The 'finalConfig' object makes the dependencies of useEffect Hook (at line 119) change on every render. To fix this, wrap the initialization of 'finalConfig' in its own useMemo() Hook.  react-hooks/exhaustive-deps
+
+./src/components/compose/attachment-bar.tsx
+29:12  Warning: Image elements must have an alt prop, either with meaningful text, or an empty string for decorative images.  jsx-a11y/alt-text
+
+./src/components/compose/attachment-manager.tsx
+48:14  Warning: Image elements must have an alt prop, either with meaningful text, or an empty string for decorative images.  jsx-a11y/alt-text
+203:28  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+211:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+355:5  Warning: React Hook useCallback has a missing dependency: 'addFiles'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/compose/attachment-upload-utils.tsx
+182:26  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+190:19  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/components/compose/template-selector.tsx
+154:6  Warning: React Hook useEffect has a missing dependency: 'fetchTemplates'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+158:6  Warning: React Hook useEffect has a missing dependency: 'filterTemplates'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/editor/editor-toolbar.tsx
+203:11  Warning: Image elements must have an alt prop, either with meaningful text, or an empty string for decorative images.  jsx-a11y/alt-text
+
+./src/components/email-forms/custom-form.tsx
+128:26  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+160:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/components/email-forms/gmail-oauth2-form.tsx
+51:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/components/email-forms/gmail-password-form.tsx
+96:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/components/email-forms/netease-form.tsx
+103:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/components/email-forms/outlook-manual-oauth2-form.tsx
+91:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/components/email-forms/outlook-oauth2-form.tsx
+54:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/components/email-forms/qq-form.tsx
+96:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/components/mailbox/attachments-footer.tsx
+24:14  Warning: Image elements must have an alt prop, either with meaningful text, or an empty string for decorative images.  jsx-a11y/alt-text
+79:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/components/mailbox/bulk-actions.tsx
+62:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/components/mailbox/compose-modal.tsx
+84:43  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+201:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/components/mailbox/context-menu.tsx
+196:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/components/mailbox/email-content.tsx
+37:6  Warning: React Hook useEffect has a missing dependency: 'performTranslation'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+63:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/components/mailbox/email-context-menu.tsx
+162:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/components/mailbox/email-detail.tsx
+48:6  Warning: React Hook useEffect has a missing dependency: 'loadEmailDetail'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/mailbox/email-header.tsx
+84:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+96:23  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+103:41  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/components/mailbox/email-item.tsx
+109:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+123:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/components/mailbox/email-list.tsx
+186:6  Warning: React Hook useEffect has a missing dependency: 'loadEmails'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/mailbox/left-sidebar.tsx
+158:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+195:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+218:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+233:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+256:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+288:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+329:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+351:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+382:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/components/mobile/mobile-account-item.tsx
+83:6  Warning: React Hook useEffect has missing dependencies: 'actionsRef' and 'itemRef'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/mobile/mobile-email-detail-page.tsx
+29:50  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+89:29  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+92:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+106:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+121:23  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+139:29  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+142:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/components/mobile/mobile-emails-page.tsx
+83:6  Warning: React Hook useEffect has a missing dependency: 'loadEmails'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/mobile/mobile-folders-page.tsx
+54:39  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/hooks/use-api.ts
+19:27  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+27:24  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+53:28  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+54:9  Warning: The 'finalConfig' object makes the dependencies of useCallback Hook (at line 103) change on every render. Move it inside the useCallback callback. Alternatively, wrap the initialization of 'finalConfig' in its own useMemo() Hook.  react-hooks/exhaustive-deps
+87:23  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+124:33  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+140:23  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+147:34  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+158:40  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+158:58  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+177:23  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+209:43  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+244:44  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+269:32  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+293:5  Warning: React Hook useCallback has a missing dependency: 'apiMethods'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+334:68  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+336:42  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+338:62  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+346:25  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/hooks/use-auth.ts
+29:9  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+72:22  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+85:22  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+107:23  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+116:34  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/hooks/use-batch-add.ts
+19:13  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+152:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+246:23  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+255:5  Warning: React Hook useCallback has a missing dependency: 'processAccount'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/hooks/use-email-accounts.ts
+38:22  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+51:22  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/hooks/use-emails.ts
+89:22  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+101:22  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+113:22  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+128:22  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+143:22  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/hooks/use-keyboard-shortcuts.ts
+100:5  Warning: React Hook useCallback has a missing dependency: 'handleShortcut'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/hooks/use-loading.ts
+39:9  Warning: The 'finalConfig' object makes the dependencies of useCallback Hook (at line 118) change on every render. To fix this, wrap the initialization of 'finalConfig' in its own useMemo() Hook.  react-hooks/exhaustive-deps
+85:5  Warning: React Hook useCallback has a missing dependency: 'stopLoading'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+154:37  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+350:67  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+369:6  Warning: React Hook useCallback was passed a dependency list that is not an array literal. This means we can't statically verify whether you've passed the correct dependencies.  react-hooks/exhaustive-deps
+369:6  Warning: React Hook useCallback has missing dependencies: 'loadFn' and 'loading'. Either include them or remove the dependency array. If 'loadFn' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+
+./src/hooks/use-oauth.ts
+37:22  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+51:22  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+76:22  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+102:22  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+182:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+207:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/hooks/use-performance.ts
+50:55  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+50:65  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+60:16  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+68:56  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+69:30  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+82:23  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+82:31  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+136:72  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+137:47  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+142:50  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+142:59  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/hooks/use-search-emails.ts
+157:6  Warning: React Hook useCallback has a missing dependency: 'searchParams'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/hooks/use-sse.ts
+51:5  Warning: React Hook useMemo has a missing dependency: 'options'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/hooks/use-token-validation.ts
+102:23  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+288:6  Warning: React Hook useCallback has an unnecessary dependency: 'login'. Either exclude it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/lib/code-quality.ts
+40:34  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+147:62  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+147:80  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+161:47  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+161:56  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+196:56  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+201:62  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+267:44  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+269:30  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+270:27  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+273:25  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+284:73  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+284:90  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+361:14  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/lib/dev-tools.ts
+69:34  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+114:34  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+159:41  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+159:50  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+176:63  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+208:14  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+277:52  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+308:14  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+353:23  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/lib/error-handler.ts
+34:13  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+58:26  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+186:17  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+317:36  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+322:43  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+326:40  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+330:46  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/lib/providers.tsx
+30:42  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+53:42  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+68:30  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/lib/store-coordinator.ts
+75:38  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+87:54  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/app/api-reference/config/eslint#disabling-rules
