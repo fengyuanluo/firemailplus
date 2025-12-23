@@ -288,12 +288,12 @@ export function EmailList({
       {/* 分页控件 */}
       {showPagination && totalPages > 1 && (
         <div className="border-t border-gray-200 dark:border-gray-700 p-4">
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-500 dark:text-gray-400">
+          <div className="flex flex-col items-center gap-2">
+            <div className="text-sm text-gray-500 dark:text-gray-400 text-center">
               第 {currentPage} 页，共 {totalPages} 页
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center justify-center gap-2">
               <Button
                 variant="outline"
                 size="sm"

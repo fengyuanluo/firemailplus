@@ -16,9 +16,10 @@ import { NotificationCenter } from './notification-center';
 interface MailboxLayoutProps {
   header?: ReactNode;
   children?: ReactNode;
+  showSidebar?: boolean;
 }
 
-export function MailboxLayout({ header, children }: MailboxLayoutProps) {
+export function MailboxLayout({ header, children, showSidebar = true }: MailboxLayoutProps) {
   const isMobile = useIsMobile(); // 使用统一的响应式Hook
   const { sidebarOpen, sidebarOpenMobile, toggleSidebar, setSidebarOpen } = useUIStore();
   const {
@@ -56,13 +57,14 @@ export function MailboxLayout({ header, children }: MailboxLayoutProps) {
 
   // 响应式侧边栏状态管理
   useEffect(() => {
+    if (!showSidebar) return;
     if (!isMobile && !sidebarOpen) {
       // 桌面端自动显示左侧边栏（三段式布局）
       setSidebarOpen(true);
       console.log('🏠 [MailboxLayout] 桌面端自动显示左侧边栏');
     }
     // 移动端不需要自动隐藏，因为有独立的状态管理
-  }, [isMobile, sidebarOpen, setSidebarOpen]);
+  }, [isMobile, sidebarOpen, setSidebarOpen, showSidebar]);
 
   // 获取当前设备对应的侧边栏状态
   const currentSidebarOpen = isMobile ? sidebarOpenMobile : sidebarOpen;
@@ -131,7 +133,7 @@ export function MailboxLayout({ header, children }: MailboxLayoutProps) {
       {/* 主要内容区域 */}
       <div className="flex-1 flex overflow-hidden">
         {/* 移动端遮罩层 */}
-        {isMobile && currentSidebarOpen && (
+        {showSidebar && isMobile && currentSidebarOpen && (
           <div
             className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
             onClick={toggleSidebar}
@@ -139,20 +141,22 @@ export function MailboxLayout({ header, children }: MailboxLayoutProps) {
         )}
 
         {/* 左侧边栏 */}
-        <div
-          className={`
-          flex-shrink-0 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700
-          ${
-            isMobile
-              ? `fixed left-0 top-0 h-full w-80 z-50 transform transition-transform duration-300 ${
-                  currentSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-                }`
-              : `w-80 ${currentSidebarOpen ? 'block' : 'hidden'}`
-          }
-        `}
-        > 
-          <LeftSidebar />
-        </div>
+        {showSidebar && (
+          <div
+            className={`
+            flex-shrink-0 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700
+            ${
+              isMobile
+                ? `fixed left-0 top-0 h-full w-80 z-50 transform transition-transform duration-300 ${
+                    currentSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+                  }`
+                : `w-80 ${currentSidebarOpen ? 'block' : 'hidden'}`
+            }
+          `}
+          >
+            <LeftSidebar />
+          </div>
+        )}
 
         {/* 主要内容区域 - 三段式布局 */}
         <div className="flex-1 flex overflow-hidden">

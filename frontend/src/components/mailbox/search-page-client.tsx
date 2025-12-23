@@ -19,7 +19,7 @@ export function SearchPageClient() {
 
   return (
     <SearchResultsProvider>
-      <MailboxLayout header={<SearchResultsHeader />}>
+      <MailboxLayout header={<SearchResultsHeader />} showSidebar={false}>
         <SearchResultsContent />
       </MailboxLayout>
       <SearchResultsMobileFilters />

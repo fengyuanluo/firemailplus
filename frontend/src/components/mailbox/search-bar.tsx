@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Search, X, Filter, Menu, Plus } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -24,6 +24,7 @@ export function SearchBar({
   const [localQuery, setLocalQuery] = useState(defaultValue);
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+  const pathname = usePathname();
 
   const { searchQuery, setSearchQuery } = useMailboxStore();
   const { toggleSidebar, isMobile } = useUIStore();
@@ -77,6 +78,14 @@ export function SearchBar({
   const handleAddEmail = () => {
     router.push('/add-email');
   };
+
+  const isSearchPage = pathname === '/mailbox/search' || pathname.startsWith('/mailbox/search/');
+  const advancedSearchTarget = isSearchPage
+    ? isMobile
+      ? '/mailbox/mobile'
+      : '/mailbox'
+    : '/mailbox/search';
+  const advancedSearchTitle = isSearchPage ? '返回邮箱' : '高级搜索';
 
   return (
     <div className="px-4 py-3">
@@ -174,8 +183,8 @@ export function SearchBar({
             variant="ghost"
             size="sm"
             className="p-2 h-auto"
-            title="高级搜索"
-            onClick={() => router.push('/mailbox/search')}
+            title={advancedSearchTitle}
+            onClick={() => router.push(advancedSearchTarget)}
           >
             <Filter className="w-4 h-4" />
           </Button>
