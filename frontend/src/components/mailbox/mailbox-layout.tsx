@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, type ReactNode } from 'react';
 import { useUIStore, useMailboxStore } from '@/lib/store';
 import { useRouteSync, useRouteStatePersist } from '@/hooks/use-route-sync';
 import { useIsMobile } from '@/hooks/use-responsive';
@@ -13,7 +13,12 @@ import { EmailDetail } from './email-detail';
 import { ComposeModal } from './compose-modal';
 import { NotificationCenter } from './notification-center';
 
-export function MailboxLayout() {
+interface MailboxLayoutProps {
+  header?: ReactNode;
+  children?: ReactNode;
+}
+
+export function MailboxLayout({ header, children }: MailboxLayoutProps) {
   const isMobile = useIsMobile(); // 使用统一的响应式Hook
   const { sidebarOpen, sidebarOpenMobile, toggleSidebar, setSidebarOpen } = useUIStore();
   const {
@@ -107,12 +112,21 @@ export function MailboxLayout() {
     );
   }
 
+  const headerNode = header === undefined ? <SearchBar /> : header;
+  const shouldWrapHeader = header === undefined;
+  const shouldRenderDefaultContent = children === undefined;
+
   return (
     <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       {/* 顶部搜索框 */}
-      <div className="flex-shrink-0 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-        <SearchBar />
-      </div>
+      {headerNode &&
+        (shouldWrapHeader ? (
+          <div className="flex-shrink-0 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+            {headerNode}
+          </div>
+        ) : (
+          headerNode
+        ))}
 
       {/* 主要内容区域 */}
       <div className="flex-1 flex overflow-hidden">
@@ -136,37 +150,43 @@ export function MailboxLayout() {
               : `w-80 ${currentSidebarOpen ? 'block' : 'hidden'}`
           }
         `}
-        >
+        > 
           <LeftSidebar />
         </div>
 
         {/* 主要内容区域 - 三段式布局 */}
         <div className="flex-1 flex overflow-hidden">
-          {/* 中间邮件列表 - 占1.5/5宽度 */}
-          <div
-            className={`
-            bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700
-            ${isMobile ? 'w-full' : 'flex-shrink-0'}
-          `}
-            style={{ flex: isMobile ? 'none' : '1.5', minWidth: '300px', maxWidth: '400px' }}
-          >
-            <EmailList
-              selectedEmailId={selectedEmail?.id}
-              onEmailSelect={handleEmailSelect}
-              showPagination={true}
-            />
-          </div>
+          {shouldRenderDefaultContent ? (
+            <>
+              {/* 中间邮件列表 - 占1.5/5宽度 */}
+              <div
+                className={`
+                bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700
+                ${isMobile ? 'w-full' : 'flex-shrink-0'}
+              `}
+                style={{ flex: isMobile ? 'none' : '1.5', minWidth: '300px', maxWidth: '400px' }}
+              >
+                <EmailList
+                  selectedEmailId={selectedEmail?.id}
+                  onEmailSelect={handleEmailSelect}
+                  showPagination={true}
+                />
+              </div>
 
-          {/* 右侧邮件详情 - 占3.5/5宽度 */}
-          <div
-            className={`
-            flex-1 bg-white dark:bg-gray-800
-            ${isMobile ? 'hidden' : 'block'}
-          `}
-            style={{ flex: '3.5' }}
-          >
-            <EmailDetail />
-          </div>
+              {/* 右侧邮件详情 - 占3.5/5宽度 */}
+              <div
+                className={`
+                flex-1 bg-white dark:bg-gray-800
+                ${isMobile ? 'hidden' : 'block'}
+              `}
+                style={{ flex: '3.5' }}
+              >
+                <EmailDetail />
+              </div>
+            </>
+          ) : (
+            children
+          )}
         </div>
       </div>
 
