@@ -88,7 +88,7 @@ export function OutlookManualOAuth2Form({ onSuccess, onCancel }: OutlookManualOA
         reset();
         onSuccess?.();
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Outlook manual OAuth2 configuration failed:', error);
       // 错误已在createManualOAuth2Account中处理
     } finally {

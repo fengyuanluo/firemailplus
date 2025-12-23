@@ -27,6 +27,18 @@ const oauth2EditSchema = z.object({
 
 type OAuth2EditForm = z.infer<typeof oauth2EditSchema>;
 
+type UpdateAccountPayload = {
+  name?: string;
+  email?: string;
+  is_active?: boolean;
+  client_id?: string;
+  client_secret?: string;
+  refresh_token?: string;
+};
+
+const getErrorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error && error.message ? error.message : fallback;
+
 interface OAuth2EditFormProps {
   account: EmailAccount;
   config: AccountEditConfig;
@@ -77,7 +89,7 @@ export function OAuth2EditForm({
   const onSubmit = async (data: OAuth2EditForm) => {
     setIsSubmitting(true);
     try {
-      const updateData: any = {};
+      const updateData: UpdateAccountPayload = {};
 
       // 只更新可编辑的字段
       if (config.editableFields.includes('name')) {
@@ -123,9 +135,9 @@ export function OAuth2EditForm({
       } else {
         throw new Error(response.message || '更新失败');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Update account failed:', error);
-      toast.error(error.message || '更新账户设置失败');
+      toast.error(getErrorMessage(error, '更新账户设置失败'));
     } finally {
       setIsSubmitting(false);
     }
@@ -140,9 +152,9 @@ export function OAuth2EditForm({
       } else {
         throw new Error(response.message || '连接测试失败');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Test connection failed:', error);
-      toast.error(error.message || '连接测试失败');
+      toast.error(getErrorMessage(error, '连接测试失败'));
     } finally {
       setIsTesting(false);
     }
@@ -158,9 +170,9 @@ export function OAuth2EditForm({
       }
       toast.success('重新授权成功');
       onSuccess();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Reauth failed:', error);
-      toast.error(error.message || '重新授权失败');
+      toast.error(getErrorMessage(error, '重新授权失败'));
     } finally {
       setIsReauthing(false);
     }

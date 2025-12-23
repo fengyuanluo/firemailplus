@@ -51,7 +51,7 @@ export function OutlookOAuth2Form({ onSuccess, onCancel }: OutlookOAuth2FormProp
       onSuccess?.();
       // 注意：由于使用直接跳转，这里的代码不会执行
       // 成功处理在OAuth回调页面中进行
-    } catch (error: any) {
+    } catch (error: unknown) {
       // 错误已在authenticateOutlook中处理
       console.error('Outlook OAuth2 authentication failed:', error);
       setIsAuthenticating(false);

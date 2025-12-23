@@ -17,6 +17,7 @@ import { EmailDetail } from '@/components/mailbox/email-detail';
 import { apiClient } from '@/lib/api';
 import { toast } from 'sonner';
 import { LanguageCode } from '@/lib/translate';
+import type { Email } from '@/types/email';
 
 interface MobileEmailDetailPageProps {
   emailId: number;
@@ -26,10 +27,12 @@ export function MobileEmailDetailPage({ emailId }: MobileEmailDetailPageProps) {
   const { emails, selectEmail, removeEmail, updateEmail } = useMailboxStore();
 
   const [isLoading, setIsLoading] = useState(true);
-  const [emailDetail, setEmailDetail] = useState<any>(null);
+  const [emailDetail, setEmailDetail] = useState<Email | null>(null);
   const [currentTranslationLang, setCurrentTranslationLang] = useState<LanguageCode>();
   const [isTranslating, setIsTranslating] = useState(false);
   const { navigateToCompose, goBack } = useMobileNavigation();
+  const getErrorMessage = (error: unknown, fallback: string) =>
+    error instanceof Error && error.message ? error.message : fallback;
 
   // 加载邮件详情
   useEffect(() => {
@@ -86,11 +89,11 @@ export function MobileEmailDetailPage({ emailId }: MobileEmailDetailPageProps) {
     try {
       await apiClient.toggleEmailStar(emailDetail.id);
       const newStarStatus = !emailDetail.is_starred;
-      setEmailDetail((prev: any) => (prev ? { ...prev, is_starred: newStarStatus } : null));
+      setEmailDetail((prev) => (prev ? { ...prev, is_starred: newStarStatus } : null));
       updateEmail(emailDetail.id, { is_starred: newStarStatus });
       toast.success(newStarStatus ? '已添加星标' : '已移除星标');
-    } catch (error: any) {
-      toast.error(error.message || '操作失败');
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, '操作失败'));
     }
   };
 
@@ -103,8 +106,8 @@ export function MobileEmailDetailPage({ emailId }: MobileEmailDetailPageProps) {
       removeEmail(emailDetail.id);
       toast.success('邮件已归档');
       goBack();
-    } catch (error: any) {
-      toast.error(error.message || '归档失败');
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, '归档失败'));
     }
   };
 
@@ -118,8 +121,8 @@ export function MobileEmailDetailPage({ emailId }: MobileEmailDetailPageProps) {
         removeEmail(emailDetail.id);
         toast.success('邮件已删除');
         goBack();
-      } catch (error: any) {
-        toast.error(error.message || '删除失败');
+      } catch (error: unknown) {
+        toast.error(getErrorMessage(error, '删除失败'));
       }
     }
   };
@@ -136,11 +139,11 @@ export function MobileEmailDetailPage({ emailId }: MobileEmailDetailPageProps) {
       }
 
       const newReadStatus = !emailDetail.is_read;
-      setEmailDetail((prev: any) => (prev ? { ...prev, is_read: newReadStatus } : null));
+      setEmailDetail((prev) => (prev ? { ...prev, is_read: newReadStatus } : null));
       updateEmail(emailDetail.id, { is_read: newReadStatus });
       toast.success(newReadStatus ? '已标记为已读' : '已标记为未读');
-    } catch (error: any) {
-      toast.error(error.message || '操作失败');
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, '操作失败'));
     }
   };
 

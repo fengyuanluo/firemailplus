@@ -53,11 +53,12 @@ export function EmailContent({
       onTranslationComplete?.(translationLang);
 
       toast.success('翻译完成');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Translation failed:', error);
+      const message = error instanceof Error ? error.message : '';
 
       // 如果翻译失败，显示错误信息并提供Google翻译链接
-      if (error.message.includes('请点击查看翻译结果')) {
+      if (message.includes('请点击查看翻译结果')) {
         toast.error('翻译服务暂时不可用', {
           description: '点击翻译按钮中的"在新窗口打开Google翻译"查看翻译结果',
           duration: 5000,

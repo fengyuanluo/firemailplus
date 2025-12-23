@@ -76,9 +76,10 @@ export function AttachmentsFooter({ attachments }: AttachmentsFooterProps) {
       window.URL.revokeObjectURL(url);
 
       toast.success(`已下载 ${attachment.filename}`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Download failed:', error);
-      toast.error(`下载失败: ${error.message || '未知错误'}`);
+      const message = error instanceof Error && error.message ? error.message : '未知错误';
+      toast.error(`下载失败: ${message}`);
     }
   };
 

@@ -159,9 +159,10 @@ export function EmailContextMenu() {
           toast.success(email.is_important ? '已取消重要标记' : '已标记为重要');
           break;
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('📧 [EmailContextMenu] 操作失败:', error);
-      toast.error(error.message || '操作失败');
+      const message = error instanceof Error && error.message ? error.message : '操作失败';
+      toast.error(message);
     }
 
     closeMenu();

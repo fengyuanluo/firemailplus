@@ -38,6 +38,23 @@ const customEditSchema = z.object({
 
 type CustomEditForm = z.infer<typeof customEditSchema>;
 
+type UpdateAccountPayload = {
+  name?: string;
+  email?: string;
+  username?: string;
+  password?: string;
+  is_active?: boolean;
+  imap_host?: string;
+  imap_port?: number;
+  imap_security?: 'SSL' | 'STARTTLS' | 'NONE';
+  smtp_host?: string;
+  smtp_port?: number;
+  smtp_security?: 'SSL' | 'STARTTLS' | 'NONE';
+};
+
+const getErrorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error && error.message ? error.message : fallback;
+
 interface CustomEditFormProps {
   account: EmailAccount;
   config: AccountEditConfig;
@@ -90,7 +107,7 @@ export function CustomEditForm({
   const onSubmit = async (data: CustomEditForm) => {
     setIsSubmitting(true);
     try {
-      const updateData: any = {};
+      const updateData: UpdateAccountPayload = {};
 
       // 只更新可编辑的字段
       if (config.editableFields.includes('name')) {
@@ -139,9 +156,9 @@ export function CustomEditForm({
       } else {
         throw new Error(response.message || '更新失败');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Update account failed:', error);
-      toast.error(error.message || '更新账户设置失败');
+      toast.error(getErrorMessage(error, '更新账户设置失败'));
     } finally {
       setIsSubmitting(false);
     }
@@ -156,9 +173,9 @@ export function CustomEditForm({
       } else {
         throw new Error(response.message || '连接测试失败');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Test connection failed:', error);
-      toast.error(error.message || '连接测试失败');
+      toast.error(getErrorMessage(error, '连接测试失败'));
     } finally {
       setIsTesting(false);
     }

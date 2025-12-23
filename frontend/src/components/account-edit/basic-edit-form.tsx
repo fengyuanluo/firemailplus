@@ -24,6 +24,16 @@ const basicEditSchema = z.object({
 
 type BasicEditForm = z.infer<typeof basicEditSchema>;
 
+type UpdateAccountPayload = {
+  name?: string;
+  email?: string;
+  password?: string;
+  is_active?: boolean;
+};
+
+const getErrorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error && error.message ? error.message : fallback;
+
 interface BasicEditFormProps {
   account: EmailAccount;
   config: AccountEditConfig;
@@ -69,7 +79,7 @@ export function BasicEditForm({
   const onSubmit = async (data: BasicEditForm) => {
     setIsSubmitting(true);
     try {
-      const updateData: any = {};
+      const updateData: UpdateAccountPayload = {};
 
       // 只更新可编辑的字段
       if (config.editableFields.includes('name')) {
@@ -93,9 +103,9 @@ export function BasicEditForm({
       } else {
         throw new Error(response.message || '更新失败');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Update account failed:', error);
-      toast.error(error.message || '更新账户设置失败');
+      toast.error(getErrorMessage(error, '更新账户设置失败'));
     } finally {
       setIsSubmitting(false);
     }
@@ -110,9 +120,9 @@ export function BasicEditForm({
       } else {
         throw new Error(response.message || '连接测试失败');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Test connection failed:', error);
-      toast.error(error.message || '连接测试失败');
+      toast.error(getErrorMessage(error, '连接测试失败'));
     } finally {
       setIsTesting(false);
     }

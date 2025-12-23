@@ -2,7 +2,13 @@
 
 import { Reply, ReplyAll, Forward, Archive, Trash2, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Email, parseEmailAddress, parseEmailAddresses, formatEmailAddress } from '@/types/email';
+import {
+  Email,
+  EmailAddress,
+  parseEmailAddress,
+  parseEmailAddresses,
+  formatEmailAddress,
+} from '@/types/email';
 import { TranslateButton } from './translate-button';
 import { LanguageCode } from '@/lib/translate';
 import { useComposeStore, useMailboxStore } from '@/lib/store';
@@ -22,6 +28,8 @@ export function EmailHeader({
   isTranslating = false,
   currentTranslationLang,
 }: EmailHeaderProps) {
+  const getErrorMessage = (error: unknown, fallback: string) =>
+    error instanceof Error && error.message ? error.message : fallback;
   const { initializeReply, initializeReplyAll, initializeForward } = useComposeStore();
   const { removeEmail } = useMailboxStore();
   // 解析邮件地址
@@ -81,8 +89,8 @@ export function EmailHeader({
       await apiClient.archiveEmail(email.id);
       removeEmail(email.id);
       toast.success('邮件已归档');
-    } catch (error: any) {
-      toast.error(error.message || '归档失败');
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, '归档失败'));
     }
   };
 
@@ -93,14 +101,14 @@ export function EmailHeader({
         await apiClient.deleteEmail(email.id);
         removeEmail(email.id);
         toast.success('邮件已删除');
-      } catch (error: any) {
-        toast.error(error.message || '删除失败');
+      } catch (error: unknown) {
+        toast.error(getErrorMessage(error, '删除失败'));
       }
     }
   };
 
   // 格式化地址列表显示
-  const formatAddressList = (addresses: any[], maxDisplay: number = 3) => {
+  const formatAddressList = (addresses: EmailAddress[], maxDisplay: number = 3) => {
     if (!addresses || addresses.length === 0) return '';
 
     const displayAddresses = addresses.slice(0, maxDisplay);

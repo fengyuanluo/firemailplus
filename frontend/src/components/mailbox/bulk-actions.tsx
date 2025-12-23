@@ -59,8 +59,10 @@ export function BulkActions({ selectedCount }: BulkActionsProps) {
       } else {
         toast.error(response.message || '批量操作失败');
       }
-    } catch (error: any) {
-      toast.error(error.message || '批量操作失败');
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error && error.message ? error.message : '批量操作失败';
+      toast.error(message);
     } finally {
       setIsOperating(false);
     }

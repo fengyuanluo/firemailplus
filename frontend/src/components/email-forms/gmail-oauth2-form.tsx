@@ -48,7 +48,7 @@ export function GmailOAuth2Form({ onSuccess, onCancel }: GmailOAuth2FormProps) {
       toast.success('Gmail账户添加成功');
       reset();
       onSuccess?.();
-    } catch (error: any) {
+    } catch (error: unknown) {
       // 错误已在authenticateGmail中处理
       console.error('Gmail OAuth2 authentication failed:', error);
     } finally {

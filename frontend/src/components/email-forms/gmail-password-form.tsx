@@ -93,9 +93,11 @@ export function GmailPasswordForm({ onSuccess, onCancel }: GmailPasswordFormProp
       } else {
         throw new Error(response.message || '创建账户失败');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Gmail password authentication failed:', error);
-      toast.error(error.message || 'Gmail账户添加失败');
+      const message =
+        error instanceof Error && error.message ? error.message : 'Gmail账户添加失败';
+      toast.error(message);
     } finally {
       setIsSubmitting(false);
     }

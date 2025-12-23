@@ -99,15 +99,24 @@ export function useTokenValidation(config: Partial<TokenValidationConfig> = {}) 
         } else {
           throw new Error(response.message || 'Token验证失败');
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         validationState.current.isValid = false;
 
         if (!silent) {
           console.error('Token验证失败:', error);
         }
 
+        const message = error instanceof Error && error.message ? error.message : '';
+        const status =
+          typeof error === 'object' &&
+          error &&
+          'status' in error &&
+          typeof (error as { status?: unknown }).status === 'number'
+            ? (error as { status: number }).status
+            : undefined;
+
         // 根据错误类型决定处理方式
-        if (error.status === 401 || error.message?.includes('401')) {
+        if (status === 401 || message.includes('401')) {
           // Token过期或无效
           if (!silent) {
             toast.error('登录已过期，请重新登录');

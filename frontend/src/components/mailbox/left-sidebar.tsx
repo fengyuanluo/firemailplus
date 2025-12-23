@@ -47,6 +47,8 @@ export function LeftSidebar() {
   const [draggingGroupId, setDraggingGroupId] = useState<number | null>(null);
   const [dragOverGroupId, setDragOverGroupId] = useState<number | null>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<number>>(new Set());
+  const getErrorMessage = (error: unknown, fallback: string) =>
+    error instanceof Error && error.message ? error.message : fallback;
 
   const loadAccounts = useCallback(async () => {
     try {
@@ -155,9 +157,9 @@ export function LeftSidebar() {
       } else {
         throw new Error(response.message || '删除失败');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Delete account failed:', error);
-      toast.error(error.message || '删除账户失败');
+      toast.error(getErrorMessage(error, '删除账户失败'));
     }
   };
 
@@ -192,9 +194,9 @@ export function LeftSidebar() {
       setGroupModalOpen(false);
       setGroupName('');
       setEditingGroup(null);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Group save failed:', error);
-      toast.error(error.message || '分组保存失败');
+      toast.error(getErrorMessage(error, '分组保存失败'));
     }
   };
 
@@ -215,9 +217,9 @@ export function LeftSidebar() {
       } else {
         throw new Error(resp.message || '删除失败');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Delete group failed:', error);
-      toast.error(error.message || '删除分组失败');
+      toast.error(getErrorMessage(error, '删除分组失败'));
     }
   };
 
@@ -230,9 +232,9 @@ export function LeftSidebar() {
         updateAccount(response.data);
         await loadGroups();
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Move account failed:', error);
-      toast.error(error.message || '移动邮箱到分组失败');
+      toast.error(getErrorMessage(error, '移动邮箱到分组失败'));
     }
   };
 
@@ -253,9 +255,9 @@ export function LeftSidebar() {
     const ids = ordered.filter((g) => !g.is_default).map((g) => g.id);
     try {
       await apiClient.reorderEmailGroups(ids);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Reorder groups failed:', error);
-      toast.error(error.message || '分组排序保存失败');
+      toast.error(getErrorMessage(error, '分组排序保存失败'));
       loadGroups();
     }
   };
@@ -285,8 +287,8 @@ export function LeftSidebar() {
       } else {
         throw new Error(resp.message || '批量同步失败');
       }
-    } catch (error: any) {
-      toast.error(error.message || '批量同步失败');
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, '批量同步失败'));
     }
   };
 
@@ -326,8 +328,8 @@ export function LeftSidebar() {
       } else {
         throw new Error(resp.message || '批量标记已读失败');
       }
-    } catch (error: any) {
-      toast.error(error.message || '批量标记已读失败');
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, '批量标记已读失败'));
     }
   };
 
@@ -348,8 +350,8 @@ export function LeftSidebar() {
       } else {
         throw new Error(resp.message || '批量删除失败');
       }
-    } catch (error: any) {
-      toast.error(error.message || '批量删除失败');
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, '批量删除失败'));
     }
   };
 
@@ -379,9 +381,9 @@ export function LeftSidebar() {
       } else {
         throw new Error(resp.message || '设置默认分组失败');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Set default group failed:', error);
-      toast.error(error.message || '设置默认分组失败');
+      toast.error(getErrorMessage(error, '设置默认分组失败'));
     }
   };
 

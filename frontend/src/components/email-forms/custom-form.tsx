@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronDown, ChevronRight, Eye, EyeOff, Server, Mail } from 'lucide-react';
-import { apiClient } from '@/lib/api';
+import { apiClient, type CreateAccountRequest } from '@/lib/api';
 import { useMailboxStore } from '@/lib/store';
 import { toast } from 'sonner';
 import { EmailGroupSelector } from './email-group-selector';
@@ -125,7 +125,7 @@ export function CustomForm({ onSuccess, onCancel }: CustomFormProps) {
   const onSubmit = async (data: CustomForm) => {
     setIsSubmitting(true);
     try {
-      const requestData: any = {
+      const requestData: CreateAccountRequest = {
         name: data.name,
         email: data.email,
         auth_method: 'password',
@@ -157,9 +157,11 @@ export function CustomForm({ onSuccess, onCancel }: CustomFormProps) {
       } else {
         throw new Error(response.message || '创建账户失败');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Custom email account creation failed:', error);
-      toast.error(error.message || '自定义邮箱账户添加失败');
+      const message =
+        error instanceof Error && error.message ? error.message : '自定义邮箱账户添加失败';
+      toast.error(message);
     } finally {
       setIsSubmitting(false);
     }

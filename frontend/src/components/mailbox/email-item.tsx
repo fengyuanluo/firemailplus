@@ -106,8 +106,9 @@ export const EmailItem = forwardRef<HTMLDivElement, EmailItemProps>(function Ema
       if (response.success) {
         updateEmail(email.id, { is_starred: !email.is_starred });
       }
-    } catch (error: any) {
-      toast.error(error.message || '操作失败');
+    } catch (error: unknown) {
+      const message = error instanceof Error && error.message ? error.message : '操作失败';
+      toast.error(message);
     }
   };
 
@@ -120,8 +121,10 @@ export const EmailItem = forwardRef<HTMLDivElement, EmailItemProps>(function Ema
       if (response.success) {
         updateEmail(email.id, { is_read: true });
       }
-    } catch (error: any) {
-      toast.error(error.message || '标记已读失败');
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error && error.message ? error.message : '标记已读失败';
+      toast.error(message);
     }
   };
 

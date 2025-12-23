@@ -15,6 +15,7 @@ import {
 } from './mobile-layout';
 import { FoldersHeader } from './mobile-header';
 import { apiClient } from '@/lib/api';
+import type { Folder as MailFolder } from '@/types/email';
 
 interface MobileFoldersPageProps {
   accountId: number;
@@ -51,7 +52,7 @@ export function MobileFoldersPage({ accountId }: MobileFoldersPageProps) {
   }, [accountId, currentAccount, setFolders]);
 
   // 处理文件夹选择
-  const handleFolderSelect = (folder: any) => {
+  const handleFolderSelect = (folder: MailFolder) => {
     selectFolder(folder);
     router.push(`/mailbox/mobile/folder/${folder.id}`);
   };

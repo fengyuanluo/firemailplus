@@ -20,6 +20,14 @@ import { SendOptions } from '@/components/compose/send-options';
 import { useEffect, useCallback, useState } from 'react';
 import { toast } from 'sonner';
 
+interface SelectedTemplate {
+  id: number;
+  name: string;
+  subject: string;
+  htmlBody: string;
+  textBody: string;
+}
+
 export function ComposeModal() {
   const {
     isOpen,
@@ -81,7 +89,7 @@ export function ComposeModal() {
   };
 
   // 处理模板选择
-  const handleTemplateSelect = (template: any) => {
+  const handleTemplateSelect = (template: SelectedTemplate) => {
     updateContent(template.htmlBody, template.textBody);
     updateDraft({
       subject: template.subject,
@@ -198,9 +206,11 @@ export function ComposeModal() {
       toast.success('邮件发送成功');
       clearDraft();
       setIsOpen(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
       setSendStatus('failed');
-      toast.error(`邮件发送失败: ${error.message}`);
+      const message =
+        error instanceof Error && error.message ? error.message : '发送失败';
+      toast.error(`邮件发送失败: ${message}`);
       console.error('Send email failed:', error);
     }
   };

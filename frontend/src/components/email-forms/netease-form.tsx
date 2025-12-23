@@ -100,9 +100,11 @@ export function NetEaseForm({ onSuccess, onCancel }: NetEaseFormProps) {
       } else {
         throw new Error(response.message || '创建账户失败');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('NetEase mail authentication failed:', error);
-      toast.error(error.message || '163邮箱账户添加失败');
+      const message =
+        error instanceof Error && error.message ? error.message : '163邮箱账户添加失败';
+      toast.error(message);
     } finally {
       setIsSubmitting(false);
     }
