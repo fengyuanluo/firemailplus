@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { FileText, Search, Star, Clock, User, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,6 +34,58 @@ interface TemplateSelectorProps {
   selectedTemplateId?: number;
 }
 
+const MOCK_TEMPLATES: EmailTemplate[] = [
+  {
+    id: 1,
+    name: '会议邀请',
+    description: '标准会议邀请模板',
+    subject: '会议邀请：{{meetingTitle}}',
+    htmlBody:
+      '<p>您好 {{recipientName}}，</p><p>诚邀您参加 {{meetingTitle}} 会议。</p><p>时间：{{meetingTime}}</p><p>地点：{{meetingLocation}}</p>',
+    textBody:
+      '您好 {{recipientName}}，诚邀您参加 {{meetingTitle}} 会议。时间：{{meetingTime}} 地点：{{meetingLocation}}',
+    category: '工作',
+    isBuiltIn: true,
+    isShared: false,
+    usageCount: 25,
+    variables: ['recipientName', 'meetingTitle', 'meetingTime', 'meetingLocation'],
+    createdAt: '2024-01-01T00:00:00Z',
+    updatedAt: '2024-01-01T00:00:00Z',
+  },
+  {
+    id: 2,
+    name: '感谢信',
+    description: '客户感谢信模板',
+    subject: '感谢您的支持',
+    htmlBody:
+      '<p>亲爱的 {{customerName}}，</p><p>感谢您选择我们的服务。我们将继续为您提供优质的服务。</p>',
+    textBody: '亲爱的 {{customerName}}，感谢您选择我们的服务。我们将继续为您提供优质的服务。',
+    category: '客户服务',
+    isBuiltIn: false,
+    isShared: true,
+    usageCount: 12,
+    variables: ['customerName'],
+    createdAt: '2024-01-02T00:00:00Z',
+    updatedAt: '2024-01-02T00:00:00Z',
+  },
+  {
+    id: 3,
+    name: '生日祝福',
+    description: '生日祝福邮件模板',
+    subject: '生日快乐！{{recipientName}}',
+    htmlBody:
+      '<p>亲爱的 {{recipientName}}，</p><p>🎉 祝您生日快乐！愿您的每一天都充满快乐和幸福。</p>',
+    textBody: '亲爱的 {{recipientName}}，祝您生日快乐！愿您的每一天都充满快乐和幸福。',
+    category: '个人',
+    isBuiltIn: true,
+    isShared: false,
+    usageCount: 8,
+    variables: ['recipientName'],
+    createdAt: '2024-01-03T00:00:00Z',
+    updatedAt: '2024-01-03T00:00:00Z',
+  },
+];
+
 export function TemplateSelector({ onTemplateSelect, selectedTemplateId }: TemplateSelectorProps) {
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [filteredTemplates, setFilteredTemplates] = useState<EmailTemplate[]>([]);
@@ -41,61 +93,8 @@ export function TemplateSelector({ onTemplateSelect, selectedTemplateId }: Templ
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(false);
 
-  // 模拟模板数据
-  const mockTemplates: EmailTemplate[] = [
-    {
-      id: 1,
-      name: '会议邀请',
-      description: '标准会议邀请模板',
-      subject: '会议邀请：{{meetingTitle}}',
-      htmlBody:
-        '<p>您好 {{recipientName}}，</p><p>诚邀您参加 {{meetingTitle}} 会议。</p><p>时间：{{meetingTime}}</p><p>地点：{{meetingLocation}}</p>',
-      textBody:
-        '您好 {{recipientName}}，诚邀您参加 {{meetingTitle}} 会议。时间：{{meetingTime}} 地点：{{meetingLocation}}',
-      category: '工作',
-      isBuiltIn: true,
-      isShared: false,
-      usageCount: 25,
-      variables: ['recipientName', 'meetingTitle', 'meetingTime', 'meetingLocation'],
-      createdAt: '2024-01-01T00:00:00Z',
-      updatedAt: '2024-01-01T00:00:00Z',
-    },
-    {
-      id: 2,
-      name: '感谢信',
-      description: '客户感谢信模板',
-      subject: '感谢您的支持',
-      htmlBody:
-        '<p>亲爱的 {{customerName}}，</p><p>感谢您选择我们的服务。我们将继续为您提供优质的服务。</p>',
-      textBody: '亲爱的 {{customerName}}，感谢您选择我们的服务。我们将继续为您提供优质的服务。',
-      category: '客户服务',
-      isBuiltIn: false,
-      isShared: true,
-      usageCount: 12,
-      variables: ['customerName'],
-      createdAt: '2024-01-02T00:00:00Z',
-      updatedAt: '2024-01-02T00:00:00Z',
-    },
-    {
-      id: 3,
-      name: '生日祝福',
-      description: '生日祝福邮件模板',
-      subject: '生日快乐！{{recipientName}}',
-      htmlBody:
-        '<p>亲爱的 {{recipientName}}，</p><p>🎉 祝您生日快乐！愿您的每一天都充满快乐和幸福。</p>',
-      textBody: '亲爱的 {{recipientName}}，祝您生日快乐！愿您的每一天都充满快乐和幸福。',
-      category: '个人',
-      isBuiltIn: true,
-      isShared: false,
-      usageCount: 8,
-      variables: ['recipientName'],
-      createdAt: '2024-01-03T00:00:00Z',
-      updatedAt: '2024-01-03T00:00:00Z',
-    },
-  ];
-
   // 获取模板列表
-  const fetchTemplates = async () => {
+  const fetchTemplates = useCallback(async () => {
     setIsLoading(true);
     try {
       // TODO: 调用API获取模板
@@ -104,17 +103,17 @@ export function TemplateSelector({ onTemplateSelect, selectedTemplateId }: Templ
 
       // 使用模拟数据
       await new Promise((resolve) => setTimeout(resolve, 500));
-      setTemplates(mockTemplates);
-      setFilteredTemplates(mockTemplates);
+      setTemplates(MOCK_TEMPLATES);
+      setFilteredTemplates(MOCK_TEMPLATES);
     } catch (error) {
       console.error('Failed to fetch templates:', error);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   // 过滤模板
-  const filterTemplates = () => {
+  const filterTemplates = useCallback(() => {
     let filtered = templates;
 
     // 按分类过滤
@@ -134,7 +133,7 @@ export function TemplateSelector({ onTemplateSelect, selectedTemplateId }: Templ
     }
 
     setFilteredTemplates(filtered);
-  };
+  }, [templates, selectedCategory, searchQuery]);
 
   // 获取所有分类
   const getCategories = () => {
@@ -151,11 +150,11 @@ export function TemplateSelector({ onTemplateSelect, selectedTemplateId }: Templ
 
   useEffect(() => {
     fetchTemplates();
-  }, []);
+  }, [fetchTemplates]);
 
   useEffect(() => {
     filterTemplates();
-  }, [templates, searchQuery, selectedCategory]);
+  }, [filterTemplates]);
 
   return (
     <DropdownMenu>

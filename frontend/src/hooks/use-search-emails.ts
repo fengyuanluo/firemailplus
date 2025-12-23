@@ -154,7 +154,7 @@ export function useSearchEmails() {
       }
       return newParams;
     });
-  }, []);
+  }, [searchParams]);
 
   // 分页
   const changePage = useCallback((page: number) => {

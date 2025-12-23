@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useEffect, ReactNode } from 'react';
+import { useEffect, useMemo, ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuthStore, useUIStore } from '@/lib/store';
 import { useHydration } from '@/hooks/use-hydration';
@@ -34,7 +34,7 @@ const DEFAULT_CONFIG: RouteGuardConfig = {
 };
 
 export function RouteGuard({ children, config = {} }: RouteGuardProps) {
-  const finalConfig = { ...DEFAULT_CONFIG, ...config };
+  const finalConfig = useMemo(() => ({ ...DEFAULT_CONFIG, ...config }), [config]);
   const router = useRouter();
   const pathname = usePathname();
 

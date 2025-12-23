@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useMailboxStore } from '@/lib/store';
 import { EmailHeader } from './email-header';
 import { EmailContent } from './email-content';
@@ -38,17 +38,8 @@ export function EmailDetail({
   const finalIsTranslating =
     externalIsTranslating !== undefined ? externalIsTranslating : isTranslating;
 
-  // 当选中邮件改变时，加载邮件详情
-  useEffect(() => {
-    if (selectedEmail) {
-      loadEmailDetail(selectedEmail.id);
-    } else {
-      setEmailDetail(null);
-    }
-  }, [selectedEmail]);
-
   // 加载邮件详情
-  const loadEmailDetail = async (emailId: number) => {
+  const loadEmailDetail = useCallback(async (emailId: number) => {
     setIsLoading(true);
     try {
       const response = await apiClient.getEmailDetail(emailId);
@@ -62,7 +53,16 @@ export function EmailDetail({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [selectedEmail]);
+
+  // 当选中邮件改变时，加载邮件详情
+  useEffect(() => {
+    if (selectedEmail) {
+      loadEmailDetail(selectedEmail.id);
+    } else {
+      setEmailDetail(null);
+    }
+  }, [selectedEmail, loadEmailDetail]);
 
   // 处理翻译
   const handleTranslate = (targetLang: LanguageCode) => {

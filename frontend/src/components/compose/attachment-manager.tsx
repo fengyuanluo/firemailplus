@@ -60,7 +60,7 @@ export function AttachmentManager({
   };
 
   // 验证文件
-  const validateFile = (file: File): string | null => {
+  const validateFile = useCallback((file: File): string | null => {
     // 检查文件大小
     if (file.size > maxFileSize * 1024 * 1024) {
       return `文件大小不能超过 ${maxFileSize}MB`;
@@ -77,10 +77,26 @@ export function AttachmentManager({
     }
 
     return null;
-  };
+  }, [allowedTypes, attachments, maxFileSize, maxFiles]);
+
+  // 更新附件状态
+  const updateAttachment = useCallback(
+    (id: string, updates: Partial<AttachmentFile> | ((prev: AttachmentFile) => Partial<AttachmentFile>)) => {
+      onChange(
+        attachments.map((attachment) => {
+          if (attachment.id === id) {
+            const newUpdates = typeof updates === 'function' ? updates(attachment) : updates;
+            return { ...attachment, ...newUpdates };
+          }
+          return attachment;
+        })
+      );
+    },
+    [attachments, onChange]
+  );
 
   // 上传文件
-  const uploadFile = async (attachmentFile: AttachmentFile) => {
+  const uploadFile = useCallback(async (attachmentFile: AttachmentFile) => {
     let progressInterval: NodeJS.Timeout | null = null;
 
     try {
@@ -254,26 +270,10 @@ export function AttachmentManager({
         toast.error(`${attachmentFile.name} 上传失败: ${errorMessage}`);
       }
     }
-  };
-
-  // 更新附件状态
-  const updateAttachment = (
-    id: string,
-    updates: Partial<AttachmentFile> | ((prev: AttachmentFile) => Partial<AttachmentFile>)
-  ) => {
-    onChange(
-      attachments.map((attachment) => {
-        if (attachment.id === id) {
-          const newUpdates = typeof updates === 'function' ? updates(attachment) : updates;
-          return { ...attachment, ...newUpdates };
-        }
-        return attachment;
-      })
-    );
-  };
+  }, [token, updateAttachment]);
 
   // 添加文件
-  const addFiles = (files: FileList | File[]) => {
+  const addFiles = useCallback((files: FileList | File[]) => {
     const fileArray = Array.from(files);
     const newAttachments: AttachmentFile[] = [];
 
@@ -306,7 +306,7 @@ export function AttachmentManager({
         uploadFile(attachment);
       });
     }
-  };
+  }, [attachments, onChange, uploadFile, validateFile]);
 
   // 删除附件
   const removeAttachment = (id: string) => {
@@ -352,7 +352,7 @@ export function AttachmentManager({
         addFiles(files);
       }
     },
-    [attachments, maxFiles, maxFileSize, allowedTypes]
+    [addFiles]
   );
 
   return (

@@ -3,7 +3,7 @@
  * 提供一致的加载状态处理和显示
  */
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 
 // 加载状态类型
@@ -36,7 +36,7 @@ const DEFAULT_CONFIG: LoadingConfig = {
 
 // 基础加载Hook
 export function useLoading(config: LoadingConfig = {}) {
-  const finalConfig = { ...DEFAULT_CONFIG, ...config };
+  const finalConfig = useMemo(() => ({ ...DEFAULT_CONFIG, ...config }), [config]);
   const [state, setState] = useState<LoadingState>({
     isLoading: false,
     message: finalConfig.message || '加载中...',
@@ -47,6 +47,38 @@ export function useLoading(config: LoadingConfig = {}) {
 
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 停止加载
+  const stopLoading = useCallback(async () => {
+    const currentState = state;
+
+    // 清除定时器
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+
+    // 确保最小显示时间
+    if (currentState.startTime && finalConfig.minDuration) {
+      const elapsed = Date.now() - currentState.startTime;
+      if (elapsed < finalConfig.minDuration) {
+        await new Promise((resolve) => setTimeout(resolve, finalConfig.minDuration! - elapsed));
+      }
+    }
+
+    setState((prev) => ({
+      ...prev,
+      isLoading: false,
+      startTime: null,
+    }));
+
+    // 隐藏Toast
+    if (finalConfig.showToast) {
+      toast.dismiss();
+    }
+  }, [state, finalConfig]);
 
   // 开始加载
   const startLoading = useCallback(
@@ -82,40 +114,8 @@ export function useLoading(config: LoadingConfig = {}) {
         }));
       }, 100);
     },
-    [finalConfig]
+    [finalConfig, stopLoading]
   );
-
-  // 停止加载
-  const stopLoading = useCallback(async () => {
-    const currentState = state;
-
-    // 清除定时器
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-    }
-
-    // 确保最小显示时间
-    if (currentState.startTime && finalConfig.minDuration) {
-      const elapsed = Date.now() - currentState.startTime;
-      if (elapsed < finalConfig.minDuration) {
-        await new Promise((resolve) => setTimeout(resolve, finalConfig.minDuration! - elapsed));
-      }
-    }
-
-    setState((prev) => ({
-      ...prev,
-      isLoading: false,
-      startTime: null,
-    }));
-
-    // 隐藏Toast
-    if (finalConfig.showToast) {
-      toast.dismiss();
-    }
-  }, [state, finalConfig]);
 
   // 更新进度
   const updateProgress = useCallback((progress: number) => {
@@ -347,14 +347,15 @@ export function usePageLoading() {
 }
 
 // 懒加载Hook
-export function useLazyLoading<T>(loadFn: () => Promise<T>, deps: ReadonlyArray<unknown> = []) {
+export function useLazyLoading<T>(loadFn: () => Promise<T>) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<Error | null>(null);
   const loading = useLoading({ message: '正在加载...' });
+  const { startLoading, stopLoading } = loading;
 
   const load = useCallback(async () => {
     try {
-      loading.startLoading();
+      startLoading();
       setError(null);
       const result = await loadFn();
       setData(result);
@@ -364,9 +365,9 @@ export function useLazyLoading<T>(loadFn: () => Promise<T>, deps: ReadonlyArray<
       setError(error);
       throw error;
     } finally {
-      loading.stopLoading();
+      stopLoading();
     }
-  }, deps);
+  }, [loadFn, startLoading, stopLoading]);
 
   return {
     data,

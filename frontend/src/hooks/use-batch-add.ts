@@ -118,45 +118,48 @@ export function useBatchAddAccounts() {
   const { addAccount } = useMailboxStore();
 
   // 处理单个账户
-  const processAccount = async (
-    accountData: BatchAccountData,
-    accountName: string,
-    groupId?: number
-  ): Promise<BatchProcessResult> => {
-    try {
-      const response = await apiClient.createManualOAuth2Account({
-        name: accountName,
-        email: accountData.email,
-        provider: 'outlook',
-        client_id: accountData.client_id,
-        refresh_token: accountData.refresh_token,
-        scope:
-          'https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send offline_access',
-        group_id: groupId,
-      });
+  const processAccount = useCallback(
+    async (
+      accountData: BatchAccountData,
+      accountName: string,
+      groupId?: number
+    ): Promise<BatchProcessResult> => {
+      try {
+        const response = await apiClient.createManualOAuth2Account({
+          name: accountName,
+          email: accountData.email,
+          provider: 'outlook',
+          client_id: accountData.client_id,
+          refresh_token: accountData.refresh_token,
+          scope:
+            'https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send offline_access',
+          group_id: groupId,
+        });
 
-      if (response.success && response.data) {
-        addAccount(response.data);
-        return {
-          success: true,
-          account: response.data,
-          data: accountData,
-        };
-      } else {
+        if (response.success && response.data) {
+          addAccount(response.data);
+          return {
+            success: true,
+            account: response.data,
+            data: accountData,
+          };
+        } else {
+          return {
+            success: false,
+            error: response.message || '创建账户失败',
+            data: accountData,
+          };
+        }
+      } catch (error: any) {
         return {
           success: false,
-          error: response.message || '创建账户失败',
+          error: error.message || '网络错误',
           data: accountData,
         };
       }
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.message || '网络错误',
-        data: accountData,
-      };
-    }
-  };
+    },
+    [addAccount]
+  );
 
   // 批量处理账户
   const processBatch = useCallback(
@@ -252,7 +255,7 @@ export function useBatchAddAccounts() {
         toast.error('批量处理过程中发生错误：' + error.message);
       }
     },
-    [addAccount]
+    [processAccount]
   );
 
   // 重试失败的账户

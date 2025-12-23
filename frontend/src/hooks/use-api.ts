@@ -3,7 +3,7 @@
  * 封装常用的API调用逻辑，消除重复代码
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
   useMutation,
   useQuery,
@@ -63,7 +63,7 @@ const getErrorStatus = (error: unknown): number | undefined => {
 
 // 通用API Hook
 export function useApi<T = unknown>(config: ApiConfig = {}) {
-  const finalConfig = { ...DEFAULT_CONFIG, ...config };
+  const finalConfig = useMemo(() => ({ ...DEFAULT_CONFIG, ...config }), [config]);
   const [state, setState] = useState<ApiState<T>>({
     data: null,
     isLoading: false,
@@ -294,8 +294,10 @@ export function useCrudApi<T = unknown>(
   }
 ) {
   const queryClient = useQueryClient();
+  const { getList, getOne: getOneApi, create: createApi, update: updateApi, delete: deleteApi } =
+    apiMethods;
 
-  const list = useApiQuery([resource, 'list'], apiMethods.getList, { showErrorToast: true });
+  const list = useApiQuery([resource, 'list'], getList, { showErrorToast: true });
 
   // getOne 方法需要在组件中单独使用 useApiQuery
   const getOne = useCallback(
@@ -303,14 +305,14 @@ export function useCrudApi<T = unknown>(
       // 返回查询配置，而不是直接调用Hook
       return {
         queryKey: [resource, 'detail', String(id)],
-        queryFn: () => apiMethods.getOne(id),
+        queryFn: () => getOneApi(id),
         options: { showErrorToast: true },
       };
     },
-    [resource, apiMethods.getOne]
+    [resource, getOneApi]
   );
 
-  const create = useApiMutation(apiMethods.create, {
+  const create = useApiMutation(createApi, {
     showSuccessToast: true,
     successMessage: '创建成功',
     onSuccess: () => {
@@ -319,7 +321,7 @@ export function useCrudApi<T = unknown>(
   });
 
   const update = useApiMutation(
-    ({ id, data }: { id: string | number; data: Partial<T> }) => apiMethods.update(id, data),
+    ({ id, data }: { id: string | number; data: Partial<T> }) => updateApi(id, data),
     {
       showSuccessToast: true,
       successMessage: '更新成功',
@@ -329,7 +331,7 @@ export function useCrudApi<T = unknown>(
     }
   );
 
-  const remove = useApiMutation(apiMethods.delete, {
+  const remove = useApiMutation(deleteApi, {
     showSuccessToast: true,
     successMessage: '删除成功',
     onSuccess: () => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Mail, Star, Paperclip, Reply, Archive, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -40,7 +40,7 @@ export function MobileEmailsPage({ folderId }: MobileEmailsPageProps) {
   const currentFolder = folders.find((folder) => folder.id === folderId);
 
   // 加载邮件列表
-  const loadEmails = async (page: number = 1, append: boolean = false) => {
+  const loadEmails = useCallback(async (page: number = 1, append: boolean = false) => {
     if (page === 1) {
       setIsLoading(true);
     } else {
@@ -72,7 +72,7 @@ export function MobileEmailsPage({ folderId }: MobileEmailsPageProps) {
       setIsLoading(false);
       setIsLoadingMore(false);
     }
-  };
+  }, [folderId, setEmails]);
 
   useEffect(() => {
     if (currentFolder) {
@@ -80,7 +80,7 @@ export function MobileEmailsPage({ folderId }: MobileEmailsPageProps) {
       setHasMore(true);
       loadEmails(1, false);
     }
-  }, [folderId, currentFolder]);
+  }, [currentFolder, loadEmails]);
 
   // 处理邮件选择
   const handleEmailSelect = (email: Email) => {

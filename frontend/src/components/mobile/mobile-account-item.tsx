@@ -80,7 +80,7 @@ export function MobileAccountItem({
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('touchstart', handleClickOutside);
     };
-  }, [isSwipeOpen, closeSwipe]);
+  }, [isSwipeOpen, closeSwipe, actionsRef, itemRef]);
 
   const handleItemClick = () => {
     if (isSwipeOpen) {

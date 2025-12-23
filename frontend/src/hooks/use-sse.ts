@@ -42,13 +42,14 @@ interface UseSSEReturn {
 }
 
 export function useSSE(options: UseSSEOptions = {}): UseSSEReturn {
-  const { autoConnect = true } = options;
+  const { autoConnect = true, onNewEmail, onEmailStatusChange, onSyncEvent, onNotification } =
+    options;
   const { token, isAuthenticated } = useAuthStore();
 
   // 稳定化 options 对象，避免每次渲染都创建新的引用
   const stableOptions = useMemo(
-    () => options,
-    [options.onNewEmail, options.onEmailStatusChange, options.onSyncEvent, options.onNotification]
+    () => ({ onNewEmail, onEmailStatusChange, onSyncEvent, onNotification }),
+    [onNewEmail, onEmailStatusChange, onSyncEvent, onNotification]
   );
 
   const clientRef = useRef<FireMailSSEClient | null>(null);

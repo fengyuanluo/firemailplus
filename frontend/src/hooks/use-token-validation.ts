@@ -255,7 +255,7 @@ export function useTokenStatus() {
 
 // Token自动刷新Hook
 export function useTokenRefresh() {
-  const { token, login } = useAuthStore();
+  const { token } = useAuthStore();
   const refreshAttempts = useRef(0);
   const maxRefreshAttempts = 3;
 
@@ -285,7 +285,7 @@ export function useTokenRefresh() {
         refreshAttempts.current = 0;
       }, 60000); // 1分钟后重置
     }
-  }, [token, login]);
+  }, [token]);
 
   return {
     refreshToken,

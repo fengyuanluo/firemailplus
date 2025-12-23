@@ -183,7 +183,7 @@ export function EmailList({
     if (!externalEmails) {
       loadEmails(1, false);
     }
-  }, [externalEmails, selectedAccount, selectedFolder, searchQuery, sortBy, sortOrder]);
+  }, [externalEmails, loadEmails]);
 
   // 监听新邮件事件，自动刷新邮件列表
   useEffect(() => {

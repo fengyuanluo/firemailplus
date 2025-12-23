@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import DOMPurify from 'dompurify';
 import { Email } from '@/types/email';
 import { TranslationBar } from './translation-bar';
@@ -29,15 +29,8 @@ export function EmailContent({
   const originalContent = email.html_body || email.text_body || '';
   const isHtmlContent = !!email.html_body;
 
-  // 当翻译语言改变时，执行翻译
-  useEffect(() => {
-    if (translationLang && translationLang !== 'auto' && originalContent) {
-      performTranslation();
-    }
-  }, [translationLang, originalContent]);
-
   // 执行翻译
-  const performTranslation = async () => {
+  const performTranslation = useCallback(async () => {
     if (!translationLang || !originalContent) return;
 
     try {
@@ -75,7 +68,14 @@ export function EmailContent({
 
       onTranslationComplete?.(translationLang);
     }
-  };
+  }, [translationLang, originalContent, isHtmlContent, onTranslationComplete]);
+
+  // 当翻译语言改变时，执行翻译
+  useEffect(() => {
+    if (translationLang && translationLang !== 'auto' && originalContent) {
+      performTranslation();
+    }
+  }, [translationLang, originalContent, performTranslation]);
 
   // 显示原文
   const handleShowOriginal = () => {

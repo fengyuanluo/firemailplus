@@ -55,51 +55,6 @@ export function useKeyboardShortcuts() {
   const mailboxState = useMailboxStore();
   const composeStore = useComposeStore();
 
-  // 处理快捷键
-  const handleKeyDown = useCallback(
-    (event: KeyboardEvent) => {
-      // 如果在输入框中，不处理快捷键
-      const target = event.target as HTMLElement;
-      if (
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.contentEditable === 'true'
-      ) {
-        // 只处理特定的快捷键
-        if (event.key === 'Escape') {
-          target.blur();
-          return;
-        }
-        if (event.ctrlKey && event.key === 'Enter' && composeStore.isOpen) {
-          event.preventDefault();
-          handleShortcut('send');
-          return;
-        }
-        if (event.ctrlKey && event.key === 's' && composeStore.isOpen) {
-          event.preventDefault();
-          handleShortcut('save_draft');
-          return;
-        }
-        return;
-      }
-
-      // 构建快捷键字符串
-      let shortcut = '';
-      if (event.ctrlKey) shortcut += 'ctrl+';
-      if (event.shiftKey) shortcut += 'shift+';
-      if (event.altKey) shortcut += 'alt+';
-      shortcut += event.key.toLowerCase();
-
-      // 检查是否是已定义的快捷键
-      const action = SHORTCUTS[shortcut as keyof typeof SHORTCUTS];
-      if (action) {
-        event.preventDefault();
-        handleShortcut(action);
-      }
-    },
-    [mailboxState, composeStore.isOpen]
-  );
-
   // 处理快捷键动作
   const handleShortcut = useCallback(
     (action: string) => {
@@ -179,6 +134,51 @@ export function useKeyboardShortcuts() {
       }
     },
     [mailboxState, composeStore]
+  );
+
+  // 处理快捷键
+  const handleKeyDown = useCallback(
+    (event: KeyboardEvent) => {
+      // 如果在输入框中，不处理快捷键
+      const target = event.target as HTMLElement;
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.contentEditable === 'true'
+      ) {
+        // 只处理特定的快捷键
+        if (event.key === 'Escape') {
+          target.blur();
+          return;
+        }
+        if (event.ctrlKey && event.key === 'Enter' && composeStore.isOpen) {
+          event.preventDefault();
+          handleShortcut('send');
+          return;
+        }
+        if (event.ctrlKey && event.key === 's' && composeStore.isOpen) {
+          event.preventDefault();
+          handleShortcut('save_draft');
+          return;
+        }
+        return;
+      }
+
+      // 构建快捷键字符串
+      let shortcut = '';
+      if (event.ctrlKey) shortcut += 'ctrl+';
+      if (event.shiftKey) shortcut += 'shift+';
+      if (event.altKey) shortcut += 'alt+';
+      shortcut += event.key.toLowerCase();
+
+      // 检查是否是已定义的快捷键
+      const action = SHORTCUTS[shortcut as keyof typeof SHORTCUTS];
+      if (action) {
+        event.preventDefault();
+        handleShortcut(action);
+      }
+    },
+    [composeStore.isOpen, handleShortcut]
   );
 
   // 注册键盘事件监听器
