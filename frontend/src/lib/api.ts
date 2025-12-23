@@ -2,17 +2,22 @@
  * API 配置和基础请求函数
  */
 
-import type { EmailAccount, Email, EmailAddress, Folder, EmailGroup } from '@/types/email';
+import type { EmailAccount, Email, EmailAddress, EmailStats, Folder, EmailGroup } from '@/types/email';
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080/api/v1';
 
 // API 响应类型
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   message?: string;
   error?: string;
 }
+
+type ApiError = Error & {
+  status?: number;
+  data?: unknown;
+};
 
 // 认证相关类型
 export interface LoginRequest {
@@ -93,9 +98,9 @@ class ApiClient {
       const response = await fetch(url, config);
 
       // 尝试解析JSON响应
-      let data;
+      let data: ApiResponse<T>;
       try {
-        data = await response.json();
+        data = (await response.json()) as ApiResponse<T>;
       } catch {
         throw new Error(`服务器响应格式错误: ${response.status}`);
       }
@@ -130,10 +135,10 @@ class ApiClient {
             errorMessage = data.message || `请求失败 (${response.status})`;
         }
 
-        const error = new Error(errorMessage);
-        (error as any).status = response.status;
-        (error as any).data = data;
-        throw error;
+        const apiError = new Error(errorMessage) as ApiError;
+        apiError.status = response.status;
+        apiError.data = data;
+        throw apiError;
       }
 
       return data;
@@ -457,7 +462,7 @@ class ApiClient {
     return this.request(`/folders${params}`);
   }
 
-  async getEmailStats(): Promise<ApiResponse<any>> {
+  async getEmailStats(): Promise<ApiResponse<EmailStats>> {
     return this.request('/emails/stats');
   }
 
@@ -693,7 +698,7 @@ class ApiClient {
     subject: string;
     content?: string;
     htmlContent?: string;
-    attachments?: any[];
+    attachments?: unknown[];
   }): Promise<ApiResponse> {
     return this.request('/emails/draft', {
       method: 'POST',

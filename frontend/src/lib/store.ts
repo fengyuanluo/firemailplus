@@ -5,7 +5,14 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { User } from './api';
-import { parseEmailAddress, parseEmailAddresses } from '@/types/email';
+import {
+  parseEmailAddress,
+  parseEmailAddresses,
+  type Email,
+  type EmailAccount,
+  type EmailGroup,
+  type Folder,
+} from '@/types/email';
 
 // 认证状态
 interface AuthState {
@@ -253,9 +260,9 @@ interface ComposeState {
   clearDraft: () => void;
   setAutoSaveStatus: (status: ComposeState['autoSaveStatus']) => void;
   setSendStatus: (status: ComposeState['sendStatus']) => void;
-  initializeReply: (originalEmail: any) => void;
-  initializeReplyAll: (originalEmail: any) => void;
-  initializeForward: (originalEmail: any) => void;
+  initializeReply: (originalEmail: Email) => void;
+  initializeReplyAll: (originalEmail: Email) => void;
+  initializeForward: (originalEmail: Email) => void;
   openCompose: () => void;
 }
 
@@ -341,7 +348,7 @@ export const useComposeStore = create<ComposeState>()(
         }),
       setAutoSaveStatus: (status) => set({ autoSaveStatus: status }),
       setSendStatus: (status) => set({ sendStatus: status }),
-      initializeReply: (originalEmail) => {
+      initializeReply: (originalEmail: Email) => {
         // 解析原邮件的发件人作为回复的收件人
         const fromAddress = parseEmailAddress(originalEmail.from);
 
@@ -381,7 +388,7 @@ export const useComposeStore = create<ComposeState>()(
           },
         });
       },
-      initializeReplyAll: (originalEmail) => {
+      initializeReplyAll: (originalEmail: Email) => {
         // 解析原邮件的发件人
         const fromAddress = parseEmailAddress(originalEmail.from);
 
@@ -435,7 +442,7 @@ export const useComposeStore = create<ComposeState>()(
           },
         });
       },
-      initializeForward: (originalEmail) => {
+      initializeForward: (originalEmail: Email) => {
         // 构建转发主题
         const forwardSubject = originalEmail.subject.startsWith('Fwd:')
           ? originalEmail.subject
@@ -571,19 +578,22 @@ interface NotificationState {
   clearRead: () => void;
 }
 
+type ContextMenuTarget =
+  | { type: 'account'; id: number; data?: EmailAccount }
+  | { type: 'folder'; id: number; data?: Folder }
+  | { type: 'email'; id: number; data?: Email }
+  | { type: 'group'; id: number; data?: EmailGroup }
+  | { type: 'group-blank'; id: number; data?: EmailGroup };
+
 // 右键菜单状态
 interface ContextMenuState {
   isOpen: boolean;
   position: { x: number; y: number };
-  target: {
-    type: 'account' | 'folder' | 'email' | 'group' | 'group-blank';
-    id: number;
-    data?: any;
-  } | null;
+  target: ContextMenuTarget | null;
   setIsOpen: (open: boolean) => void;
   setPosition: (position: { x: number; y: number }) => void;
-  setTarget: (target: ContextMenuState['target']) => void;
-  openMenu: (position: { x: number; y: number }, target: ContextMenuState['target']) => void;
+  setTarget: (target: ContextMenuTarget) => void;
+  openMenu: (position: { x: number; y: number }, target: ContextMenuTarget) => void;
   closeMenu: () => void;
 }
 

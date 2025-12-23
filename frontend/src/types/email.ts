@@ -187,6 +187,8 @@ export const FolderType = {
   CUSTOM: 'custom',
 } as const;
 
+export type FolderTypeValue = (typeof FolderType)[keyof typeof FolderType];
+
 // 邮件优先级常量
 export const EmailPriority = {
   LOW: 'low',
@@ -329,14 +331,14 @@ export function getEmailPreview(email: Email, maxLength: number = 100): string {
 
 // 工具函数：检查文件夹是否为系统文件夹
 export function isSystemFolder(folder: Folder): boolean {
-  const systemTypes = [
+  const systemTypes: FolderTypeValue[] = [
     FolderType.INBOX,
     FolderType.SENT,
     FolderType.DRAFTS,
     FolderType.TRASH,
     FolderType.SPAM,
   ];
-  return systemTypes.includes(folder.type as any);
+  return systemTypes.includes(folder.type as FolderTypeValue);
 }
 
 // 工具函数：格式化文件大小

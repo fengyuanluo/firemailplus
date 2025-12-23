@@ -196,7 +196,7 @@ export interface SearchResult<T> {
   items: T[];
   total: number;
   query: string;
-  filters?: Record<string, any>;
+  filters?: Record<string, unknown>;
   facets?: SearchFacet[];
 }
 
@@ -231,7 +231,7 @@ export interface SortConfig {
 export interface FilterConfig {
   field: string;
   operator: 'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'nin' | 'like' | 'regex';
-  value: any;
+  value: unknown;
 }
 
 // 导出导入相关类型
@@ -303,17 +303,17 @@ export type DeepRequired<T> = {
 };
 
 // 联合类型工具
-export type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends (
+export type UnionToIntersection<U> = (U extends unknown ? (k: U) => void : never) extends (
   k: infer I
 ) => void
   ? I
   : never;
 export type LastOf<T> =
-  UnionToIntersection<T extends any ? () => T : never> extends () => infer R ? R : never;
+  UnionToIntersection<T extends unknown ? () => T : never> extends () => infer R ? R : never;
 
 // 函数类型工具
-export type AsyncFunction<T extends any[] = any[], R = any> = (...args: T) => Promise<R>;
-export type EventHandler<T = any> = (event: T) => void;
+export type AsyncFunction<T extends unknown[] = unknown[], R = unknown> = (...args: T) => Promise<R>;
+export type EventHandler<T = unknown> = (event: T) => void;
 export type Callback<T = void> = () => T;
 
 // 状态机相关类型
@@ -338,7 +338,7 @@ export interface CacheEntry<T> {
 }
 
 // 验证相关类型
-export interface ValidationRule<T = any> {
+export interface ValidationRule<T = unknown> {
   required?: boolean;
   min?: number;
   max?: number;
