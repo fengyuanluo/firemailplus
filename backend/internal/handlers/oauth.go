@@ -294,16 +294,37 @@ func (h *Handler) CreateOAuth2Account(c *gin.Context) {
 		outlookClient := providers.NewOutlookOAuth2Client(req.ClientID, "", "")
 		newToken, err = outlookClient.RefreshToken(ctx, req.RefreshToken)
 	} else if req.Provider == "gmail" {
-		// Gmail使用标准客户端
-		oauth2Client := providers.NewStandardOAuth2Client(
-			req.ClientID,
-			"", // client_secret不需要，因为我们直接使用refresh token
-			"https://accounts.google.com/o/oauth2/auth",
-			"https://oauth2.googleapis.com/token",
-			"", // redirect URL不需要，因为我们直接使用refresh token
-			[]string{"https://www.googleapis.com/auth/gmail.readonly", "https://www.googleapis.com/auth/gmail.send"},
-		)
-		newToken, err = oauth2Client.RefreshToken(ctx, req.RefreshToken)
+		// Gmail 刷新令牌必须携带 client_secret（Google Web 应用要求），否则会返回 invalid_client。
+		// 如果后端未配置 client_secret，则退化为直接信任外部 OAuth 返回的令牌，避免误杀流程。
+		gmailClientSecret := h.config.OAuth.Gmail.ClientSecret
+		if gmailClientSecret == "" {
+			if req.AccessToken == "" {
+				h.respondWithError(c, http.StatusServiceUnavailable, "Gmail OAuth2 client_secret 未配置，且缺少访问令牌，无法验证")
+				return
+			}
+			log.Printf("Gmail client_secret 未配置，跳过刷新，直接使用外部 OAuth 返回的令牌")
+			expiry := time.UnixMilli(req.ExpiresAt)
+			if expiry.IsZero() {
+				expiry = time.Now().Add(3600 * time.Second)
+			}
+			newToken = &providers.OAuth2Token{
+				AccessToken:  req.AccessToken,
+				RefreshToken: req.RefreshToken,
+				TokenType:    "Bearer",
+				Expiry:       expiry,
+			}
+		} else {
+			// Gmail使用标准客户端
+			oauth2Client := providers.NewStandardOAuth2Client(
+				req.ClientID,
+				gmailClientSecret,
+				"https://accounts.google.com/o/oauth2/auth",
+				"https://oauth2.googleapis.com/token",
+				"", // redirect URL不需要，因为我们直接使用refresh token
+				[]string{"https://www.googleapis.com/auth/gmail.readonly", "https://www.googleapis.com/auth/gmail.send"},
+			)
+			newToken, err = oauth2Client.RefreshToken(ctx, req.RefreshToken)
+		}
 	} else {
 		h.respondWithError(c, http.StatusBadRequest, "Unsupported provider: "+req.Provider)
 		return

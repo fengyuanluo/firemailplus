@@ -3,6 +3,8 @@ package providers
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -17,8 +19,8 @@ import (
 // GmailProvider Gmail邮件提供商
 type GmailProvider struct {
 	*BaseProvider
-	oauth2Service   *oauth2.OAuth2Service
-	encodingHelper  *encoding.EmailEncodingHelper
+	oauth2Service  *oauth2.OAuth2Service
+	encodingHelper *encoding.EmailEncodingHelper
 }
 
 // newGmailProviderImpl 创建Gmail提供商实例的内部实现
@@ -120,7 +122,42 @@ func (p *GmailProvider) validateOAuth2Credentials(ctx context.Context, account *
 	}
 
 	if err := p.oauth2Service.ValidateToken(ctx, "gmail", token); err != nil {
+		// 当环境缺少 Gmail client_id/client_secret 时，标准校验会因配置不足失败。
+		// 这里使用 Google tokeninfo 作为后备校验，避免缺失配置导致同步中断。
+		if strings.Contains(err.Error(), "client_id is required") ||
+			strings.Contains(err.Error(), "client_secret is required") ||
+			strings.Contains(err.Error(), "missing environment variables") {
+			if fallbackErr := p.validateTokenWithGoogleAPI(ctx, tokenData.AccessToken); fallbackErr != nil {
+				return fmt.Errorf("OAuth2 token validation failed (fallback): %w", fallbackErr)
+			}
+			return nil
+		}
 		return fmt.Errorf("OAuth2 token validation failed: %w", err)
+	}
+
+	return nil
+}
+
+// validateTokenWithGoogleAPI 使用 Google tokeninfo 接口校验访问令牌（无需 client_id/secret）
+func (p *GmailProvider) validateTokenWithGoogleAPI(ctx context.Context, accessToken string) error {
+	if accessToken == "" {
+		return fmt.Errorf("access token is empty")
+	}
+
+	tokenInfoURL := "https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=" + url.QueryEscape(accessToken)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, tokenInfoURL, nil)
+	if err != nil {
+		return fmt.Errorf("failed to build tokeninfo request: %w", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to call tokeninfo: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("tokeninfo responded with status %d", resp.StatusCode)
 	}
 
 	return nil
