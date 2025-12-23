@@ -9,21 +9,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { ChevronDown, ChevronRight, Eye, EyeOff, Server, Mail, Shield } from 'lucide-react';
+import { ChevronDown, ChevronRight, Eye, EyeOff, Server, Mail } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import { useMailboxStore } from '@/lib/store';
 import { toast } from 'sonner';
 import { EmailGroupSelector } from './email-group-selector';
-
-// 配置模式类型
-type ConfigMode = 'full' | 'imap-only' | 'smtp-only';
 
 // 安全选项
 const securityOptions = [
@@ -109,8 +99,8 @@ export function CustomForm({ onSuccess, onCancel }: CustomFormProps) {
     handleSubmit,
     formState: { errors },
     reset,
-    watch,
     setValue,
+    watch,
   } = useForm<CustomForm>({
     resolver: zodResolver(customSchema),
     defaultValues: {
@@ -121,8 +111,6 @@ export function CustomForm({ onSuccess, onCancel }: CustomFormProps) {
   });
 
   const configMode = watch('config_mode');
-  const imapSecurity = watch('imap_security');
-  const smtpSecurity = watch('smtp_security');
 
   // 根据安全选项建议端口
   const suggestPort = (type: 'imap' | 'smtp', security: string) => {

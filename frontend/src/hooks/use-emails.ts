@@ -36,7 +36,6 @@ export function useEmails(params?: UseEmailsParams) {
 
   // 获取邮件列表
   const {
-    data,
     isLoading: isQueryLoading,
     error,
   } = useQuery({

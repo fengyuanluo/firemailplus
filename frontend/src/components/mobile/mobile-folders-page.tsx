@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Folder, FolderOpen, Inbox, Send, FileText, Trash2, AlertTriangle } from 'lucide-react';
+import { Folder, Inbox, Send, FileText, Trash2, AlertTriangle } from 'lucide-react';
 import { useMailboxStore } from '@/lib/store';
 import {
   MobileLayout,
@@ -186,73 +186,5 @@ export function MobileFoldersPage({ accountId }: MobileFoldersPageProps) {
         </MobileContent>
       </MobilePage>
     </MobileLayout>
-  );
-}
-
-// 文件夹卡片组件
-interface FolderCardProps {
-  folder: any;
-  isSelected: boolean;
-  onClick: () => void;
-}
-
-function FolderCard({ folder, isSelected, onClick }: FolderCardProps) {
-  const getFolderIcon = (folderType: string) => {
-    switch (folderType) {
-      case 'inbox':
-        return <Inbox className="w-6 h-6" />;
-      case 'sent':
-        return <Send className="w-6 h-6" />;
-      case 'drafts':
-        return <FileText className="w-6 h-6" />;
-      case 'trash':
-        return <Trash2 className="w-6 h-6" />;
-      case 'spam':
-        return <AlertTriangle className="w-6 h-6" />;
-      default:
-        return <Folder className="w-6 h-6" />;
-    }
-  };
-
-  return (
-    <div
-      onClick={onClick}
-      className={`
-        p-4 rounded-lg border cursor-pointer transition-all duration-150
-        ${
-          isSelected
-            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-            : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-        }
-      `}
-    >
-      <div className="flex items-center gap-3">
-        <div className="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center flex-shrink-0">
-          {getFolderIcon(folder.type)}
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between mb-1">
-            <h3 className="font-medium text-gray-900 dark:text-gray-100 truncate">
-              {folder.display_name || folder.name}
-            </h3>
-            {folder.unread_emails > 0 && (
-              <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded-full">
-                {folder.unread_emails}
-              </span>
-            )}
-          </div>
-
-          <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
-            <span>{folder.total_emails} 封邮件</span>
-            {folder.unread_emails > 0 && (
-              <span className="text-blue-600 dark:text-blue-400">
-                {folder.unread_emails} 封未读
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
   );
 }

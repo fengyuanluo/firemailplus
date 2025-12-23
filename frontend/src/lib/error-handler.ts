@@ -346,7 +346,7 @@ export const createErrorBoundary = (fallback: React.ComponentType<{ error: AppEr
       return { error: ErrorClassifier.classify(error) };
     }
 
-    componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    componentDidCatch(error: Error) {
       handleError(error, 'react_boundary', { reportToService: true });
     }
 

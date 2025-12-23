@@ -44,7 +44,6 @@ export function EmailList({
     selectedFolder,
     searchQuery,
     isLoading,
-    page,
     pageSize,
     total,
     totalPages: storeTotalPages,

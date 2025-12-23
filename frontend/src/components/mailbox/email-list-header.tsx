@@ -1,15 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import {
-  ChevronDown,
-  MoreHorizontal,
-  Archive,
-  Trash2,
-  CheckCheck,
-  Star,
-  FolderOpen,
-} from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useMailboxStore } from '@/lib/store';

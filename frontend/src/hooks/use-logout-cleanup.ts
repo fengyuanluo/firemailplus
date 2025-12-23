@@ -285,7 +285,6 @@ export function useAutoCleanup() {
     // 在页面卸载前进行必要的清理
     // 注意：这里不能使用异步操作
     try {
-      const { logout } = useAuthStore.getState();
       // 只进行同步的清理操作
       console.log('页面卸载，执行基础清理');
     } catch (error) {

@@ -235,7 +235,7 @@ export function useResponsiveRender() {
 
 // 响应式类名Hook
 export function useResponsiveClassName() {
-  const { currentBreakpoint, isMobile, isTablet, isDesktop, orientation } = useResponsive();
+  const { currentBreakpoint, isMobile, isTablet, orientation } = useResponsive();
 
   return {
     // 基础类名

@@ -4,7 +4,7 @@ import { useState, forwardRef } from 'react';
 import { Star, Paperclip, Circle } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
-import { Email, parseEmailAddress, getEmailPreview, formatFileSize } from '@/types/email';
+import { Email, parseEmailAddress, getEmailPreview } from '@/types/email';
 import { useMailboxStore, useContextMenuStore } from '@/lib/store';
 import { apiClient } from '@/lib/api';
 import { toast } from 'sonner';

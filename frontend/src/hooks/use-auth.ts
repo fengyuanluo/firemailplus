@@ -31,7 +31,7 @@ export interface AuthStatus {
 }
 
 export function useAuth() {
-  const { user, isAuthenticated, isHydrated, login, logout } = useAuthStore();
+  const { user, isAuthenticated, login, logout } = useAuthStore();
   const { isHydrated: hydrationComplete } = useHydration();
   const { validateToken, isValidating } = useTokenValidation();
   const { fullLogout, quickLogout } = useLogoutCleanup();
@@ -197,7 +197,7 @@ export function useAuth() {
 
 // 简化的认证状态Hook（仅用于状态检查）
 export function useAuthStatus() {
-  const { isAuthenticated, isHydrated } = useAuthStore();
+  const { isAuthenticated } = useAuthStore();
   const { isHydrated: hydrationComplete } = useHydration();
 
   return {

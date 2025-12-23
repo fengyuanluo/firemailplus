@@ -2,7 +2,7 @@
  * 邮件搜索专用 Hook
  */
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { useMailboxStore } from '@/lib/store';

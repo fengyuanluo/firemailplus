@@ -4,8 +4,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { LoginResponse, User } from './api';
-import type { EmailAccount, Email, Folder } from '@/types/email';
+import type { User } from './api';
 import { parseEmailAddress, parseEmailAddresses } from '@/types/email';
 
 // 认证状态
@@ -21,7 +20,7 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       user: null,
       token: null,
       isAuthenticated: false,
@@ -589,7 +588,7 @@ interface ContextMenuState {
 }
 
 // 导航状态实现
-export const useNavigationStore = create<NavigationState>((set, get) => ({
+export const useNavigationStore = create<NavigationState>((set) => ({
   currentView: 'inbox',
   breadcrumbs: [{ label: '收件箱', path: '/mailbox' }],
   canGoBack: false,
@@ -647,7 +646,7 @@ export const useNavigationStore = create<NavigationState>((set, get) => ({
 }));
 
 // 通知状态实现
-export const useNotificationStore = create<NotificationState>((set, get) => ({
+export const useNotificationStore = create<NotificationState>((set) => ({
   notifications: [],
   unreadCount: 0,
 

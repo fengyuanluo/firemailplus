@@ -5,10 +5,13 @@ import {
   Search,
   MoreVertical,
   Edit,
+  Reply,
   ReplyAll,
+  Forward,
   Archive,
   CheckCheck,
   Star,
+  Trash2,
   Languages,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -202,10 +205,34 @@ export function EmailDetailHeader({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
+            {onReply && (
+              <DropdownMenuItem onClick={onReply}>
+                <Reply className="w-4 h-4 mr-2" />
+                回复
+              </DropdownMenuItem>
+            )}
             {onReplyAll && (
               <DropdownMenuItem onClick={onReplyAll}>
                 <ReplyAll className="w-4 h-4 mr-2" />
                 回复全部
+              </DropdownMenuItem>
+            )}
+            {onForward && (
+              <DropdownMenuItem onClick={onForward}>
+                <Forward className="w-4 h-4 mr-2" />
+                转发
+              </DropdownMenuItem>
+            )}
+            {onArchive && (
+              <DropdownMenuItem onClick={onArchive}>
+                <Archive className="w-4 h-4 mr-2" />
+                归档
+              </DropdownMenuItem>
+            )}
+            {onDelete && (
+              <DropdownMenuItem onClick={onDelete}>
+                <Trash2 className="w-4 h-4 mr-2" />
+                删除
               </DropdownMenuItem>
             )}
 

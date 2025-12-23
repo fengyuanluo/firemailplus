@@ -3,7 +3,7 @@
  * 处理不同store之间的协调逻辑
  */
 
-import { useMailboxStore, useUIStore } from './store';
+import { useMailboxStore } from './store';
 
 // 状态协调器类
 export class StoreCoordinator {
@@ -152,8 +152,6 @@ export class StoreCoordinator {
 
   // 同步邮件
   public async syncEmails(accountId?: number, folderId?: number) {
-    const mailboxStore = useMailboxStore.getState();
-
     try {
       // mailboxStore.setSyncing(true); // 方法不存在，注释掉
       // mailboxStore.setSyncError(null); // 方法不存在，注释掉

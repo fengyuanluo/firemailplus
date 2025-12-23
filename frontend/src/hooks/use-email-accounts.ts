@@ -13,7 +13,7 @@ export function useEmailAccounts() {
   const queryClient = useQueryClient();
 
   // 获取邮箱账户列表
-  const { data, isLoading, error } = useQuery({
+  const { isLoading, error } = useQuery({
     queryKey: ['emailAccounts'],
     queryFn: async () => {
       const response = await apiClient.getEmailAccounts();

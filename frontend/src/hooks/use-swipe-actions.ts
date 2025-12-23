@@ -67,7 +67,7 @@ export function useSwipeActions({
       // 尝试防止页面滚动，但不强制调用preventDefault以避免passive listener错误
       try {
         e.preventDefault();
-      } catch (error) {
+      } catch {
         // 忽略passive listener错误，依赖CSS touch-action属性控制
         console.debug('preventDefault failed in passive listener, relying on CSS touch-action');
       }

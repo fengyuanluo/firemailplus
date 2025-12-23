@@ -4,7 +4,6 @@ import { Editor } from '@tiptap/react';
 import {
   Bold,
   Italic,
-  Underline,
   Strikethrough,
   List,
   ListOrdered,
@@ -13,7 +12,6 @@ import {
   Image,
   Table,
   Palette,
-  Type,
   AlignLeft,
   AlignCenter,
   AlignRight,

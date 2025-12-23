@@ -159,7 +159,7 @@ export function AttachmentManager({
             } else if (errorData.error) {
               errorMessage = errorData.error;
             }
-          } catch (parseError) {
+          } catch {
             // 如果无法解析JSON，根据状态码提供友好的错误信息
             switch (response.status) {
               case 400:

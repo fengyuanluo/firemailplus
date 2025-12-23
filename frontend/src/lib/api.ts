@@ -2,19 +2,7 @@
  * API 配置和基础请求函数
  */
 
-import type { EmailAccount, Email, EmailAddress, Attachment, Folder, EmailGroup } from '@/types/email';
-import type {
-  ApiResponse as TypedApiResponse,
-  LoginRequest as TypedLoginRequest,
-  LoginResponse as TypedLoginResponse,
-  CreateAccountRequest as TypedCreateAccountRequest,
-  User as TypedUser,
-  SendEmailRequest,
-  BulkEmailActionRequest,
-  SearchFilters,
-  ReplyEmailRequest,
-  ForwardEmailRequest,
-} from '@/types/api';
+import type { EmailAccount, Email, EmailAddress, Folder, EmailGroup } from '@/types/email';
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080/api/v1';
 
@@ -108,7 +96,7 @@ class ApiClient {
       let data;
       try {
         data = await response.json();
-      } catch (parseError) {
+      } catch {
         throw new Error(`服务器响应格式错误: ${response.status}`);
       }
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useMobileNavigation } from '@/hooks/use-mobile-navigation';
-import { Reply, ReplyAll, Forward, Star, Archive, Trash2, MoreVertical } from 'lucide-react';
+import { Reply, Forward, Star, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useMailboxStore } from '@/lib/store';
 import {
@@ -23,7 +23,7 @@ interface MobileEmailDetailPageProps {
 }
 
 export function MobileEmailDetailPage({ emailId }: MobileEmailDetailPageProps) {
-  const { emails, selectedEmail, selectEmail, removeEmail, updateEmail } = useMailboxStore();
+  const { emails, selectEmail, removeEmail, updateEmail } = useMailboxStore();
 
   const [isLoading, setIsLoading] = useState(true);
   const [emailDetail, setEmailDetail] = useState<any>(null);
@@ -151,7 +151,7 @@ export function MobileEmailDetailPage({ emailId }: MobileEmailDetailPageProps) {
   };
 
   // 翻译完成回调
-  const handleTranslationComplete = (lang: LanguageCode) => {
+  const handleTranslationComplete = () => {
     setIsTranslating(false);
   };
 

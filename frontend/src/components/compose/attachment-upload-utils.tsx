@@ -116,22 +116,22 @@ export const uploadFile = async (
         clearInterval(progressInterval);
       }
 
-      if (!response.ok) {
-        // 尝试解析错误响应
-        let errorMessage = '上传失败';
-        try {
-          const errorData = await response.json();
-          if (errorData.message) {
-            errorMessage = errorData.message;
-          } else if (errorData.error) {
-            errorMessage = errorData.error;
-          }
-        } catch (parseError) {
-          // 如果无法解析JSON，根据状态码提供友好的错误信息
-          switch (response.status) {
-            case 400:
-              errorMessage = '文件格式不正确或文件名无效';
-              break;
+        if (!response.ok) {
+          // 尝试解析错误响应
+          let errorMessage = '上传失败';
+          try {
+            const errorData = await response.json();
+            if (errorData.message) {
+              errorMessage = errorData.message;
+            } else if (errorData.error) {
+              errorMessage = errorData.error;
+            }
+          } catch {
+            // 如果无法解析JSON，根据状态码提供友好的错误信息
+            switch (response.status) {
+              case 400:
+                errorMessage = '文件格式不正确或文件名无效';
+                break;
             case 401:
               errorMessage = '登录已过期，请重新登录';
               break;

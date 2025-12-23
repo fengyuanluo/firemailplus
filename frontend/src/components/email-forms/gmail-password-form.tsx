@@ -66,20 +66,9 @@ export function GmailPasswordForm({ onSuccess, onCancel }: GmailPasswordFormProp
     handleSubmit,
     formState: { errors },
     reset,
-    watch,
   } = useForm<GmailPasswordForm>({
     resolver: zodResolver(gmailPasswordSchema),
   });
-
-  // 监听密码输入，自动格式化显示
-  const passwordValue = watch('password', '');
-
-  const formatPassword = (value: string) => {
-    // 移除所有空格
-    const clean = value.replace(/\s/g, '');
-    // 每4个字符添加一个空格
-    return clean.replace(/(.{4})/g, '$1 ').trim();
-  };
 
   const onSubmit = async (data: GmailPasswordForm) => {
     setIsSubmitting(true);

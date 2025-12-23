@@ -1,6 +1,6 @@
 'use client';
 
-import { Reply, ReplyAll, Forward, Archive, Trash2, Star, MoreHorizontal } from 'lucide-react';
+import { Reply, ReplyAll, Forward, Archive, Trash2, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Email, parseEmailAddress, parseEmailAddresses, formatEmailAddress } from '@/types/email';
 import { TranslateButton } from './translate-button';

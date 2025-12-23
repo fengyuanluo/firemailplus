@@ -18,7 +18,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ChevronDown, ChevronUp, Paperclip } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 
 export function MobileComposePage() {
@@ -34,7 +33,6 @@ export function MobileComposePage() {
     updateRecipients,
     updateAttachments,
     clearDraft,
-    sendStatus,
     setSendStatus,
     initializeReply,
     initializeReplyAll,

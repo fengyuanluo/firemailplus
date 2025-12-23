@@ -86,6 +86,7 @@ export function OutlookBatchForm({ onSuccess, onCancel }: OutlookBatchFormProps)
 
     setShowResults(true);
     await processBatch(accounts, data.namePrefix, selectedGroupId || undefined);
+    onSuccess?.();
   };
 
   // 导出结果

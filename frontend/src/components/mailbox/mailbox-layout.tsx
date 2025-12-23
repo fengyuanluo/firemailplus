@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useCallback } from 'react';
 import { useUIStore, useMailboxStore } from '@/lib/store';
 import { useRouteSync, useRouteStatePersist } from '@/hooks/use-route-sync';
 import { useIsMobile } from '@/hooks/use-responsive';
@@ -16,8 +15,7 @@ import { NotificationCenter } from './notification-center';
 
 export function MailboxLayout() {
   const isMobile = useIsMobile(); // 使用统一的响应式Hook
-  const { sidebarOpen, sidebarOpenMobile, toggleSidebar, setSidebarOpen, setSidebarOpenMobile } =
-    useUIStore();
+  const { sidebarOpen, sidebarOpenMobile, toggleSidebar, setSidebarOpen } = useUIStore();
   const {
     emails,
     selectedEmail,
@@ -30,8 +28,6 @@ export function MailboxLayout() {
     selectFolder,
   } = useMailboxStore();
 
-  const router = useRouter();
-
   // 启用键盘快捷键
   useKeyboardShortcuts();
 
@@ -40,7 +36,7 @@ export function MailboxLayout() {
   useRouteStatePersist();
 
   // 启用 SSE 连接
-  const { isConnected, state: sseState, newEmailCount, clearNewEmailCount } = useMailboxSSE();
+  const { isConnected, state: sseState, newEmailCount } = useMailboxSSE();
 
   // 处理邮件选择
   const handleEmailSelect = useCallback(

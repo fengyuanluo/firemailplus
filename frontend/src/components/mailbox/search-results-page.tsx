@@ -275,26 +275,3 @@ export function SearchResultsPage() {
     </div>
   );
 }
-
-// 搜索结果统计组件
-interface SearchStatsProps {
-  total: number;
-  query: string;
-  isSearching: boolean;
-}
-
-function SearchStats({ total, query, isSearching }: SearchStatsProps) {
-  if (isSearching) {
-    return <div className="text-sm text-gray-600 dark:text-gray-400 animate-pulse">搜索中...</div>;
-  }
-
-  if (!query) {
-    return null;
-  }
-
-  return (
-    <div className="text-sm text-gray-600 dark:text-gray-400">
-      搜索 "<span className="font-medium">{query}</span>" 找到 {total} 个结果
-    </div>
-  );
-}

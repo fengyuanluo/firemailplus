@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Mail, Star, Paperclip, MoreVertical, Reply, Archive, Trash2 } from 'lucide-react';
+import { Mail, Star, Paperclip, Reply, Archive, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useMailboxStore, useComposeStore } from '@/lib/store';
 import {
@@ -16,7 +16,7 @@ import {
 } from './mobile-layout';
 import { EmailsHeader } from './mobile-header';
 import { apiClient } from '@/lib/api';
-import { parseEmailAddress, formatEmailAddress, getEmailPreview, type Email } from '@/types/email';
+import { parseEmailAddress, getEmailPreview, type Email } from '@/types/email';
 import { toast } from 'sonner';
 import { useMobileNavigation } from '@/hooks/use-mobile-navigation';
 import { useSwipeActions } from '@/hooks/use-swipe-actions';
@@ -26,7 +26,7 @@ interface MobileEmailsPageProps {
 }
 
 export function MobileEmailsPage({ folderId }: MobileEmailsPageProps) {
-  const { folders, emails, selectedEmail, selectEmail, setEmails } = useMailboxStore();
+  const { folders, selectedEmail, selectEmail, setEmails } = useMailboxStore();
 
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);

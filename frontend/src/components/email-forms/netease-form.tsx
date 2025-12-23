@@ -73,20 +73,9 @@ export function NetEaseForm({ onSuccess, onCancel }: NetEaseFormProps) {
     handleSubmit,
     formState: { errors },
     reset,
-    watch,
   } = useForm<NetEaseForm>({
     resolver: zodResolver(neteaseSchema),
   });
-
-  // 监听授权码输入，自动格式化显示
-  const passwordValue = watch('password', '');
-
-  const formatAuthCode = (value: string) => {
-    // 移除所有空格
-    const clean = value.replace(/\s/g, '');
-    // 每4个字符添加一个空格
-    return clean.replace(/(.{4})/g, '$1 ').trim();
-  };
 
   const onSubmit = async (data: NetEaseForm) => {
     setIsSubmitting(true);

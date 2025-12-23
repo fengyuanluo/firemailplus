@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { FilterGroup, DateRangeFilter } from './filter-group';
 import { useMailboxStore } from '@/lib/store';
 import { Button } from '@/components/ui/button';
@@ -12,7 +12,7 @@ interface SearchFiltersProps {
 }
 
 export function SearchFilters({ onFiltersChange }: SearchFiltersProps) {
-  const { accounts, folders, searchFilters } = useMailboxStore();
+  const { accounts, folders } = useMailboxStore();
   const isInitialMount = useRef(true);
   const onFiltersChangeRef = useRef(onFiltersChange);
 
@@ -65,9 +65,7 @@ export function SearchFilters({ onFiltersChange }: SearchFiltersProps) {
 
     // 只传递有值的筛选条件
     const cleanFilters = Object.fromEntries(
-      Object.entries(filters).filter(
-        ([_, value]) => value !== undefined && value !== null && value !== ''
-      )
+      Object.entries(filters).filter(([, value]) => value !== undefined && value !== null && value !== '')
     );
 
     console.log('🔧 [SearchFilters] 清理后的筛选条件:', cleanFilters);

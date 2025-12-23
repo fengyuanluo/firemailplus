@@ -5,18 +5,6 @@ import { Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useIsMobile } from '@/hooks/use-responsive';
 
-interface AttachmentFile {
-  id: string;
-  file: File;
-  name: string;
-  size: number;
-  type: string;
-  uploadProgress: number;
-  uploadStatus: 'pending' | 'uploading' | 'completed' | 'error';
-  attachmentId?: number;
-  errorMessage?: string;
-}
-
 interface AttachmentUploadAreaProps {
   onFilesSelected: (files: FileList | File[]) => void;
   maxFileSize?: number; // MB
@@ -32,13 +20,14 @@ export function AttachmentUploadArea({
   maxFileSize = 25,
   maxFiles = 10,
   allowedTypes = [],
-  currentFileCount = 0,
+  currentFileCount: _currentFileCount = 0,
   isVisible,
   onClose,
 }: AttachmentUploadAreaProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
+  void _currentFileCount;
 
   // 处理文件选择
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {

@@ -135,7 +135,7 @@ interface MailboxState {
   resetState: () => void;
 }
 
-export const useMailboxStore = create<MailboxState>((set, get) => ({
+export const useMailboxStore = create<MailboxState>((set) => ({
   // 初始状态
   accounts: [],
   selectedAccount: null,

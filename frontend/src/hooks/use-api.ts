@@ -12,7 +12,7 @@ import {
   UseMutationOptions,
 } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
-import { handleError, ErrorType } from '@/lib/error-handler';
+import { handleError } from '@/lib/error-handler';
 import { toast } from 'sonner';
 
 // API响应类型
@@ -126,7 +126,7 @@ export function useApiQuery<T = any>(
   queryFn: () => Promise<ApiResponse<T>>,
   options: Partial<UseQueryOptions<T>> & ApiConfig = {}
 ) {
-  const { showErrorToast = true, errorMessage, ...queryOptions } = options;
+  const { showErrorToast = true, ...queryOptions } = options;
 
   return useQuery({
     queryKey,
@@ -159,12 +159,10 @@ export function useApiMutation<TData = any, TVariables = any>(
   mutationFn: (variables: TVariables) => Promise<ApiResponse<TData>>,
   options: UseMutationOptions<TData, Error, TVariables> & ApiConfig = {}
 ) {
-  const queryClient = useQueryClient();
   const {
     showSuccessToast = false,
     showErrorToast = true,
     successMessage,
-    errorMessage,
     ...mutationOptions
   } = options;
 
@@ -332,7 +330,7 @@ export function useCrudApi<T = any>(
 }
 
 // 批量操作Hook
-export function useBatchApi<T = any>() {
+export function useBatchApi() {
   const [operations, setOperations] = useState<Array<() => Promise<any>>>([]);
   const [isExecuting, setIsExecuting] = useState(false);
   const [results, setResults] = useState<any[]>([]);

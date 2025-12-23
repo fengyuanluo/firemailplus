@@ -11,7 +11,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
 import { useOAuth2 } from '@/hooks/use-oauth';
-import { toast } from 'sonner';
 import { EmailGroupSelector } from './email-group-selector';
 
 const OUTLOOK_DOMAIN_REGEX = /@(outlook|hotmail|live|msn)\.[^\s@]+$/i;
@@ -41,7 +40,6 @@ export function OutlookOAuth2Form({ onSuccess, onCancel }: OutlookOAuth2FormProp
     register,
     handleSubmit,
     formState: { errors },
-    reset,
   } = useForm<OutlookOAuth2Form>({
     resolver: zodResolver(outlookOAuth2Schema),
   });
@@ -50,6 +48,7 @@ export function OutlookOAuth2Form({ onSuccess, onCancel }: OutlookOAuth2FormProp
     setIsAuthenticating(true);
     try {
       await authenticateOutlook(data.name, data.email, selectedGroupId || undefined);
+      onSuccess?.();
       // 注意：由于使用直接跳转，这里的代码不会执行
       // 成功处理在OAuth回调页面中进行
     } catch (error: any) {

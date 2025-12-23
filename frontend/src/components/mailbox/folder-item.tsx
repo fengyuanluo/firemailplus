@@ -22,7 +22,7 @@ interface FolderItemProps {
 
 export function FolderItem({ folder, level = 0 }: FolderItemProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const { selectedFolder, selectFolder, setEmails } = useMailboxStore();
+  const { selectedFolder, selectFolder } = useMailboxStore();
   const { openMenu } = useContextMenuStore();
 
   // 获取文件夹图标
