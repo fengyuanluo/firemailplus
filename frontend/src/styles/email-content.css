@@ -30,7 +30,7 @@
   margin: 1em 0;
 }
 
-.email-html-content table[border] {
+.email-html-content table[border]:not([border="0"]):not([border="0px"]) {
   border: 1px solid #e5e7eb;
 }
 
@@ -38,7 +38,7 @@
 .email-html-content th {
   padding: 8px 12px;
   vertical-align: top;
-  border: inherit;
+  border: none; /* 尊重邮件自身的 border 设定，默认不强加边框 */
 }
 
 .email-html-content th {
@@ -221,13 +221,13 @@
   color: #e5e7eb;
 }
 
-.dark .email-html-content table[border] {
+.dark .email-html-content table[border]:not([border="0"]):not([border="0px"]) {
   border-color: #374151;
 }
 
 .dark .email-html-content td,
 .dark .email-html-content th {
-  border-color: #374151;
+  border: none;
 }
 
 .dark .email-html-content th {
