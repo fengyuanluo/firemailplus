@@ -114,7 +114,7 @@ func (s *SSEServiceImpl) Stop() error {
 // HandleConnection 处理新的SSE连接
 func (s *SSEServiceImpl) HandleConnection(ctx context.Context, userID uint, clientID string, w http.ResponseWriter, r *http.Request) error {
 	// 创建SSE连接
-	conn, err := NewSSEConnection(clientID, userID, w)
+	conn, err := NewSSEConnection(clientID, userID, w, r.Context().Done())
 	if err != nil {
 		return fmt.Errorf("failed to create SSE connection: %w", err)
 	}
@@ -194,7 +194,7 @@ func (s *SSEServiceImpl) GetEventPublisher() EventPublisher {
 // startHeartbeatRoutine 启动心跳例程
 func (s *SSEServiceImpl) startHeartbeatRoutine() {
 	s.heartbeatTicker = time.NewTicker(s.config.HeartbeatInterval)
-	
+
 	go func() {
 		for {
 			select {
@@ -210,7 +210,7 @@ func (s *SSEServiceImpl) startHeartbeatRoutine() {
 // sendHeartbeat 发送心跳
 func (s *SSEServiceImpl) sendHeartbeat() {
 	_, userConnections := s.connectionManager.GetConnectionCount()
-	
+
 	for userID := range userConnections {
 		heartbeatEvent := NewHeartbeatEvent("")
 		if err := s.eventPublisher.PublishToUser(context.Background(), userID, heartbeatEvent); err != nil {

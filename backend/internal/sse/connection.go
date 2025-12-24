@@ -13,6 +13,7 @@ type SSEConnection struct {
 	userID       uint
 	writer       http.ResponseWriter
 	flusher      http.Flusher
+	done         <-chan struct{}
 	connectedAt  time.Time
 	lastActivity time.Time
 	closed       bool
@@ -20,7 +21,7 @@ type SSEConnection struct {
 }
 
 // NewSSEConnection 创建新的SSE连接
-func NewSSEConnection(clientID string, userID uint, w http.ResponseWriter) (*SSEConnection, error) {
+func NewSSEConnection(clientID string, userID uint, w http.ResponseWriter, done <-chan struct{}) (*SSEConnection, error) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		return nil, fmt.Errorf("streaming unsupported")
@@ -39,6 +40,7 @@ func NewSSEConnection(clientID string, userID uint, w http.ResponseWriter) (*SSE
 		userID:       userID,
 		writer:       w,
 		flusher:      flusher,
+		done:         done,
 		connectedAt:  now,
 		lastActivity: now,
 		closed:       false,
@@ -48,7 +50,7 @@ func NewSSEConnection(clientID string, userID uint, w http.ResponseWriter) (*SSE
 }
 
 // Send 发送数据到客户端
-func (c *SSEConnection) Send(data []byte) error {
+func (c *SSEConnection) Send(data []byte) (err error) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
@@ -56,8 +58,22 @@ func (c *SSEConnection) Send(data []byte) error {
 		return fmt.Errorf("connection is closed")
 	}
 
+	if c.isDone() {
+		c.closed = true
+		return fmt.Errorf("connection context done")
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			c.closed = true
+			if err == nil {
+				err = fmt.Errorf("panic while sending data: %v", r)
+			}
+		}
+	}()
+
 	// 写入数据
-	_, err := c.writer.Write(data)
+	_, err = c.writer.Write(data)
 	if err != nil {
 		c.closed = true
 		return fmt.Errorf("failed to write data: %w", err)
@@ -84,8 +100,21 @@ func (c *SSEConnection) Close() error {
 // IsActive 检查连接是否活跃
 func (c *SSEConnection) IsActive() bool {
 	c.mutex.RLock()
-	defer c.mutex.RUnlock()
-	return !c.closed
+	closed := c.closed
+	c.mutex.RUnlock()
+
+	if closed {
+		return false
+	}
+
+	if c.isDone() {
+		c.mutex.Lock()
+		c.closed = true
+		c.mutex.Unlock()
+		return false
+	}
+
+	return true
 }
 
 // GetClientID 获取客户端ID
@@ -117,12 +146,24 @@ func (c *SSEConnection) UpdateActivity() {
 	c.lastActivity = time.Now()
 }
 
+func (c *SSEConnection) isDone() bool {
+	if c.done == nil {
+		return false
+	}
+	select {
+	case <-c.done:
+		return true
+	default:
+		return false
+	}
+}
+
 // ConnectionManagerImpl 连接管理器实现
 type ConnectionManagerImpl struct {
-	connections map[uint]map[string]ClientConnection // userID -> clientID -> connection
-	mutex       sync.RWMutex
-	maxConnPerUser int
-	cleanupInterval time.Duration
+	connections       map[uint]map[string]ClientConnection // userID -> clientID -> connection
+	mutex             sync.RWMutex
+	maxConnPerUser    int
+	cleanupInterval   time.Duration
 	connectionTimeout time.Duration
 }
 
@@ -227,7 +268,7 @@ func (cm *ConnectionManagerImpl) GetConnectionCount() (total int, byUser map[uin
 // SendToUser 发送消息给指定用户的所有连接
 func (cm *ConnectionManagerImpl) SendToUser(userID uint, data []byte) error {
 	connections := cm.GetConnections(userID)
-	
+
 	var errors []error
 	for _, conn := range connections {
 		if err := conn.Send(data); err != nil {

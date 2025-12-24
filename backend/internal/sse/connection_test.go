@@ -1,7 +1,9 @@
 package sse
 
 import (
+	"context"
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -79,13 +81,42 @@ func (m *MockClientConnection) GetSentData() [][]byte {
 	return m.sentData
 }
 
+// panicWriter 用于模拟写入或刷新时的异常情况
+type panicWriter struct {
+	header       http.Header
+	panicOnWrite bool
+	panicOnFlush bool
+}
+
+func (p *panicWriter) Header() http.Header {
+	if p.header == nil {
+		p.header = make(http.Header)
+	}
+	return p.header
+}
+
+func (p *panicWriter) Write(data []byte) (int, error) {
+	if p.panicOnWrite {
+		panic("write panic")
+	}
+	return len(data), nil
+}
+
+func (p *panicWriter) WriteHeader(statusCode int) {}
+
+func (p *panicWriter) Flush() {
+	if p.panicOnFlush {
+		panic("flush panic")
+	}
+}
+
 func TestSSEConnection(t *testing.T) {
 	t.Run("创建SSE连接成功", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		clientID := "test-client"
 		userID := uint(123)
 
-		conn, err := NewSSEConnection(clientID, userID, w)
+		conn, err := NewSSEConnection(clientID, userID, w, context.Background().Done())
 		require.NoError(t, err)
 		assert.Equal(t, clientID, conn.GetClientID())
 		assert.Equal(t, userID, conn.GetUserID())
@@ -95,7 +126,7 @@ func TestSSEConnection(t *testing.T) {
 
 	t.Run("发送数据成功", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		conn, err := NewSSEConnection("test", 123, w)
+		conn, err := NewSSEConnection("test", 123, w, context.Background().Done())
 		require.NoError(t, err)
 
 		testData := []byte("test data")
@@ -108,7 +139,7 @@ func TestSSEConnection(t *testing.T) {
 
 	t.Run("关闭连接", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		conn, err := NewSSEConnection("test", 123, w)
+		conn, err := NewSSEConnection("test", 123, w, context.Background().Done())
 		require.NoError(t, err)
 
 		assert.True(t, conn.IsActive())
@@ -119,13 +150,39 @@ func TestSSEConnection(t *testing.T) {
 
 	t.Run("向已关闭连接发送数据失败", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		conn, err := NewSSEConnection("test", 123, w)
+		conn, err := NewSSEConnection("test", 123, w, context.Background().Done())
 		require.NoError(t, err)
 
 		conn.Close()
 		err = conn.Send([]byte("test"))
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "connection is closed")
+	})
+
+	t.Run("连接上下文结束后发送失败", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		ctx, cancel := context.WithCancel(context.Background())
+		conn, err := NewSSEConnection("test", 123, w, ctx.Done())
+		require.NoError(t, err)
+
+		cancel()
+		err = conn.Send([]byte("test"))
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "connection context done")
+		assert.False(t, conn.IsActive())
+	})
+
+	t.Run("写入或刷新异常时不会崩溃", func(t *testing.T) {
+		w := &panicWriter{panicOnFlush: true}
+		conn, err := NewSSEConnection("test", 123, w, context.Background().Done())
+		require.NoError(t, err)
+
+		var sendErr error
+		assert.NotPanics(t, func() {
+			sendErr = conn.Send([]byte("test"))
+		})
+		assert.Error(t, sendErr)
+		assert.False(t, conn.IsActive())
 	})
 }
 
@@ -213,7 +270,7 @@ func TestConnectionManager(t *testing.T) {
 	t.Run("发送消息给用户", func(t *testing.T) {
 		cm := NewConnectionManager(5, time.Minute, 30*time.Minute)
 		userID := uint(123)
-		
+
 		// 添加多个连接
 		conn1 := NewMockClientConnection("client-1", userID)
 		conn2 := NewMockClientConnection("client-2", userID)
@@ -248,7 +305,7 @@ func TestConnectionManager(t *testing.T) {
 
 	t.Run("发送消息给不存在的连接", func(t *testing.T) {
 		cm := NewConnectionManager(5, time.Minute, 30*time.Minute)
-		
+
 		err := cm.SendToConnection(123, "nonexistent", []byte("test"))
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "connection not found")
