@@ -74,9 +74,6 @@ export function useRouteSync() {
       if (email && selectedEmail?.id !== emailId) {
         selectEmail(email);
       }
-    } else if (!emailId && selectedEmail) {
-      // 如果路径中没有邮件ID但store中有选中的邮件，清除选中状态
-      selectEmail(null);
     }
   }, [pathname, emails, selectedEmail, selectEmail]);
 

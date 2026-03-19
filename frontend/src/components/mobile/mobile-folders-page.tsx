@@ -22,34 +22,65 @@ interface MobileFoldersPageProps {
 }
 
 export function MobileFoldersPage({ accountId }: MobileFoldersPageProps) {
-  const { accounts, folders, selectedFolder, selectFolder, setFolders } = useMailboxStore();
+  const { accounts, folders, selectedFolder, selectAccount, selectFolder, setFolders, upsertAccount } =
+    useMailboxStore();
 
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
   // 获取当前账户
-  const currentAccount = accounts.find((account) => account.id === accountId);
+  const storeAccount = accounts.find((account) => account.id === accountId) || null;
+  const [currentAccount, setCurrentAccount] = useState(storeAccount);
+  const accountFolders = folders.filter((folder) => folder.account_id === accountId);
+
+  useEffect(() => {
+    if (storeAccount) {
+      setCurrentAccount(storeAccount);
+    }
+  }, [storeAccount]);
 
   // 加载文件夹列表
   useEffect(() => {
-    const loadFolders = async () => {
-      if (!currentAccount) return;
+    let cancelled = false;
 
+    const loadFolders = async () => {
       setIsLoading(true);
       try {
+        let account = storeAccount;
+        if (!account) {
+          const accountResponse = await apiClient.getEmailAccount(accountId);
+          if (accountResponse.success && accountResponse.data) {
+            account = accountResponse.data;
+            upsertAccount(account);
+          }
+        }
+
+        if (!account) return;
+        if (cancelled) return;
+
+        setCurrentAccount(account);
+        selectAccount(account);
+
         const response = await apiClient.getFolders(accountId);
+        if (cancelled) return;
         if (response.success && response.data) {
           setFolders(response.data);
         }
       } catch (error) {
         console.error('Failed to load folders:', error);
       } finally {
-        setIsLoading(false);
+        if (!cancelled) {
+          setIsLoading(false);
+        }
       }
     };
 
     loadFolders();
-  }, [accountId, currentAccount, setFolders]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [accountId, selectAccount, setFolders, storeAccount, upsertAccount]);
 
   // 处理文件夹选择
   const handleFolderSelect = (folder: MailFolder) => {
@@ -93,6 +124,19 @@ export function MobileFoldersPage({ accountId }: MobileFoldersPageProps) {
     }
   };
 
+  if (isLoading) {
+    return (
+      <MobileLayout>
+        <MobilePage>
+          <FoldersHeader accountName={currentAccount?.name || '加载中...'} />
+          <MobileContent>
+            <MobileLoading message="加载文件夹..." />
+          </MobileContent>
+        </MobilePage>
+      </MobileLayout>
+    );
+  }
+
   if (!currentAccount) {
     return (
       <MobileLayout>
@@ -110,32 +154,20 @@ export function MobileFoldersPage({ accountId }: MobileFoldersPageProps) {
     );
   }
 
-  if (isLoading) {
-    return (
-      <MobileLayout>
-        <MobilePage>
-          <FoldersHeader accountName={currentAccount.name} />
-          <MobileContent>
-            <MobileLoading message="加载文件夹..." />
-          </MobileContent>
-        </MobilePage>
-      </MobileLayout>
-    );
-  }
-
   return (
     <MobileLayout>
       <MobilePage>
         <FoldersHeader accountName={currentAccount.name} />
 
         <MobileContent padding={false}>
-          {folders.length > 0 ? (
+          {accountFolders.length > 0 ? (
             <MobileList>
-              {folders.map((folder) => (
+              {accountFolders.map((folder) => (
                 <MobileListItem
                   key={folder.id}
                   onClick={() => handleFolderSelect(folder)}
                   active={selectedFolder?.id === folder.id}
+                  compact={true}
                 >
                   <div className="flex items-center gap-3">
                     {/* 文件夹图标 */}

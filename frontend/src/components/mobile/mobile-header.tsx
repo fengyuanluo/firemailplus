@@ -81,7 +81,7 @@ export function MobileHeader({
   };
 
   return (
-    <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3">
+    <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
       <div className="flex items-start justify-between gap-3">
         {/* 左侧区域 */}
         <div className="flex items-start gap-3 flex-1 min-w-0">

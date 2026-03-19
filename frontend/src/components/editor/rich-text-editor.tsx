@@ -340,17 +340,6 @@ export function RichTextEditor({
             </div>
           )}
       </div>
-
-      {/* 调试信息 */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="text-xs text-gray-500 p-2 border-t">
-          调试: editable={editable.toString()}, attachments.length={attachments.length},
-          attachments=
-          {JSON.stringify(
-            attachments.map((a) => ({ id: a.id, name: a.name, status: a.uploadStatus }))
-          )}
-        </div>
-      )}
     </div>
   );
 }

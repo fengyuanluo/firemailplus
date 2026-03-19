@@ -9,6 +9,7 @@ import { useEffect, useMemo, ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuthStore, useUIStore } from '@/lib/store';
 import { useHydration } from '@/hooks/use-hydration';
+import { useResponsive } from '@/hooks/use-responsive';
 import { HydrationLoader } from '@/components/ui/hydration-loader';
 
 // 路由守卫配置
@@ -39,27 +40,20 @@ export function RouteGuard({ children, config = {} }: RouteGuardProps) {
   const pathname = usePathname();
 
   const { isAuthenticated } = useAuthStore();
-  const { isMobile, setIsMobile } = useUIStore();
+  const { setIsMobile } = useUIStore();
   const { isHydrated } = useHydration();
+  const { isMobile, deviceReady } = useResponsive();
 
-  // 检测移动端状态
+  // 同步全局设备状态，确保只存在一个设备真相源
   useEffect(() => {
-    const checkMobile = () => {
-      const mobile = window.innerWidth < 768;
-      if (isMobile !== mobile) {
-        setIsMobile(mobile);
-      }
-    };
-
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, [isMobile, setIsMobile]);
+    if (!deviceReady) return;
+    setIsMobile(isMobile);
+  }, [deviceReady, isMobile, setIsMobile]);
 
   // 路由保护逻辑
   useEffect(() => {
-    // 只在水合完成后执行重定向逻辑
-    if (!isHydrated) return;
+    // 只在水合完成、设备类型确认后执行重定向逻辑
+    if (!isHydrated || !deviceReady) return;
 
     // 1. 认证检查
     if (finalConfig.requireAuth && !isAuthenticated) {
@@ -111,15 +105,14 @@ export function RouteGuard({ children, config = {} }: RouteGuardProps) {
 
     // 5. 桌面端自动重定向逻辑
     if (!isMobile && pathname.includes('/mobile')) {
-      // 桌面端用户访问移动端页面，重定向到桌面端
-      const desktopPath = pathname.replace('/mobile', '');
-      router.replace(desktopPath || '/mailbox');
+      // 桌面端用户访问移动端页面时，统一回退到安全存在的桌面邮箱首页
+      router.replace('/mailbox');
       return;
     }
-  }, [isHydrated, isAuthenticated, isMobile, pathname, router, finalConfig]);
+  }, [isHydrated, deviceReady, isAuthenticated, isMobile, pathname, router, finalConfig]);
 
   // 水合状态检查
-  if (!isHydrated) {
+  if (!isHydrated || !deviceReady) {
     return <HydrationLoader message="正在初始化应用..." />;
   }
 

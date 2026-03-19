@@ -171,6 +171,10 @@ class ApiClient {
     return this.request('/accounts');
   }
 
+  async getEmailAccount(id: number): Promise<ApiResponse<EmailAccount>> {
+    return this.request(`/accounts/${id}`);
+  }
+
   async createEmailAccount(account: CreateAccountRequest): Promise<ApiResponse<EmailAccount>> {
     return this.request<EmailAccount>('/accounts', {
       method: 'POST',
@@ -460,6 +464,10 @@ class ApiClient {
   async getFolders(accountId?: number): Promise<ApiResponse<Folder[]>> {
     const params = accountId ? `?account_id=${accountId}` : '';
     return this.request(`/folders${params}`);
+  }
+
+  async getFolder(folderId: number): Promise<ApiResponse<Folder>> {
+    return this.request(`/folders/${folderId}`);
   }
 
   async getEmailStats(): Promise<ApiResponse<EmailStats>> {

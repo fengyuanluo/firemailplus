@@ -25,6 +25,7 @@ export type DeviceSize = 'mobile' | 'tablet' | 'desktop';
 interface ResponsiveState {
   width: number;
   height: number;
+  deviceReady: boolean;
   isMobile: boolean;
   isTablet: boolean;
   isDesktop: boolean;
@@ -59,6 +60,7 @@ export function useResponsive() {
       return {
         width: 1024,
         height: 768,
+        deviceReady: false,
         isMobile: false,
         isTablet: false,
         isDesktop: true,
@@ -74,6 +76,7 @@ export function useResponsive() {
     return {
       width,
       height,
+      deviceReady: true,
       ...deviceType,
       currentBreakpoint: getCurrentBreakpoint(width),
       orientation: height > width ? 'portrait' : 'landscape',
@@ -92,6 +95,7 @@ export function useResponsive() {
     setState((prev) => {
       // 只在状态真正改变时更新
       if (
+        prev.deviceReady &&
         prev.width === width &&
         prev.height === height &&
         prev.currentBreakpoint === currentBreakpoint &&
@@ -103,6 +107,7 @@ export function useResponsive() {
       return {
         width,
         height,
+        deviceReady: true,
         ...deviceType,
         currentBreakpoint,
         orientation,
@@ -136,13 +141,14 @@ export function useResponsive() {
 
 // 移动端检测Hook
 export function useIsMobile() {
-  const { isMobile } = useResponsive();
+  const { isMobile, deviceReady } = useResponsive();
   const { setIsMobile } = useUIStore();
 
   // 同步到全局状态
   useEffect(() => {
+    if (!deviceReady) return;
     setIsMobile(isMobile);
-  }, [isMobile, setIsMobile]);
+  }, [deviceReady, isMobile, setIsMobile]);
 
   return isMobile;
 }

@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { useMailboxStore, useComposeStore } from '@/lib/store';
-import { MobileLayout, MobilePage, MobileContent } from './mobile-layout';
+import { MobileLayout, MobilePage, MobileContent, MobileLoading } from './mobile-layout';
 import { ComposeHeader } from './mobile-header';
 import { RecipientInput } from '@/components/compose/recipient-input';
 import { RichTextEditor } from '@/components/editor/rich-text-editor';
@@ -23,7 +23,12 @@ import { apiClient } from '@/lib/api';
 export function MobileComposePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { emails, accounts, selectedEmail } = useMailboxStore();
+  const replyId = searchParams.get('reply');
+  const replyAllId = searchParams.get('replyAll');
+  const forwardId = searchParams.get('forward');
+  const initializationKey = `${replyId || ''}|${replyAllId || ''}|${forwardId || ''}`;
+
+  const { emails, accounts, selectedEmail, upsertAccount, upsertEmail } = useMailboxStore();
   const {
     mode,
     originalEmailId,
@@ -44,48 +49,98 @@ export function MobileComposePage() {
   const [showCc, setShowCc] = useState(false);
   const [showBcc, setShowBcc] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
+  const initializedKeyRef = useRef<string | null>(null);
+  const selectedAccount = accounts.find((account) => account.id === draft.accountId);
 
   // 初始化邮件内容（回复、转发等）
   useEffect(() => {
-    const replyId = searchParams.get('reply');
-    const replyAllId = searchParams.get('replyAll');
-    const forwardId = searchParams.get('forward');
-
-    if (replyId || replyAllId || forwardId) {
-      const emailId = parseInt(replyId || replyAllId || forwardId || '0');
-      // 优先从emails数组查找，如果找不到则从selectedEmail查找
-      let originalEmail = emails.find((email) => email.id === emailId);
-
-      // 如果emails数组中找不到，但selectedEmail的ID匹配，则使用selectedEmail
-      if (!originalEmail && selectedEmail && selectedEmail.id === emailId) {
-        originalEmail = selectedEmail;
-      }
-
-      if (originalEmail) {
-        if (replyId) {
-          initializeReply(originalEmail);
-        } else if (replyAllId) {
-          initializeReplyAll(originalEmail);
-        } else if (forwardId) {
-          initializeForward(originalEmail);
-        }
-      } else {
-        toast.error('找不到原邮件');
-        router.back();
-      }
-    } else {
-      // 普通写信模式
-      openCompose();
+    if (initializedKeyRef.current === initializationKey) {
+      return;
     }
+
+    let cancelled = false;
+
+    const initializeComposeState = async () => {
+      setIsInitializing(true);
+
+      try {
+        if (replyId || replyAllId || forwardId) {
+          const emailId = parseInt(replyId || replyAllId || forwardId || '0', 10);
+
+          if (Number.isNaN(emailId) || emailId <= 0) {
+            throw new Error('原邮件ID无效');
+          }
+
+          let originalEmail =
+            emails.find((email) => email.id === emailId) ||
+            (selectedEmail?.id === emailId ? selectedEmail : undefined);
+
+          if (!originalEmail) {
+            const response = await apiClient.getEmailDetail(emailId);
+            if (response.success && response.data) {
+              originalEmail = response.data;
+              upsertEmail(response.data);
+            }
+          }
+
+          if (!originalEmail) {
+            throw new Error('找不到原邮件');
+          }
+
+          if (cancelled) return;
+
+          if (!accounts.some((account) => account.id === originalEmail.account_id)) {
+            const accountResponse = await apiClient.getEmailAccount(originalEmail.account_id);
+            if (accountResponse.success && accountResponse.data) {
+              upsertAccount(accountResponse.data);
+            }
+          }
+
+          if (cancelled) return;
+
+          if (replyId) {
+            initializeReply(originalEmail);
+          } else if (replyAllId) {
+            initializeReplyAll(originalEmail);
+          } else if (forwardId) {
+            initializeForward(originalEmail);
+          }
+        } else {
+          openCompose();
+        }
+
+        initializedKeyRef.current = initializationKey;
+      } catch (error) {
+        console.error('初始化移动写信页失败:', error);
+        toast.error(error instanceof Error ? error.message : '初始化写信页面失败');
+        router.replace('/mailbox/mobile');
+      } finally {
+        if (!cancelled) {
+          setIsInitializing(false);
+        }
+      }
+    };
+
+    initializeComposeState();
+
+    return () => {
+      cancelled = true;
+    };
   }, [
-    searchParams,
     emails,
+    forwardId,
     selectedEmail,
     initializeReply,
     initializeReplyAll,
     initializeForward,
+    initializationKey,
     openCompose,
     router,
+    replyAllId,
+    replyId,
+    upsertAccount,
+    upsertEmail,
   ]);
 
   // 显示CC/BCC的逻辑
@@ -215,6 +270,19 @@ export function MobileComposePage() {
     }
   };
 
+  if (isInitializing) {
+    return (
+      <MobileLayout>
+        <MobilePage>
+          <ComposeHeader />
+          <MobileContent>
+            <MobileLoading message="初始化写信页面..." />
+          </MobileContent>
+        </MobilePage>
+      </MobileLayout>
+    );
+  }
+
   return (
     <MobileLayout>
       <MobilePage>
@@ -236,7 +304,14 @@ export function MobileComposePage() {
                   onValueChange={(value) => updateDraft({ accountId: parseInt(value) })}
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="选择发件人账户" />
+                    {selectedAccount ? (
+                      <div className="flex flex-col items-start text-left">
+                        <span className="font-medium">{selectedAccount.name || selectedAccount.email}</span>
+                        <span className="text-xs text-gray-500">({selectedAccount.email})</span>
+                      </div>
+                    ) : (
+                      <SelectValue placeholder="选择发件人账户" />
+                    )}
                   </SelectTrigger>
                   <SelectContent>
                     {accounts.map((account) => (

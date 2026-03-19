@@ -75,6 +75,7 @@ interface MailboxState {
 
   // 账户操作
   setAccounts: (accounts: EmailAccount[]) => void;
+  upsertAccount: (account: EmailAccount) => void;
   addAccount: (account: EmailAccount) => void;
   updateAccount: (account: EmailAccount) => void;
   removeAccount: (id: number) => void;
@@ -89,11 +90,13 @@ interface MailboxState {
 
   // 文件夹操作
   setFolders: (folders: Folder[]) => void;
+  upsertFolder: (folder: Folder) => void;
   selectFolder: (folder: Folder | null) => void;
   toggleFolderExpansion: (folderId: number) => void;
 
   // 邮件操作
   setEmails: (emails: Email[]) => void;
+  upsertEmail: (email: Email) => void;
   appendEmails: (emails: Email[]) => void;
   addEmail: (email: Email) => void;
   updateEmail: (id: number, updates: Partial<Email>) => void;
@@ -169,6 +172,17 @@ export const useMailboxStore = create<MailboxState>((set) => ({
 
   // 账户操作
   setAccounts: (accounts) => set({ accounts }),
+  upsertAccount: (account) =>
+    set((state) => {
+      const existingAccount = state.accounts.find((acc) => acc.id === account.id);
+      return {
+        accounts: existingAccount
+          ? state.accounts.map((acc) => (acc.id === account.id ? account : acc))
+          : [...state.accounts, account],
+        selectedAccount:
+          state.selectedAccount?.id === account.id ? account : state.selectedAccount,
+      };
+    }),
   addAccount: (account) =>
     set((state) => ({
       accounts: [...state.accounts, account],
@@ -238,6 +252,16 @@ export const useMailboxStore = create<MailboxState>((set) => ({
 
   // 文件夹操作
   setFolders: (folders) => set({ folders }),
+  upsertFolder: (folder) =>
+    set((state) => {
+      const existingFolder = state.folders.find((item) => item.id === folder.id);
+      return {
+        folders: existingFolder
+          ? state.folders.map((item) => (item.id === folder.id ? folder : item))
+          : [...state.folders, folder],
+        selectedFolder: state.selectedFolder?.id === folder.id ? folder : state.selectedFolder,
+      };
+    }),
   selectFolder: (folder) =>
     set((state) => {
       // 如果选择了文件夹，需要确保有对应的账户被选中
@@ -269,6 +293,16 @@ export const useMailboxStore = create<MailboxState>((set) => ({
 
   // 邮件操作
   setEmails: (emails) => set({ emails }),
+  upsertEmail: (email) =>
+    set((state) => {
+      const existingEmail = state.emails.find((item) => item.id === email.id);
+      return {
+        emails: existingEmail
+          ? state.emails.map((item) => (item.id === email.id ? email : item))
+          : [email, ...state.emails],
+        selectedEmail: state.selectedEmail?.id === email.id ? email : state.selectedEmail,
+      };
+    }),
   appendEmails: (newEmails) =>
     set((state) => {
       // 过滤重复邮件，避免重复添加

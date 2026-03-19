@@ -3,9 +3,10 @@
 import { useEffect, useCallback, type ReactNode } from 'react';
 import { useUIStore, useMailboxStore } from '@/lib/store';
 import { useRouteSync, useRouteStatePersist } from '@/hooks/use-route-sync';
-import { useIsMobile } from '@/hooks/use-responsive';
+import { useResponsive } from '@/hooks/use-responsive';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { useMailboxSSE } from '@/hooks/use-sse';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { SearchBar } from './search-bar';
 import { LeftSidebar } from './left-sidebar';
 import { EmailList } from './email-list';
@@ -20,7 +21,7 @@ interface MailboxLayoutProps {
 }
 
 export function MailboxLayout({ header, children, showSidebar = true }: MailboxLayoutProps) {
-  const isMobile = useIsMobile(); // 使用统一的响应式Hook
+  const { isMobile, isTablet } = useResponsive();
   const { sidebarOpen, sidebarOpenMobile, toggleSidebar, setSidebarOpen } = useUIStore();
   const {
     emails,
@@ -150,7 +151,7 @@ export function MailboxLayout({ header, children, showSidebar = true }: MailboxL
                 ? `fixed left-0 top-0 h-full w-80 z-50 transform transition-transform duration-300 ${
                     currentSidebarOpen ? 'translate-x-0' : '-translate-x-full'
                   }`
-                : `w-80 ${currentSidebarOpen ? 'block' : 'hidden'}`
+                : `${isTablet ? 'w-72' : 'w-80'} ${currentSidebarOpen ? 'block' : 'hidden'}`
             }
           `}
           >
@@ -168,7 +169,13 @@ export function MailboxLayout({ header, children, showSidebar = true }: MailboxL
                 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700
                 ${isMobile ? 'w-full' : 'flex-shrink-0'}
               `}
-                style={{ flex: isMobile ? 'none' : '1.5', minWidth: '300px', maxWidth: '400px' }}
+                style={
+                  isMobile
+                    ? undefined
+                    : isTablet
+                      ? { flex: '1 1 auto', minWidth: 0, maxWidth: 'none' }
+                      : { flex: '1.5', minWidth: '300px', maxWidth: '400px' }
+                }
               >
                 <EmailList
                   selectedEmailId={selectedEmail?.id}
@@ -181,7 +188,7 @@ export function MailboxLayout({ header, children, showSidebar = true }: MailboxL
               <div
                 className={`
                 flex-1 bg-white dark:bg-gray-800
-                ${isMobile ? 'hidden' : 'block'}
+                ${isMobile || isTablet ? 'hidden' : 'block'}
               `}
                 style={{ flex: '3.5' }}
               >
@@ -193,6 +200,19 @@ export function MailboxLayout({ header, children, showSidebar = true }: MailboxL
           )}
         </div>
       </div>
+
+      {isTablet && (
+        <Sheet open={!!selectedEmail} onOpenChange={(open) => !open && selectEmail(null)}>
+          <SheetContent side="right" className="w-full sm:max-w-2xl p-0">
+            <SheetHeader className="sr-only">
+              <SheetTitle>邮件详情</SheetTitle>
+            </SheetHeader>
+            <div className="h-full bg-white dark:bg-gray-800">
+              <EmailDetail />
+            </div>
+          </SheetContent>
+        </Sheet>
+      )}
 
       {/* 写信弹窗 */}
       <ComposeModal />

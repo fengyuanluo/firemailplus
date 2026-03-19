@@ -72,6 +72,7 @@ interface MobileListItemProps {
   onClick?: () => void;
   className?: string;
   active?: boolean;
+  compact?: boolean;
 }
 
 export function MobileListItem({
@@ -79,12 +80,13 @@ export function MobileListItem({
   onClick,
   className = '',
   active = false,
+  compact = false,
 }: MobileListItemProps) {
   return (
     <div
       onClick={onClick}
       className={`
-        px-4 py-4 cursor-pointer transition-colors duration-150
+        ${compact ? 'px-4 py-3' : 'px-4 py-4'} cursor-pointer transition-colors duration-150
         hover:bg-gray-50 dark:hover:bg-gray-750
         ${active ? 'bg-blue-50 dark:bg-blue-900/20 border-r-2 border-blue-500' : ''}
         ${className}

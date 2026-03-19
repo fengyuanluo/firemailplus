@@ -34,10 +34,10 @@ export default function LoginPage() {
   return (
     <AuthRoute>
       <div className="min-h-screen flex items-center justify-center bg-white dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-md w-full space-y-16">
+        <div className="max-w-md w-full space-y-10 sm:space-y-12 md:space-y-16">
           {/* 艺术字标题 */}
           <div className="text-center">
-            <h1 className="text-8xl font-light text-gray-900 dark:text-gray-100 mb-4 tracking-wider">
+            <h1 className="text-5xl sm:text-6xl md:text-8xl font-light text-gray-900 dark:text-gray-100 mb-4 tracking-wider">
               花火邮箱
             </h1>
             <div className="w-16 h-px bg-gray-400 dark:bg-gray-600 mx-auto"></div>
@@ -45,7 +45,7 @@ export default function LoginPage() {
 
           {/* 登录卡片 */}
           <Card className="border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
-            <CardContent className="pt-8 pb-8 px-8">
+            <CardContent className="pt-6 pb-6 px-6 sm:pt-8 sm:pb-8 sm:px-8">
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
                 <div className="space-y-4">
                   <Input

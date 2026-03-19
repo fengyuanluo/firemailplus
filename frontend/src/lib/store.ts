@@ -372,6 +372,7 @@ export const useComposeStore = create<ComposeState>()(
           mode: 'reply',
           originalEmailId: originalEmail.id,
           draft: {
+            accountId: originalEmail.account_id,
             to: replyTo,
             cc: [],
             bcc: [],
@@ -426,6 +427,7 @@ export const useComposeStore = create<ComposeState>()(
           mode: 'replyAll',
           originalEmailId: originalEmail.id,
           draft: {
+            accountId: originalEmail.account_id,
             to: replyTo,
             cc: replyCc,
             bcc: [],
@@ -481,6 +483,7 @@ ${originalContent}`;
           mode: 'forward',
           originalEmailId: originalEmail.id,
           draft: {
+            accountId: originalEmail.account_id,
             to: [],
             cc: [],
             bcc: [],

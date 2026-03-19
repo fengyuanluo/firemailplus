@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useMobileNavigation } from '@/hooks/use-mobile-navigation';
-import { Reply, Forward, Star, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Reply, Forward, Star, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useMailboxStore } from '@/lib/store';
 import {
@@ -17,14 +17,20 @@ import { EmailDetail } from '@/components/mailbox/email-detail';
 import { apiClient } from '@/lib/api';
 import { toast } from 'sonner';
 import { LanguageCode } from '@/lib/translate';
-import type { Email } from '@/types/email';
+import {
+  formatEmailAddress,
+  parseEmailAddress,
+  parseEmailAddresses,
+  type Email,
+  type EmailAddress,
+} from '@/types/email';
 
 interface MobileEmailDetailPageProps {
   emailId: number;
 }
 
 export function MobileEmailDetailPage({ emailId }: MobileEmailDetailPageProps) {
-  const { emails, selectEmail, removeEmail, updateEmail } = useMailboxStore();
+  const { emails, selectEmail, removeEmail, updateEmail, upsertEmail } = useMailboxStore();
 
   const [isLoading, setIsLoading] = useState(true);
   const [emailDetail, setEmailDetail] = useState<Email | null>(null);
@@ -51,6 +57,7 @@ export function MobileEmailDetailPage({ emailId }: MobileEmailDetailPageProps) {
           const response = await apiClient.getEmailDetail(emailId);
           if (response.success && response.data) {
             setEmailDetail(response.data);
+            upsertEmail(response.data);
             selectEmail(response.data);
           }
         }
@@ -62,7 +69,7 @@ export function MobileEmailDetailPage({ emailId }: MobileEmailDetailPageProps) {
     };
 
     loadEmailDetail();
-  }, [emailId, emails, selectEmail]);
+  }, [emailId, emails, selectEmail, upsertEmail]);
 
   // 处理回复
   const handleReply = () => {
@@ -204,13 +211,18 @@ export function MobileEmailDetailPage({ emailId }: MobileEmailDetailPageProps) {
 
         {/* 邮件详情内容 */}
         <MobileContent padding={false} className="flex-1">
-          <EmailDetail
-            email={emailDetail}
-            hideHeader={true}
-            translationLang={currentTranslationLang}
-            isTranslating={isTranslating}
-            onTranslationComplete={handleTranslationComplete}
-          />
+          <div className="flex h-full flex-col">
+            <MobileEmailMetadata email={emailDetail} />
+            <div className="flex-1 min-h-0">
+              <EmailDetail
+                email={emailDetail}
+                hideHeader={true}
+                translationLang={currentTranslationLang}
+                isTranslating={isTranslating}
+                onTranslationComplete={handleTranslationComplete}
+              />
+            </div>
+          </div>
         </MobileContent>
 
         {/* 底部操作栏 - 优化为4个最常用功能 */}
@@ -261,5 +273,104 @@ export function MobileEmailDetailPage({ emailId }: MobileEmailDetailPageProps) {
         </div>
       </MobilePage>
     </MobileLayout>
+  );
+}
+
+function MobileEmailMetadata({ email }: { email: Email }) {
+  const [showRecipients, setShowRecipients] = useState(false);
+
+  const fromAddress = parseEmailAddress(email.from);
+  const toAddresses = parseEmailAddresses(email.to || '');
+  const ccAddresses = parseEmailAddresses(email.cc || '');
+
+  const formatDateTime = (dateString: string) => {
+    const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) {
+      return dateString;
+    }
+
+    return date.toLocaleString('zh-CN', {
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const formatAddressList = (addresses: EmailAddress[], limit?: number) => {
+    if (addresses.length === 0) return '';
+
+    const visibleAddresses = typeof limit === 'number' ? addresses.slice(0, limit) : addresses;
+    const formatted = visibleAddresses.map((address) => formatEmailAddress(address)).join(', ');
+
+    if (typeof limit === 'number' && addresses.length > limit) {
+      return `${formatted} 等${addresses.length}人`;
+    }
+
+    return formatted;
+  };
+
+  const hasExtraRecipients = toAddresses.length > 1 || ccAddresses.length > 0;
+
+  return (
+    <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3 space-y-2">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">发件人</div>
+          <div className="text-sm font-medium text-gray-900 dark:text-gray-100 break-words">
+            {fromAddress ? formatEmailAddress(fromAddress) : email.from}
+          </div>
+        </div>
+
+        <div className="text-right flex-shrink-0">
+          <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">时间</div>
+          <div className="text-sm text-gray-700 dark:text-gray-300">{formatDateTime(email.date)}</div>
+        </div>
+      </div>
+
+      {toAddresses.length > 0 && (
+        <div className="rounded-lg bg-gray-50 dark:bg-gray-900/40 px-3 py-2">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">收件人</div>
+              <div className="text-sm text-gray-700 dark:text-gray-300 break-words">
+                {showRecipients ? formatAddressList(toAddresses) : formatAddressList(toAddresses, 1)}
+              </div>
+            </div>
+
+            {hasExtraRecipients && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowRecipients((prev) => !prev)}
+                className="h-8 px-2 text-xs text-gray-500"
+              >
+                {showRecipients ? (
+                  <>
+                    收起
+                    <ChevronUp className="w-4 h-4 ml-1" />
+                  </>
+                ) : (
+                  <>
+                    展开
+                    <ChevronDown className="w-4 h-4 ml-1" />
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
+
+          {showRecipients && ccAddresses.length > 0 && (
+            <div className="mt-2 border-t border-gray-200 dark:border-gray-700 pt-2">
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">抄送</div>
+              <div className="text-sm text-gray-700 dark:text-gray-300 break-words">
+                {formatAddressList(ccAddresses)}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

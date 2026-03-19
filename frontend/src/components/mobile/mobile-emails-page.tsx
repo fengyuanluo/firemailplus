@@ -16,17 +16,27 @@ import {
 } from './mobile-layout';
 import { EmailsHeader } from './mobile-header';
 import { apiClient } from '@/lib/api';
-import { parseEmailAddress, getEmailPreview, type Email } from '@/types/email';
+import { parseEmailAddress, getEmailPreview, type Email, type Folder as MailFolder } from '@/types/email';
 import { toast } from 'sonner';
 import { useMobileNavigation } from '@/hooks/use-mobile-navigation';
 import { useSwipeActions } from '@/hooks/use-swipe-actions';
+import { formatMobileEmailListTime } from '@/lib/date-utils';
 
 interface MobileEmailsPageProps {
   folderId: number;
 }
 
 export function MobileEmailsPage({ folderId }: MobileEmailsPageProps) {
-  const { folders, selectedEmail, selectEmail, setEmails } = useMailboxStore();
+  const {
+    accounts,
+    folders,
+    selectedEmail,
+    selectEmail,
+    selectFolder,
+    setEmails,
+    upsertAccount,
+    upsertFolder,
+  } = useMailboxStore();
 
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -37,7 +47,14 @@ export function MobileEmailsPage({ folderId }: MobileEmailsPageProps) {
   const router = useRouter();
 
   // 获取当前文件夹
-  const currentFolder = folders.find((folder) => folder.id === folderId);
+  const storeFolder = folders.find((folder) => folder.id === folderId) || null;
+  const [currentFolder, setCurrentFolder] = useState<MailFolder | null>(storeFolder);
+
+  useEffect(() => {
+    if (storeFolder) {
+      setCurrentFolder(storeFolder);
+    }
+  }, [storeFolder]);
 
   // 加载邮件列表
   const loadEmails = useCallback(async (page: number = 1, append: boolean = false) => {
@@ -75,12 +92,56 @@ export function MobileEmailsPage({ folderId }: MobileEmailsPageProps) {
   }, [folderId, setEmails]);
 
   useEffect(() => {
-    if (currentFolder) {
+    let cancelled = false;
+
+    const bootstrapFolderAndEmails = async () => {
+      let requestedEmails = false;
+
       setCurrentPage(1);
       setHasMore(true);
-      loadEmails(1, false);
-    }
-  }, [currentFolder, loadEmails]);
+      setOpenSwipeEmailId(null);
+      setIsLoading(true);
+
+      try {
+        let folder = storeFolder;
+        if (!folder) {
+          const folderResponse = await apiClient.getFolder(folderId);
+          if (folderResponse.success && folderResponse.data) {
+            folder = folderResponse.data;
+            upsertFolder(folder);
+          }
+        }
+
+        if (!folder || cancelled) return;
+
+        if (!accounts.some((account) => account.id === folder.account_id)) {
+          const accountResponse = await apiClient.getEmailAccount(folder.account_id);
+          if (accountResponse.success && accountResponse.data) {
+            upsertAccount(accountResponse.data);
+          }
+        }
+
+        if (cancelled) return;
+
+        setCurrentFolder(folder);
+        selectFolder(folder);
+        requestedEmails = true;
+        await loadEmails(1, false);
+      } catch (error) {
+        console.error('Failed to bootstrap folder emails:', error);
+      } finally {
+        if (!cancelled && !requestedEmails) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    bootstrapFolderAndEmails();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [accounts, folderId, loadEmails, selectFolder, storeFolder, upsertAccount, upsertFolder]);
 
   // 处理邮件选择
   const handleEmailSelect = (email: Email) => {
@@ -110,6 +171,19 @@ export function MobileEmailsPage({ folderId }: MobileEmailsPageProps) {
     }
   };
 
+  if (isLoading) {
+    return (
+      <MobileLayout>
+        <MobilePage>
+          <EmailsHeader folderName={currentFolder?.display_name || currentFolder?.name || '加载中...'} />
+          <MobileContent>
+            <MobileLoading message="加载邮件列表..." />
+          </MobileContent>
+        </MobilePage>
+      </MobileLayout>
+    );
+  }
+
   if (!currentFolder) {
     return (
       <MobileLayout>
@@ -121,19 +195,6 @@ export function MobileEmailsPage({ folderId }: MobileEmailsPageProps) {
               title="文件夹不存在"
               description="请返回选择有效的文件夹"
             />
-          </MobileContent>
-        </MobilePage>
-      </MobileLayout>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <MobileLayout>
-        <MobilePage>
-          <EmailsHeader folderName={currentFolder.display_name || currentFolder.name} />
-          <MobileContent>
-            <MobileLoading message="加载邮件列表..." />
           </MobileContent>
         </MobilePage>
       </MobileLayout>
@@ -224,6 +285,8 @@ function MobileEmailItem({
     itemId: email.id,
     isSwipeOpen,
     onSwipeStateChange,
+    swipeDistance: 176,
+    threshold: -88,
   });
 
   // 邮件操作函数
@@ -296,30 +359,6 @@ function MobileEmailItem({
   // 获取邮件预览
   const preview = getEmailPreview(email);
 
-  // 格式化时间
-  const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-
-    if (days === 0) {
-      return date.toLocaleTimeString('zh-CN', {
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    } else if (days === 1) {
-      return '昨天';
-    } else if (days < 7) {
-      return `${days}天前`;
-    } else {
-      return date.toLocaleDateString('zh-CN', {
-        month: 'short',
-        day: 'numeric',
-      });
-    }
-  };
-
   return (
     <div className="relative overflow-hidden">
       {/* 主要内容 */}
@@ -343,6 +382,7 @@ function MobileEmailItem({
         <MobileListItem
           onClick={handleItemClick}
           active={isSelected}
+          compact={true}
           className={`${!email.is_read ? 'bg-blue-50 dark:bg-blue-900/10' : ''}`}
         >
           <div className="flex gap-3">
@@ -369,7 +409,7 @@ function MobileEmailItem({
 
                 <div className="flex items-center gap-1 flex-shrink-0 ml-2">
                   <span className="text-xs text-gray-500 dark:text-gray-400">
-                    {formatTime(email.date)}
+                    {formatMobileEmailListTime(email.date)}
                   </span>
 
                   {/* 状态图标 */}
@@ -407,14 +447,14 @@ function MobileEmailItem({
       <div
         ref={actionsRef}
         className="absolute top-0 right-0 h-full flex items-center z-0"
-        style={{ width: '120px' }}
+        style={{ width: '176px' }}
       >
         <Button
           variant="ghost"
           size="sm"
           onClick={handleReply}
-          className="h-full w-7.5 rounded-none bg-blue-500 hover:bg-blue-600 text-white flex flex-col items-center justify-center"
-          style={{ width: '30px' }}
+          className="h-full rounded-none bg-blue-500 hover:bg-blue-600 text-white flex flex-col items-center justify-center"
+          style={{ width: '44px' }}
         >
           <Reply className="w-4 h-4" />
         </Button>
@@ -425,7 +465,7 @@ function MobileEmailItem({
           className={`h-full rounded-none ${
             email.is_starred ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-gray-500 hover:bg-gray-600'
           } text-white flex flex-col items-center justify-center`}
-          style={{ width: '30px' }}
+          style={{ width: '44px' }}
         >
           <Star className={`w-4 h-4 ${email.is_starred ? 'fill-current' : ''}`} />
         </Button>
@@ -434,7 +474,7 @@ function MobileEmailItem({
           size="sm"
           onClick={handleArchive}
           className="h-full rounded-none bg-green-500 hover:bg-green-600 text-white flex flex-col items-center justify-center"
-          style={{ width: '30px' }}
+          style={{ width: '44px' }}
         >
           <Archive className="w-4 h-4" />
         </Button>
@@ -443,7 +483,7 @@ function MobileEmailItem({
           size="sm"
           onClick={handleDelete}
           className="h-full rounded-none bg-red-500 hover:bg-red-600 text-white flex flex-col items-center justify-center"
-          style={{ width: '30px' }}
+          style={{ width: '44px' }}
         >
           <Trash2 className="w-4 h-4" />
         </Button>

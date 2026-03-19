@@ -11,13 +11,14 @@ import {
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { SearchBar } from './search-bar';
 import { SearchFilters } from './search-filters';
 import { EmailList } from './email-list';
 import { EmailDetail } from './email-detail';
 import { LoadingSkeleton } from './loading-skeleton';
 import { useSearchEmails, type SearchParams } from '@/hooks/use-search-emails';
-import { useIsMobile } from '@/hooks/use-responsive';
+import { useIsMobile, useResponsive } from '@/hooks/use-responsive';
 
 function useSearchResultsState() {
   const searchParams = useSearchParams();
@@ -44,6 +45,7 @@ function useSearchResultsState() {
     updateFilters,
     changePage,
     selectSearchEmail,
+    clearSelectedSearchEmail,
   } = useSearchEmails();
 
   // 调试信息：监控搜索状态变化（仅开发环境）
@@ -133,6 +135,7 @@ function useSearchResultsState() {
     handleSearch,
     handleEmailSelect,
     handlePageChange,
+    clearSelectedSearchEmail,
   };
 }
 
@@ -200,20 +203,28 @@ export function SearchResultsContent() {
     totalPages,
     total,
     currentQuery,
+    clearSelectedSearchEmail,
     handleFiltersChange,
     handleEmailSelect,
     handlePageChange,
   } = useSearchResultsContext();
+  const { isTablet, isDesktop } = useResponsive();
 
   return (
     <>
       {/* 左侧筛选条件 - 1/5宽度，移动端隐藏 */}
-      <div className="hidden lg:block w-1/5 min-w-[250px] flex-shrink-0 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700">
-        <SearchFilters onFiltersChange={handleFiltersChange} />
-      </div>
+      {isDesktop && (
+        <div className="hidden lg:block w-1/5 min-w-[250px] flex-shrink-0 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700">
+          <SearchFilters onFiltersChange={handleFiltersChange} />
+        </div>
+      )}
 
       {/* 中间邮件列表 - 1/5宽度，移动端全宽 */}
-      <div className="w-full lg:w-1/5 min-w-[250px] lg:max-w-[350px] flex-shrink-0 border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+      <div
+        className={`border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 ${
+          isDesktop ? 'w-full lg:w-1/5 min-w-[250px] lg:max-w-[350px] flex-shrink-0' : 'flex-1 min-w-0 w-full'
+        }`}
+      >
         {isLoading ? (
           <div className="p-4">
             <LoadingSkeleton />
@@ -272,37 +283,52 @@ export function SearchResultsContent() {
       </div>
 
       {/* 右侧邮件详情 - 3/5宽度，移动端隐藏 */}
-      <div className="hidden lg:block flex-1 bg-white dark:bg-gray-800">
-        {selectedEmail ? (
-          <EmailDetail email={selectedEmail} />
-        ) : (
-          <div className="h-full flex items-center justify-center">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg
-                  className="w-8 h-8 text-gray-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                  />
-                </svg>
+      {isDesktop && (
+        <div className="hidden lg:block flex-1 bg-white dark:bg-gray-800">
+          {selectedEmail ? (
+            <EmailDetail email={selectedEmail} />
+          ) : (
+            <div className="h-full flex items-center justify-center">
+              <div className="text-center">
+                <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg
+                    className="w-8 h-8 text-gray-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                    />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
+                  选择邮件查看详情
+                </h3>
+                <p className="text-gray-500 dark:text-gray-400">
+                  从左侧列表中选择一封邮件来查看详细内容
+                </p>
               </div>
-              <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
-                选择邮件查看详情
-              </h3>
-              <p className="text-gray-500 dark:text-gray-400">
-                从左侧列表中选择一封邮件来查看详细内容
-              </p>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
+
+      {isTablet && (
+        <Sheet open={!!selectedEmail} onOpenChange={(open) => !open && clearSelectedSearchEmail()}>
+          <SheetContent side="right" className="w-full sm:max-w-2xl p-0">
+            <SheetHeader className="sr-only">
+              <SheetTitle>搜索结果邮件详情</SheetTitle>
+            </SheetHeader>
+            <div className="h-full bg-white dark:bg-gray-800">
+              {selectedEmail && <EmailDetail email={selectedEmail} />}
+            </div>
+          </SheetContent>
+        </Sheet>
+      )}
     </>
   );
 }

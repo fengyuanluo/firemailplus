@@ -197,6 +197,11 @@ export function useSearchEmails() {
     setSelectedEmailId(null);
   }, []);
 
+  const clearSelectedSearchEmail = useCallback(() => {
+    setSelectedEmailId(null);
+    selectEmail(null);
+  }, [selectEmail]);
+
   return {
     // 搜索状态
     searchParams,
@@ -219,6 +224,7 @@ export function useSearchEmails() {
     updateFilters,
     changePage,
     selectSearchEmail,
+    clearSelectedSearchEmail,
     clearSearch,
     refetch,
   };
