@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS idx_email_accounts_user_email_provider_unique;

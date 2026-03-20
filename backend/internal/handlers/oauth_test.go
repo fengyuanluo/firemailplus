@@ -2,8 +2,12 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +15,7 @@ import (
 	"firemail/internal/providers"
 	"firemail/internal/services"
 
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -133,4 +138,35 @@ func TestCreateOAuthAccountWithGroupRejectsInvalidGroupWithoutCreatingAccount(t 
 	var count int64
 	require.NoError(t, env.db.Model(&models.EmailAccount{}).Where("user_id = ?", env.user.ID).Count(&count).Error)
 	require.Equal(t, int64(0), count)
+}
+
+func TestCreateManualOAuth2AccountReturnsConflictOnDuplicate(t *testing.T) {
+	env := setupOAuthHandlerTestEnv(t)
+	_ = env.ensureDefaultGroup(t)
+	existing := env.newOAuthAccount(t, "duplicate@gmail.com")
+	require.NoError(t, env.db.Create(existing).Error)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	body := `{
+		"name":"duplicate@gmail.com",
+		"email":"duplicate@gmail.com",
+		"provider":"gmail",
+		"client_id":"client-id",
+		"client_secret":"client-secret",
+		"refresh_token":"refresh-token"
+	}`
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/oauth/manual-config", strings.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
+	c.Request = request
+	c.Set("userID", env.user.ID)
+
+	env.handler.CreateManualOAuth2Account(c)
+
+	require.Equal(t, http.StatusConflict, recorder.Code)
+
+	var response ErrorResponse
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &response))
+	require.Contains(t, response.Message, "该邮箱账户已存在")
 }

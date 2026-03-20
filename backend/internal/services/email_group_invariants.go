@@ -50,13 +50,7 @@ func RepairEmailGroupInvariantsForUser(ctx context.Context, db *gorm.DB, userID 
 		placeholderGroup := findDefaultPlaceholderGroup(groups)
 
 		if placeholderGroup == nil {
-			for i := range groups {
-				group := &groups[i]
-				if group.IsDefault && isHistoricalDefaultPlaceholderName(group.Name) {
-					placeholderGroup = group
-					break
-				}
-			}
+			placeholderGroup = findHistoricalDefaultPlaceholderGroup(groups)
 		}
 
 		if placeholderGroup != nil && !isDefaultPlaceholderSystemGroup(placeholderGroup) {
@@ -99,6 +93,8 @@ func RepairEmailGroupInvariantsForUser(ctx context.Context, db *gorm.DB, userID 
 			}
 		}
 
+		sourceGroupIDs := collectSystemManagedSourceGroupIDs(groups, defaultGroup.ID)
+
 		// 若存在多个默认分组，保留 canonical default，其他取消默认标记
 		if err := tx.Model(&models.EmailGroup{}).
 			Where("user_id = ? AND id != ? AND is_default = 1", userID, defaultGroup.ID).
@@ -121,6 +117,14 @@ func RepairEmailGroupInvariantsForUser(ctx context.Context, db *gorm.DB, userID 
 			Where("user_id = ? AND group_id IS NULL", userID).
 			Update("group_id", defaultGroup.ID).Error; err != nil {
 			return fmt.Errorf("failed to repair ungrouped email accounts: %w", err)
+		}
+
+		if len(sourceGroupIDs) > 0 {
+			if err := tx.Model(&models.EmailAccount{}).
+				Where("user_id = ? AND group_id IN ?", userID, sourceGroupIDs).
+				Update("group_id", defaultGroup.ID).Error; err != nil {
+				return fmt.Errorf("failed to move accounts from demoted system/default groups: %w", err)
+			}
 		}
 
 		return nil
@@ -165,6 +169,18 @@ func ValidateEmailGroupInvariantsForUser(ctx context.Context, db *gorm.DB, userI
 		return fmt.Errorf("%w: 系统占位分组数量异常（期望至多 1，实际 %d）", ErrEmailGroupInvariantViolation, placeholderCount)
 	}
 
+	var hiddenSystemGroupAccountCount int64
+	if err := db.WithContext(ctx).
+		Model(&models.EmailAccount{}).
+		Joins("JOIN email_groups ON email_groups.id = email_accounts.group_id").
+		Where("email_accounts.user_id = ? AND email_groups.system_key IS NOT NULL AND email_groups.is_default = 0", userID).
+		Count(&hiddenSystemGroupAccountCount).Error; err != nil {
+		return fmt.Errorf("failed to validate hidden system group assignments: %w", err)
+	}
+	if hiddenSystemGroupAccountCount != 0 {
+		return fmt.Errorf("%w: 存在 %d 个邮箱账户挂在隐藏系统分组上", ErrEmailGroupInvariantViolation, hiddenSystemGroupAccountCount)
+	}
+
 	return nil
 }
 
@@ -193,6 +209,40 @@ func findDefaultPlaceholderGroup(groups []models.EmailGroup) *models.EmailGroup 
 		}
 	}
 	return nil
+}
+
+func findHistoricalDefaultPlaceholderGroup(groups []models.EmailGroup) *models.EmailGroup {
+	var candidate *models.EmailGroup
+	for i := range groups {
+		group := &groups[i]
+		if !isHistoricalDefaultPlaceholderName(group.Name) {
+			continue
+		}
+
+		if group.IsDefault {
+			return group
+		}
+
+		if candidate == nil ||
+			group.SortOrder < candidate.SortOrder ||
+			(group.SortOrder == candidate.SortOrder && group.ID < candidate.ID) {
+			candidate = group
+		}
+	}
+	return candidate
+}
+
+func collectSystemManagedSourceGroupIDs(groups []models.EmailGroup, defaultGroupID uint) []uint {
+	sourceGroupIDs := make([]uint, 0)
+	for _, group := range groups {
+		if group.ID == defaultGroupID {
+			continue
+		}
+		if group.IsDefault || group.IsSystemGroup() {
+			sourceGroupIDs = append(sourceGroupIDs, group.ID)
+		}
+	}
+	return sourceGroupIDs
 }
 
 func isDefaultPlaceholderSystemGroup(group *models.EmailGroup) bool {

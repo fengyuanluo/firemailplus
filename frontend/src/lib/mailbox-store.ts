@@ -171,7 +171,27 @@ export const useMailboxStore = create<MailboxState>((set) => ({
   syncError: null,
 
   // 账户操作
-  setAccounts: (accounts) => set({ accounts }),
+  setAccounts: (accounts) =>
+    set((state) => {
+      const accountIds = new Set(accounts.map((account) => account.id));
+      const nextSelectedAccount = state.selectedAccount
+        ? accounts.find((account) => account.id === state.selectedAccount?.id) || null
+        : null;
+      const selectedAccountRemoved = state.selectedAccount !== null && nextSelectedAccount === null;
+
+      return {
+        accounts,
+        selectedAccount: nextSelectedAccount,
+        selectedFolder: selectedAccountRemoved ? null : state.selectedFolder,
+        emails: selectedAccountRemoved ? [] : state.emails,
+        selectedEmail: selectedAccountRemoved ? null : state.selectedEmail,
+        selectedEmails: selectedAccountRemoved ? new Set() : state.selectedEmails,
+        page: selectedAccountRemoved ? 1 : state.page,
+        selectedAccountIds: new Set(
+          Array.from(state.selectedAccountIds).filter((id) => accountIds.has(id))
+        ),
+      };
+    }),
   upsertAccount: (account) =>
     set((state) => {
       const existingAccount = state.accounts.find((acc) => acc.id === account.id);
@@ -193,10 +213,21 @@ export const useMailboxStore = create<MailboxState>((set) => ({
       selectedAccount: state.selectedAccount?.id === account.id ? account : state.selectedAccount,
     })),
   removeAccount: (id) =>
-    set((state) => ({
-      accounts: state.accounts.filter((acc) => acc.id !== id),
-      selectedAccount: state.selectedAccount?.id === id ? null : state.selectedAccount,
-    })),
+    set((state) => {
+      const selectedAccountRemoved = state.selectedAccount?.id === id;
+      return {
+        accounts: state.accounts.filter((acc) => acc.id !== id),
+        selectedAccount: selectedAccountRemoved ? null : state.selectedAccount,
+        selectedFolder: selectedAccountRemoved ? null : state.selectedFolder,
+        emails: selectedAccountRemoved ? [] : state.emails,
+        selectedEmail: selectedAccountRemoved ? null : state.selectedEmail,
+        selectedEmails: selectedAccountRemoved ? new Set() : state.selectedEmails,
+        page: selectedAccountRemoved ? 1 : state.page,
+        selectedAccountIds: new Set(
+          Array.from(state.selectedAccountIds).filter((accountId) => accountId !== id)
+        ),
+      };
+    }),
   selectAccount: (account) =>
     set({
       selectedAccount: account,

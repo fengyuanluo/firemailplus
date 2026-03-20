@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -40,6 +41,10 @@ func (h *Handler) CreateEmailAccount(c *gin.Context) {
 
 	account, err := h.emailService.CreateEmailAccount(c.Request.Context(), userID, &req)
 	if err != nil {
+		if errors.Is(err, services.ErrEmailAccountAlreadyExists) {
+			h.respondWithError(c, http.StatusConflict, err.Error())
+			return
+		}
 		h.respondWithEmailGroupError(c, http.StatusBadRequest, "Failed to create email account: ", err)
 		return
 	}
@@ -366,6 +371,10 @@ func (h *Handler) CreateCustomEmailAccount(c *gin.Context) {
 
 	account, err := h.emailService.CreateEmailAccount(c.Request.Context(), userID, &req)
 	if err != nil {
+		if errors.Is(err, services.ErrEmailAccountAlreadyExists) {
+			h.respondWithError(c, http.StatusConflict, err.Error())
+			return
+		}
 		h.respondWithEmailGroupError(c, http.StatusBadRequest, "Failed to create custom email account: ", err)
 		return
 	}

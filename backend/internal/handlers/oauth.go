@@ -14,6 +14,7 @@ import (
 	"firemail/internal/external_oauth"
 	"firemail/internal/models"
 	"firemail/internal/providers"
+	"firemail/internal/services"
 	"firemail/internal/sse"
 
 	"github.com/gin-gonic/gin"
@@ -300,7 +301,11 @@ func (h *Handler) createOAuthAccountWithGroup(ctx context.Context, userID uint, 
 	if err := h.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		return tx.Create(account).Error
 	}); err != nil {
-		return nil, fmt.Errorf("failed to create email account: %w", err)
+		normalizedErr := services.NormalizeEmailAccountCreateError(err)
+		if errors.Is(normalizedErr, services.ErrEmailAccountAlreadyExists) {
+			return nil, normalizedErr
+		}
+		return nil, fmt.Errorf("failed to create email account: %w", normalizedErr)
 	}
 
 	persistedAccount, err := h.emailService.GetEmailAccount(ctx, userID, account.ID)
@@ -337,6 +342,15 @@ func (h *Handler) CreateOAuth2Account(c *gin.Context) {
 	// 验证必需的ClientID
 	if req.ClientID == "" {
 		h.respondWithError(c, http.StatusBadRequest, "Client ID is required for OAuth2 account creation")
+		return
+	}
+
+	if err := services.EnsureEmailAccountUnique(c.Request.Context(), h.db, userID, req.Email, req.Provider); err != nil {
+		if errors.Is(err, services.ErrEmailAccountAlreadyExists) {
+			h.respondWithError(c, http.StatusConflict, err.Error())
+			return
+		}
+		h.respondWithError(c, http.StatusInternalServerError, "Failed to validate email account uniqueness: "+err.Error())
 		return
 	}
 
@@ -401,15 +415,6 @@ func (h *Handler) CreateOAuth2Account(c *gin.Context) {
 		ClientID:     req.ClientID, // 保存ClientID用于后续token刷新
 	}
 
-	// 检查是否已存在相同的邮箱账户
-	var existingAccount models.EmailAccount
-	result := h.db.Where("user_id = ? AND email = ? AND provider = ?", userID, req.Email, req.Provider).First(&existingAccount)
-	if result.Error == nil {
-		h.respondWithError(c, http.StatusConflict, "该邮箱账户已存在")
-		return
-	}
-	// 注意：gorm.ErrRecordNotFound 是正常情况，表示账户不存在，可以继续创建
-
 	// 获取提供商配置
 	providerConfig := h.providerFactory.GetProviderConfig(req.Provider)
 	if providerConfig == nil {
@@ -445,6 +450,10 @@ func (h *Handler) CreateOAuth2Account(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, errInvalidOAuthAccountGroup) {
 			h.respondWithError(c, http.StatusBadRequest, "Failed to apply group: "+err.Error())
+			return
+		}
+		if errors.Is(err, services.ErrEmailAccountAlreadyExists) {
+			h.respondWithError(c, http.StatusConflict, err.Error())
 			return
 		}
 		h.respondWithError(c, http.StatusInternalServerError, "Failed to create email account: "+err.Error())
@@ -490,6 +499,15 @@ func (h *Handler) CreateManualOAuth2Account(c *gin.Context) {
 	// 验证提供商
 	if req.Provider != "outlook" && req.Provider != "gmail" {
 		h.respondWithError(c, http.StatusBadRequest, "Only outlook and gmail providers are supported for manual configuration")
+		return
+	}
+
+	if err := services.EnsureEmailAccountUnique(c.Request.Context(), h.db, userID, req.Email, req.Provider); err != nil {
+		if errors.Is(err, services.ErrEmailAccountAlreadyExists) {
+			h.respondWithError(c, http.StatusConflict, err.Error())
+			return
+		}
+		h.respondWithError(c, http.StatusInternalServerError, "Failed to validate email account uniqueness: "+err.Error())
 		return
 	}
 
@@ -617,6 +635,10 @@ func (h *Handler) CreateManualOAuth2Account(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, errInvalidOAuthAccountGroup) {
 			h.respondWithError(c, http.StatusBadRequest, "Failed to apply group: "+err.Error())
+			return
+		}
+		if errors.Is(err, services.ErrEmailAccountAlreadyExists) {
+			h.respondWithError(c, http.StatusConflict, err.Error())
 			return
 		}
 		h.respondWithError(c, http.StatusInternalServerError, "Failed to create email account: "+err.Error())

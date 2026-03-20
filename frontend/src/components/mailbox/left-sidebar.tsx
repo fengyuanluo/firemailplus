@@ -108,14 +108,8 @@ export function LeftSidebar() {
     return map;
   }, [accounts, defaultGroup]);
 
-  const defaultGroupAccounts = defaultGroup ? accountsByGroup.get(defaultGroup.id) || [] : [];
-  const shouldShowDefault = Boolean(
-    defaultGroup && (defaultGroupAccounts.length > 0 || draggingAccountId !== null)
-  );
-
   const displayGroups = orderedGroups.filter((g) => {
     if (isHiddenSystemEmailGroup(g)) return false;
-    if (g.is_default) return shouldShowDefault || draggingGroupId !== null;
     return true;
   });
 
@@ -485,31 +479,6 @@ export function LeftSidebar() {
         <div className="p-4 space-y-3" onContextMenu={handleBlankContextMenu}>
           {loadingGroups && (
             <div className="text-sm text-gray-500 dark:text-gray-400">加载分组中...</div>
-          )}
-
-          {defaultGroup && defaultGroupAccounts.length === 0 && draggingAccountId !== null && (
-            <div
-              className={`border-2 border-dashed rounded-lg p-3 text-sm cursor-pointer ${
-                dragOverGroupId === defaultGroup.id
-                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-200'
-                  : 'border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-300'
-              }`}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setDragOverGroupId(defaultGroup.id);
-              }}
-              onDrop={(e) => {
-                e.preventDefault();
-                if (draggingAccountId !== null) {
-                  handleMoveAccountToGroup(draggingAccountId, null);
-                }
-                setDragOverGroupId(null);
-                setDraggingAccountId(null);
-              }}
-              onDragLeave={() => setDragOverGroupId(null)}
-            >
-              {`拖拽邮箱到此，自动归入默认分组“${defaultGroupName}”`}
-            </div>
           )}
 
           {displayGroups.length > 0 ? (

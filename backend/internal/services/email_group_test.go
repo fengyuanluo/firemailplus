@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -165,6 +166,24 @@ func TestUpdateEmailAccountGroupIDTriState(t *testing.T) {
 		require.NotNil(t, updated.GroupID)
 		require.Equal(t, personalGroup.ID, *updated.GroupID)
 	})
+}
+
+func TestCreateEmailAccountRejectsDuplicateEmailProvider(t *testing.T) {
+	env := setupEmailGroupServiceTestEnv(t)
+	ctx := context.Background()
+
+	_ = env.ensureDefaultGroup(t)
+	env.createAccountRecord(t, "duplicate@qq.com", nil)
+
+	_, err := env.service.CreateEmailAccount(ctx, env.user.ID, &CreateEmailAccountRequest{
+		Name:       "duplicate@qq.com",
+		Email:      "duplicate@qq.com",
+		Provider:   "qq",
+		AuthMethod: "password",
+		Password:   "auth-code",
+	})
+	require.Error(t, err)
+	require.True(t, errors.Is(err, ErrEmailAccountAlreadyExists))
 }
 
 func TestCreateEmailGroupFirstCustomReturnsFreshDefaultState(t *testing.T) {

@@ -310,6 +310,7 @@ export function useMailboxSSE() {
   const removeEmail = useMailboxStore((state) => state.removeEmail);
   const groupRefreshTimerRef = useRef<NodeJS.Timeout | null>(null);
   const groupRefreshInFlightRef = useRef(false);
+  const groupRefreshPendingRef = useRef(false);
 
   // 稳定化事件处理器，避免每次渲染都创建新的函数
   const handleNewEmail = useCallback((data: NewEmailEventData) => {
@@ -370,26 +371,36 @@ export function useMailboxSSE() {
     // 这里可以显示应用内通知
   }, []);
 
+  const runMailboxStructureRefresh = useCallback(async () => {
+    if (groupRefreshInFlightRef.current) {
+      groupRefreshPendingRef.current = true;
+      return;
+    }
+
+    groupRefreshInFlightRef.current = true;
+    try {
+      await refreshEmailAccountsAndGroupsIntoStore();
+    } catch (error) {
+      console.error('❌ [useMailboxSSE] 刷新邮箱分组结构失败:', error);
+    } finally {
+      groupRefreshInFlightRef.current = false;
+
+      if (groupRefreshPendingRef.current) {
+        groupRefreshPendingRef.current = false;
+        void runMailboxStructureRefresh()
+      }
+    }
+  }, []);
+
   const scheduleMailboxStructureRefresh = useCallback(() => {
     if (groupRefreshTimerRef.current) {
       clearTimeout(groupRefreshTimerRef.current);
     }
 
-    groupRefreshTimerRef.current = setTimeout(async () => {
-      if (groupRefreshInFlightRef.current) {
-        return;
-      }
-
-      groupRefreshInFlightRef.current = true;
-      try {
-        await refreshEmailAccountsAndGroupsIntoStore();
-      } catch (error) {
-        console.error('❌ [useMailboxSSE] 刷新邮箱分组结构失败:', error);
-      } finally {
-        groupRefreshInFlightRef.current = false;
-      }
+    groupRefreshTimerRef.current = setTimeout(() => {
+      void runMailboxStructureRefresh();
     }, 250);
-  }, []);
+  }, [runMailboxStructureRefresh]);
 
   const handleGroupEvent = useCallback(
     (eventType: SSEEventType, data: GroupEventData) => {
@@ -426,6 +437,7 @@ export function useMailboxSSE() {
       if (groupRefreshTimerRef.current) {
         clearTimeout(groupRefreshTimerRef.current);
       }
+      groupRefreshPendingRef.current = false;
     };
   }, []);
 

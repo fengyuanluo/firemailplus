@@ -59,6 +59,56 @@ func TestRepairEmailGroupInvariantsForUserBackfillsHistoricalPlaceholderSystemKe
 	require.True(t, reloaded.IsDefault)
 }
 
+func TestRepairEmailGroupInvariantsForUserBackfillsDemotedHistoricalPlaceholder(t *testing.T) {
+	env := setupEmailGroupServiceTestEnv(t)
+	ctx := context.Background()
+
+	currentDefault := env.createGroupRecord(t, "工作", 0, true)
+	demotedPlaceholder := env.createGroupRecord(t, "未分组", 1, false)
+
+	require.NoError(t, RepairEmailGroupInvariantsForUser(ctx, env.db, env.user.ID))
+
+	var reloadedPlaceholder models.EmailGroup
+	require.NoError(t, env.db.First(&reloadedPlaceholder, demotedPlaceholder.ID).Error)
+	require.NotNil(t, reloadedPlaceholder.SystemKey)
+	require.Equal(t, models.EmailGroupSystemKeyDefaultPlaceholder, *reloadedPlaceholder.SystemKey)
+	require.False(t, reloadedPlaceholder.IsDefault)
+
+	var reloadedDefault models.EmailGroup
+	require.NoError(t, env.db.First(&reloadedDefault, currentDefault.ID).Error)
+	require.True(t, reloadedDefault.IsDefault)
+	require.Nil(t, reloadedDefault.SystemKey)
+}
+
+func TestRepairEmailGroupInvariantsForUserMovesAccountsOffHiddenSystemGroup(t *testing.T) {
+	env := setupEmailGroupServiceTestEnv(t)
+	ctx := context.Background()
+
+	defaultGroup := env.ensureDefaultGroup(t)
+	hiddenSystemGroup := env.createSystemGroupRecord(t, "旧占位", 1, false, "legacy_placeholder")
+	account := env.createAccountRecord(t, "hidden-system@qq.com", &hiddenSystemGroup.ID)
+
+	require.NoError(t, RepairEmailGroupInvariantsForUser(ctx, env.db, env.user.ID))
+
+	reloadedAccount := reloadAccount(t, env.db, account.ID)
+	require.NotNil(t, reloadedAccount.GroupID)
+	require.Equal(t, defaultGroup.ID, *reloadedAccount.GroupID)
+}
+
+func TestValidateEmailGroupInvariantsForUserRejectsHiddenSystemGroupAssignments(t *testing.T) {
+	env := setupEmailGroupServiceTestEnv(t)
+	ctx := context.Background()
+
+	_ = env.ensureDefaultGroup(t)
+	hiddenSystemGroup := env.createSystemGroupRecord(t, "旧占位", 1, false, "legacy_placeholder")
+	_ = env.createAccountRecord(t, "hidden-system@qq.com", &hiddenSystemGroup.ID)
+
+	err := ValidateEmailGroupInvariantsForUser(ctx, env.db, env.user.ID)
+	require.Error(t, err)
+	require.True(t, errors.Is(err, ErrEmailGroupInvariantViolation))
+	require.ErrorContains(t, err, "隐藏系统分组")
+}
+
 func TestGetEmailAccountsAndGroupsRemainPureReadWhenInvariantBroken(t *testing.T) {
 	env := setupEmailGroupServiceTestEnv(t)
 	ctx := context.Background()

@@ -6,6 +6,7 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
 	"io"
@@ -309,6 +310,10 @@ func (s *EmailServiceImpl) CreateEmailAccount(ctx context.Context, userID uint, 
 		return nil, fmt.Errorf("unknown provider: %s", req.Provider)
 	}
 
+	if err := EnsureEmailAccountUnique(ctx, s.db, userID, req.Email, req.Provider); err != nil {
+		return nil, err
+	}
+
 	// 解析目标分组（为空则回退到默认分组）
 	targetGroup, err := s.resolveAccountGroup(ctx, userID, req.GroupID)
 	if err != nil {
@@ -343,7 +348,11 @@ func (s *EmailServiceImpl) CreateEmailAccount(ctx context.Context, userID uint, 
 
 	// 保存到数据库
 	if err := s.db.Create(account).Error; err != nil {
-		return nil, fmt.Errorf("failed to create email account: %w", err)
+		normalizedErr := NormalizeEmailAccountCreateError(err)
+		if errors.Is(normalizedErr, ErrEmailAccountAlreadyExists) {
+			return nil, normalizedErr
+		}
+		return nil, fmt.Errorf("failed to create email account: %w", normalizedErr)
 	}
 
 	s.publishAccountGroupChangedEvent(ctx, userID, account, nil)
