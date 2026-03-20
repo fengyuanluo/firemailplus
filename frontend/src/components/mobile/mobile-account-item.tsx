@@ -1,7 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Settings, Trash2, Circle, Loader2, AlertCircle } from 'lucide-react';
+import {
+  Settings,
+  Trash2,
+  Circle,
+  Loader2,
+  AlertCircle,
+  FolderPlus,
+  CheckCircle2,
+  CircleDashed,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MobileListItem } from './mobile-layout';
 import { useSwipeActions } from '@/hooks/use-swipe-actions';
@@ -12,7 +21,11 @@ interface MobileAccountItemProps {
   onClick: () => void;
   onSettings: (account: EmailAccount) => void;
   onDelete: (account: EmailAccount) => void;
+  onMoveGroup?: (account: EmailAccount) => void;
   active?: boolean;
+  selectionMode?: boolean;
+  selected?: boolean;
+  onSelectToggle?: () => void;
 }
 
 export function MobileAccountItem({
@@ -20,11 +33,17 @@ export function MobileAccountItem({
   onClick,
   onSettings,
   onDelete,
+  onMoveGroup,
   active = false,
+  selectionMode = false,
+  selected = false,
+  onSelectToggle,
 }: MobileAccountItemProps) {
   const [isSwipeOpen, setIsSwipeOpen] = useState(false);
+  const actionCount = onMoveGroup ? 3 : 2;
+  const swipeDistance = actionCount * 60;
+  const swipeThreshold = -Math.max(60, Math.round(swipeDistance / 2));
 
-  // 使用滑动操作hook
   const {
     itemRef,
     actionsRef,
@@ -41,9 +60,10 @@ export function MobileAccountItem({
     itemId: account.id,
     isSwipeOpen,
     onSwipeStateChange: (_, isOpen) => setIsSwipeOpen(isOpen),
+    swipeDistance,
+    threshold: swipeThreshold,
   });
 
-  // 获取状态指示器
   const getStatusIndicator = () => {
     switch (account.sync_status) {
       case 'syncing':
@@ -57,7 +77,6 @@ export function MobileAccountItem({
     }
   };
 
-  // 点击外部关闭滑动菜单
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent | TouchEvent) => {
       if (
@@ -83,6 +102,10 @@ export function MobileAccountItem({
   }, [isSwipeOpen, closeSwipe, actionsRef, itemRef]);
 
   const handleItemClick = () => {
+    if (selectionMode && onSelectToggle) {
+      onSelectToggle();
+      return;
+    }
     if (isSwipeOpen) {
       closeSwipe();
     } else {
@@ -102,36 +125,55 @@ export function MobileAccountItem({
     closeSwipe();
   };
 
+  const handleMoveGroup = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onMoveGroup?.(account);
+    closeSwipe();
+  };
+
+  const swipeHandlers = selectionMode
+    ? {}
+    : {
+        onTouchStart: handleTouchStart,
+        onTouchMove: handleTouchMove,
+        onTouchEnd: handleTouchEnd,
+        onMouseDown: handleMouseDown,
+        onMouseMove: handleMouseMove,
+        onMouseUp: handleMouseUp,
+      };
+
   return (
     <div className="relative overflow-hidden">
-      {/* 主要内容 */}
       <div
         ref={itemRef}
         className={`relative z-10 transition-transform duration-200 ease-out bg-white dark:bg-gray-800 ${
           isDragging ? 'transition-none' : ''
         }`}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
+        {...swipeHandlers}
         style={{
-          touchAction: 'pan-y',
-          transform: `translateX(${translateX}px)`,
+          touchAction: selectionMode ? 'auto' : 'pan-y',
+          transform: `translateX(${selectionMode ? 0 : translateX}px)`,
           width: '100%',
         }}
       >
-        <MobileListItem onClick={handleItemClick} active={active}>
+        <MobileListItem onClick={handleItemClick} active={active || selected}>
           <div className="flex items-center gap-3">
-            {/* 账户图标 */}
+            {selectionMode && (
+              <div className="flex-shrink-0 text-blue-500">
+                {selected ? (
+                  <CheckCircle2 className="w-5 h-5 fill-current" />
+                ) : (
+                  <CircleDashed className="w-5 h-5 text-gray-400" />
+                )}
+              </div>
+            )}
+
             <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center flex-shrink-0">
               <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
                 {account.name.charAt(0).toUpperCase()}
               </span>
             </div>
 
-            {/* 账户信息 */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between">
                 <span className="font-medium text-gray-900 dark:text-gray-100 truncate">
@@ -154,29 +196,40 @@ export function MobileAccountItem({
         </MobileListItem>
       </div>
 
-      {/* 滑动操作按钮 */}
-      <div
-        ref={actionsRef}
-        className="absolute top-0 right-0 h-full flex items-center z-0"
-        style={{ width: '120px' }}
-      >
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleSettings}
-          className="h-full w-16 rounded-none bg-blue-500 hover:bg-blue-600 text-white"
+      {!selectionMode && (
+        <div
+          ref={actionsRef}
+          className="absolute top-0 right-0 h-full flex items-center z-0"
+          style={{ width: `${swipeDistance}px` }}
         >
-          <Settings className="w-4 h-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleDelete}
-          className="h-full w-16 rounded-none bg-red-500 hover:bg-red-600 text-white"
-        >
-          <Trash2 className="w-4 h-4" />
-        </Button>
-      </div>
+          {onMoveGroup && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleMoveGroup}
+              className="h-full w-[60px] rounded-none bg-amber-500 hover:bg-amber-600 text-white"
+            >
+              <FolderPlus className="w-4 h-4" />
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleSettings}
+            className="h-full w-[60px] rounded-none bg-blue-500 hover:bg-blue-600 text-white"
+          >
+            <Settings className="w-4 h-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleDelete}
+            className="h-full w-[60px] rounded-none bg-red-500 hover:bg-red-600 text-white"
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

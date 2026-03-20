@@ -12,6 +12,7 @@ import (
 
 	"firemail/internal/database/migration"
 	"firemail/internal/models"
+	"firemail/internal/services"
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -133,6 +134,11 @@ func InitializeWithDriver(dbPath string, usePureGo bool) (*gorm.DB, error) {
 	// 同步管理员密码与环境变量
 	if err := syncAdminPassword(db); err != nil {
 		return nil, fmt.Errorf("failed to sync admin password: %w", err)
+	}
+
+	// 修复邮箱分组 invariant，确保后续 GET /accounts 与 GET /groups 可以保持纯读语义
+	if err := services.RepairAllEmailGroupInvariants(context.Background(), db); err != nil {
+		return nil, fmt.Errorf("failed to repair email group invariants: %w", err)
 	}
 
 	log.Println("Database initialized successfully")
@@ -319,9 +325,9 @@ func syncAdminPassword(db *gorm.DB) error {
 func optimizeConnectionPool(sqlDB *sql.DB) error {
 	// SQLite在WAL模式下支持并发读取，但写入仍然是串行的
 	// 对于个人项目，适度增加连接数以支持并发读取
-	sqlDB.SetMaxOpenConns(5)    // 允许最多5个并发连接
-	sqlDB.SetMaxIdleConns(2)    // 保持2个空闲连接
-	sqlDB.SetConnMaxLifetime(time.Hour) // 连接最大生命周期1小时
+	sqlDB.SetMaxOpenConns(5)                   // 允许最多5个并发连接
+	sqlDB.SetMaxIdleConns(2)                   // 保持2个空闲连接
+	sqlDB.SetConnMaxLifetime(time.Hour)        // 连接最大生命周期1小时
 	sqlDB.SetConnMaxIdleTime(15 * time.Minute) // 空闲连接最大时间15分钟
 
 	return nil

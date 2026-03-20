@@ -41,6 +41,14 @@ const (
 	EventAccountDisconnected EventType = "account_disconnected"
 	EventAccountError        EventType = "account_error"
 
+	// 邮箱分组相关事件
+	EventGroupCreated        EventType = "group_created"
+	EventGroupUpdated        EventType = "group_updated"
+	EventGroupDeleted        EventType = "group_deleted"
+	EventGroupReordered      EventType = "group_reordered"
+	EventGroupDefaultChanged EventType = "group_default_changed"
+	EventAccountGroupChanged EventType = "account_group_changed"
+
 	// 系统事件
 	EventHeartbeat    EventType = "heartbeat"
 	EventNotification EventType = "notification"
@@ -110,6 +118,26 @@ type AccountEventData struct {
 	Provider     string `json:"provider"`
 	Status       string `json:"status"` // connected, disconnected, error
 	ErrorMessage string `json:"error_message,omitempty"`
+}
+
+// GroupEventData 邮箱分组事件数据
+type GroupEventData struct {
+	GroupID                uint    `json:"group_id,omitempty"`
+	Name                   string  `json:"name,omitempty"`
+	SortOrder              int     `json:"sort_order,omitempty"`
+	IsDefault              bool    `json:"is_default"`
+	SystemKey              *string `json:"system_key,omitempty"`
+	GroupIDs               []uint  `json:"group_ids,omitempty"`
+	PreviousDefaultGroupID *uint   `json:"previous_default_group_id,omitempty"`
+}
+
+// AccountGroupEventData 账户分组变更事件数据
+type AccountGroupEventData struct {
+	AccountID       uint   `json:"account_id"`
+	AccountName     string `json:"account_name"`
+	Email           string `json:"email"`
+	GroupID         *uint  `json:"group_id,omitempty"`
+	PreviousGroupID *uint  `json:"previous_group_id,omitempty"`
 }
 
 // NotificationEventData 通知事件数据
@@ -344,6 +372,86 @@ func NewAccountEvent(eventType EventType, accountID uint, accountName, provider 
 		Data:      data,
 		Priority:  PriorityNormal,
 		Timestamp: time.Now(),
+	}
+
+	return event
+}
+
+// NewGroupEvent 创建邮箱分组事件
+func NewGroupEvent(eventType EventType, group *models.EmailGroup, userID uint) *Event {
+	data := &GroupEventData{}
+	if group != nil {
+		data.GroupID = group.ID
+		data.Name = group.Name
+		data.SortOrder = group.SortOrder
+		data.IsDefault = group.IsDefault
+		if group.SystemKey != nil {
+			systemKey := *group.SystemKey
+			data.SystemKey = &systemKey
+		}
+	}
+
+	return &Event{
+		ID:        generateEventID(),
+		Type:      eventType,
+		UserID:    userID,
+		Data:      data,
+		Priority:  PriorityNormal,
+		Timestamp: time.Now(),
+	}
+}
+
+// NewGroupReorderedEvent 创建邮箱分组排序变更事件
+func NewGroupReorderedEvent(groupIDs []uint, userID uint) *Event {
+	data := &GroupEventData{
+		GroupIDs: append([]uint(nil), groupIDs...),
+	}
+
+	return &Event{
+		ID:        generateEventID(),
+		Type:      EventGroupReordered,
+		UserID:    userID,
+		Data:      data,
+		Priority:  PriorityNormal,
+		Timestamp: time.Now(),
+	}
+}
+
+// NewDefaultGroupChangedEvent 创建默认分组切换事件
+func NewDefaultGroupChangedEvent(group *models.EmailGroup, previousDefaultGroupID *uint, userID uint) *Event {
+	event := NewGroupEvent(EventGroupDefaultChanged, group, userID)
+	if data, ok := event.Data.(*GroupEventData); ok && previousDefaultGroupID != nil {
+		prevID := *previousDefaultGroupID
+		data.PreviousDefaultGroupID = &prevID
+	}
+	return event
+}
+
+// NewAccountGroupEvent 创建账户分组变更事件
+func NewAccountGroupEvent(account *models.EmailAccount, previousGroupID *uint, userID uint) *Event {
+	data := &AccountGroupEventData{
+		PreviousGroupID: previousGroupID,
+	}
+	if account != nil {
+		data.AccountID = account.ID
+		data.AccountName = account.Name
+		data.Email = account.Email
+		if account.GroupID != nil {
+			groupID := *account.GroupID
+			data.GroupID = &groupID
+		}
+	}
+
+	event := &Event{
+		ID:        generateEventID(),
+		Type:      EventAccountGroupChanged,
+		UserID:    userID,
+		Data:      data,
+		Priority:  PriorityNormal,
+		Timestamp: time.Now(),
+	}
+	if account != nil {
+		event.AccountID = &account.ID
 	}
 
 	return event

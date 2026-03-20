@@ -5,6 +5,7 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { useAuthStore, useMailboxStore } from '@/lib/store';
 import { FireMailSSEClient } from '@/lib/sse-client';
+import { refreshEmailAccountsAndGroupsIntoStore } from '@/lib/mailbox-group-data';
 import type {
   SSEClientState,
   SSEConnectionStats,
@@ -14,6 +15,8 @@ import type {
   EmailStatusEventData,
   SyncEventData,
   NotificationEventData,
+  GroupEventData,
+  AccountGroupEventData,
 } from '@/types/sse';
 import type { Email } from '@/types/email';
 
@@ -23,6 +26,8 @@ interface UseSSEOptions {
   onEmailStatusChange?: (data: EmailStatusEventData) => void;
   onSyncEvent?: (data: SyncEventData) => void;
   onNotification?: (data: NotificationEventData) => void;
+  onGroupEvent?: (eventType: SSEEventType, data: GroupEventData) => void;
+  onAccountGroupEvent?: (data: AccountGroupEventData) => void;
 }
 
 interface UseSSEReturn {
@@ -42,14 +47,28 @@ interface UseSSEReturn {
 }
 
 export function useSSE(options: UseSSEOptions = {}): UseSSEReturn {
-  const { autoConnect = true, onNewEmail, onEmailStatusChange, onSyncEvent, onNotification } =
-    options;
+  const {
+    autoConnect = true,
+    onNewEmail,
+    onEmailStatusChange,
+    onSyncEvent,
+    onNotification,
+    onGroupEvent,
+    onAccountGroupEvent,
+  } = options;
   const { token, isAuthenticated } = useAuthStore();
 
   // 稳定化 options 对象，避免每次渲染都创建新的引用
   const stableOptions = useMemo(
-    () => ({ onNewEmail, onEmailStatusChange, onSyncEvent, onNotification }),
-    [onNewEmail, onEmailStatusChange, onSyncEvent, onNotification]
+    () => ({
+      onNewEmail,
+      onEmailStatusChange,
+      onSyncEvent,
+      onNotification,
+      onGroupEvent,
+      onAccountGroupEvent,
+    }),
+    [onNewEmail, onEmailStatusChange, onSyncEvent, onNotification, onGroupEvent, onAccountGroupEvent]
   );
 
   const clientRef = useRef<FireMailSSEClient | null>(null);
@@ -149,6 +168,27 @@ export function useSSE(options: UseSSEOptions = {}): UseSSEReturn {
     if (stableOptions.onNotification) {
       client.on('notification', (event) => {
         stableOptions.onNotification!(event.data as NotificationEventData);
+      });
+    }
+
+    if (stableOptions.onGroupEvent) {
+      const groupEventTypes: SSEEventType[] = [
+        'group_created',
+        'group_updated',
+        'group_deleted',
+        'group_reordered',
+        'group_default_changed',
+      ];
+      groupEventTypes.forEach((eventType) => {
+        client.on(eventType, (event) => {
+          stableOptions.onGroupEvent!(eventType, event.data as GroupEventData);
+        });
+      });
+    }
+
+    if (stableOptions.onAccountGroupEvent) {
+      client.on('account_group_changed', (event) => {
+        stableOptions.onAccountGroupEvent!(event.data as AccountGroupEventData);
       });
     }
 
@@ -268,6 +308,8 @@ export function useMailboxSSE() {
   const [syncStatus, setSyncStatus] = useState<Record<number, SyncEventData>>({});
   const updateEmail = useMailboxStore((state) => state.updateEmail);
   const removeEmail = useMailboxStore((state) => state.removeEmail);
+  const groupRefreshTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const groupRefreshInFlightRef = useRef(false);
 
   // 稳定化事件处理器，避免每次渲染都创建新的函数
   const handleNewEmail = useCallback((data: NewEmailEventData) => {
@@ -328,13 +370,64 @@ export function useMailboxSSE() {
     // 这里可以显示应用内通知
   }, []);
 
+  const scheduleMailboxStructureRefresh = useCallback(() => {
+    if (groupRefreshTimerRef.current) {
+      clearTimeout(groupRefreshTimerRef.current);
+    }
+
+    groupRefreshTimerRef.current = setTimeout(async () => {
+      if (groupRefreshInFlightRef.current) {
+        return;
+      }
+
+      groupRefreshInFlightRef.current = true;
+      try {
+        await refreshEmailAccountsAndGroupsIntoStore();
+      } catch (error) {
+        console.error('❌ [useMailboxSSE] 刷新邮箱分组结构失败:', error);
+      } finally {
+        groupRefreshInFlightRef.current = false;
+      }
+    }, 250);
+  }, []);
+
+  const handleGroupEvent = useCallback(
+    (eventType: SSEEventType, data: GroupEventData) => {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🗂️ [useMailboxSSE] 分组事件:', eventType, data);
+      }
+      scheduleMailboxStructureRefresh();
+    },
+    [scheduleMailboxStructureRefresh]
+  );
+
+  const handleAccountGroupEvent = useCallback(
+    (data: AccountGroupEventData) => {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('📮 [useMailboxSSE] 账户分组事件:', data);
+      }
+      scheduleMailboxStructureRefresh();
+    },
+    [scheduleMailboxStructureRefresh]
+  );
+
   const sse = useSSE({
     autoConnect: true,
     onNewEmail: handleNewEmail,
     onEmailStatusChange: handleEmailStatusChange,
     onSyncEvent: handleSyncEvent,
     onNotification: handleNotification,
+    onGroupEvent: handleGroupEvent,
+    onAccountGroupEvent: handleAccountGroupEvent,
   });
+
+  useEffect(() => {
+    return () => {
+      if (groupRefreshTimerRef.current) {
+        clearTimeout(groupRefreshTimerRef.current);
+      }
+    };
+  }, []);
 
   // 清除新邮件计数
   const clearNewEmailCount = useCallback(() => {

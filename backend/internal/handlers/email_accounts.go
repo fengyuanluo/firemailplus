@@ -19,7 +19,7 @@ func (h *Handler) GetEmailAccounts(c *gin.Context) {
 
 	accounts, err := h.emailService.GetEmailAccounts(c.Request.Context(), userID)
 	if err != nil {
-		h.respondWithError(c, http.StatusInternalServerError, "Failed to get email accounts")
+		h.respondWithEmailGroupError(c, http.StatusInternalServerError, "Failed to get email accounts: ", err)
 		return
 	}
 
@@ -40,7 +40,7 @@ func (h *Handler) CreateEmailAccount(c *gin.Context) {
 
 	account, err := h.emailService.CreateEmailAccount(c.Request.Context(), userID, &req)
 	if err != nil {
-		h.respondWithError(c, http.StatusBadRequest, "Failed to create email account: "+err.Error())
+		h.respondWithEmailGroupError(c, http.StatusBadRequest, "Failed to create email account: ", err)
 		return
 	}
 
@@ -87,7 +87,7 @@ func (h *Handler) UpdateEmailAccount(c *gin.Context) {
 
 	account, err := h.emailService.UpdateEmailAccount(c.Request.Context(), userID, accountID, &req)
 	if err != nil {
-		h.respondWithError(c, http.StatusBadRequest, "Failed to update email account: "+err.Error())
+		h.respondWithEmailGroupError(c, http.StatusBadRequest, "Failed to update email account: ", err)
 		return
 	}
 
@@ -366,7 +366,7 @@ func (h *Handler) CreateCustomEmailAccount(c *gin.Context) {
 
 	account, err := h.emailService.CreateEmailAccount(c.Request.Context(), userID, &req)
 	if err != nil {
-		h.respondWithError(c, http.StatusBadRequest, "Failed to create custom email account: "+err.Error())
+		h.respondWithEmailGroupError(c, http.StatusBadRequest, "Failed to create custom email account: ", err)
 		return
 	}
 

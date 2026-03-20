@@ -5,7 +5,15 @@ import { CheckCheck, RefreshCw, Settings, Trash2, Edit, FolderPlus, Star } from 
 import { useContextMenuStore, useMailboxStore } from '@/lib/store';
 import { apiClient } from '@/lib/api';
 import { toast } from 'sonner';
-import type { EmailAccount, Folder, Email } from '@/types/email';
+import {
+  canDeleteEmailGroup,
+  canEditEmailGroup,
+  canSetDefaultEmailGroup,
+  type EmailAccount,
+  type Folder,
+  type Email,
+  type EmailGroup,
+} from '@/types/email';
 
 interface ContextMenuProps {
   onMarkAllAsRead?: (targetId: number) => void;
@@ -230,25 +238,30 @@ export function ContextMenu({
         }
       );
     } else if (target.type === 'group') {
-      if (!target.data?.is_default) {
-        items.push(
-          {
+      const group = target.data as EmailGroup | undefined;
+      if (group && (canSetDefaultEmailGroup(group) || canEditEmailGroup(group) || canDeleteEmailGroup(group))) {
+        if (canSetDefaultEmailGroup(group)) {
+          items.push({
             icon: Star,
             label: '设为默认',
             action: 'setDefaultGroup',
-          },
-          {
+          });
+        }
+        if (canEditEmailGroup(group)) {
+          items.push({
             icon: Edit,
             label: '重命名分组',
             action: 'editGroup',
-          },
-          {
+          });
+        }
+        if (canDeleteEmailGroup(group)) {
+          items.push({
             icon: Trash2,
             label: '删除分组',
             action: 'deleteGroup',
             danger: true,
-          }
-        );
+          });
+        }
       }
     } else if (target.type === 'group-blank') {
       items.push({

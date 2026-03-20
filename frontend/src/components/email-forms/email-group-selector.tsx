@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { apiClient } from '@/lib/api';
 import { useMailboxStore } from '@/lib/store';
-import type { EmailGroup } from '@/types/email';
+import { loadEmailGroupsIntoStore } from '@/lib/mailbox-group-data';
+import { isHiddenSystemEmailGroup, type EmailGroup } from '@/types/email';
 import { Loader2 } from 'lucide-react';
 
 interface EmailGroupSelectorProps {
@@ -23,22 +23,19 @@ export function EmailGroupSelector({
   placeholder = '选择分组（可选）',
   autoSelectDefault = true,
 }: EmailGroupSelectorProps) {
-  const { groups, setGroups } = useMailboxStore();
+  const { groups } = useMailboxStore();
   const [loading, setLoading] = useState(false);
 
   const loadGroups = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await apiClient.getEmailGroups();
-      if (response.success && response.data) {
-        setGroups(response.data);
-      }
+      await loadEmailGroupsIntoStore();
     } catch (error) {
       console.error('Failed to load email groups:', error);
     } finally {
       setLoading(false);
     }
-  }, [setGroups]);
+  }, []);
 
   useEffect(() => {
     if (groups.length === 0) {
@@ -58,7 +55,7 @@ export function EmailGroupSelector({
   }, [autoSelectDefault, defaultGroupId, onChange, value]);
 
   const sortedGroups: EmailGroup[] = useMemo(() => {
-    return [...groups].sort((a, b) => {
+    return groups.filter((group) => !isHiddenSystemEmailGroup(group)).sort((a, b) => {
       if (a.is_default && !b.is_default) return -1;
       if (!a.is_default && b.is_default) return 1;
       return a.sort_order - b.sort_order;

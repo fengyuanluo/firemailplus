@@ -3,6 +3,7 @@
  * TypeScript 版本的 Server-Sent Events 客户端
  */
 
+import { ALL_SSE_EVENT_TYPES } from '@/types/sse';
 import type {
   SSEClientConfig,
   SSEClientState,
@@ -175,23 +176,7 @@ export class FireMailSSEClient {
   private registerSpecificEventListeners(): void {
     if (!this.eventSource) return;
 
-    const eventTypes: SSEEventType[] = [
-      'new_email',
-      'email_read',
-      'email_starred',
-      'email_deleted',
-      'sync_started',
-      'sync_progress',
-      'sync_completed',
-      'sync_error',
-      'account_connected',
-      'account_disconnected',
-      'account_error',
-      'notification',
-      'heartbeat',
-    ];
-
-    eventTypes.forEach((eventType) => {
+    ALL_SSE_EVENT_TYPES.forEach((eventType) => {
       this.eventSource!.addEventListener(eventType, (event) => {
         this.handleTypedEvent(eventType, event as MessageEvent);
       });
@@ -371,23 +356,7 @@ export class FireMailSSEClient {
   }
 
   private initializeEventCounters(): void {
-    const eventTypes: SSEEventType[] = [
-      'new_email',
-      'email_read',
-      'email_starred',
-      'email_deleted',
-      'sync_started',
-      'sync_progress',
-      'sync_completed',
-      'sync_error',
-      'account_connected',
-      'account_disconnected',
-      'account_error',
-      'notification',
-      'heartbeat',
-    ];
-
-    eventTypes.forEach((type) => {
+    ALL_SSE_EVENT_TYPES.forEach((type) => {
       this.stats.eventsByType[type] = 0;
     });
   }

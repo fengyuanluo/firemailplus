@@ -3,25 +3,34 @@
  * 对应后端 SSE 事件结构
  */
 
+export const ALL_SSE_EVENT_TYPES = [
+  'new_email',
+  'email_read',
+  'email_unread',
+  'email_starred',
+  'email_unstarred',
+  'email_important',
+  'email_unimportant',
+  'email_deleted',
+  'sync_started',
+  'sync_progress',
+  'sync_completed',
+  'sync_error',
+  'account_connected',
+  'account_disconnected',
+  'account_error',
+  'group_created',
+  'group_updated',
+  'group_deleted',
+  'group_reordered',
+  'group_default_changed',
+  'account_group_changed',
+  'notification',
+  'heartbeat',
+] as const;
+
 // SSE 事件类型枚举
-export type SSEEventType =
-  | 'new_email'
-  | 'email_read'
-  | 'email_unread'
-  | 'email_starred'
-  | 'email_unstarred'
-  | 'email_important'
-  | 'email_unimportant'
-  | 'email_deleted'
-  | 'sync_started'
-  | 'sync_progress'
-  | 'sync_completed'
-  | 'sync_error'
-  | 'account_connected'
-  | 'account_disconnected'
-  | 'account_error'
-  | 'notification'
-  | 'heartbeat';
+export type SSEEventType = (typeof ALL_SSE_EVENT_TYPES)[number];
 
 // SSE 事件优先级
 export type SSEEventPriority = 1 | 2 | 3 | 4; // 1=低, 2=普通, 3=高, 4=紧急
@@ -81,6 +90,26 @@ export interface AccountEventData {
   error_message?: string;
 }
 
+// 邮箱分组事件数据
+export interface GroupEventData {
+  group_id?: number;
+  name?: string;
+  sort_order?: number;
+  is_default?: boolean;
+  system_key?: string | null;
+  group_ids?: number[];
+  previous_default_group_id?: number;
+}
+
+// 账户分组事件数据
+export interface AccountGroupEventData {
+  account_id: number;
+  account_name: string;
+  email: string;
+  group_id?: number;
+  previous_group_id?: number;
+}
+
 // 通知事件数据
 export interface NotificationEventData {
   title: string;
@@ -100,6 +129,8 @@ export type NewEmailEvent = SSEEvent<NewEmailEventData>;
 export type EmailStatusEvent = SSEEvent<EmailStatusEventData>;
 export type SyncEvent = SSEEvent<SyncEventData>;
 export type AccountEvent = SSEEvent<AccountEventData>;
+export type GroupEvent = SSEEvent<GroupEventData>;
+export type AccountGroupEvent = SSEEvent<AccountGroupEventData>;
 export type NotificationEvent = SSEEvent<NotificationEventData>;
 export type HeartbeatEvent = SSEEvent<HeartbeatEventData>;
 
@@ -109,6 +140,8 @@ export type AnySSEEvent =
   | EmailStatusEvent
   | SyncEvent
   | AccountEvent
+  | GroupEvent
+  | AccountGroupEvent
   | NotificationEvent
   | HeartbeatEvent;
 

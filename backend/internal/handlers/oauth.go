@@ -14,6 +14,7 @@ import (
 	"firemail/internal/external_oauth"
 	"firemail/internal/models"
 	"firemail/internal/providers"
+	"firemail/internal/sse"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -307,8 +308,18 @@ func (h *Handler) createOAuthAccountWithGroup(ctx context.Context, userID uint, 
 		return nil, fmt.Errorf("failed to reload email account: %w", err)
 	}
 
+	h.publishAccountGroupChangedEvent(ctx, userID, persistedAccount, nil)
 	persistedAccount.OAuth2Token = ""
 	return persistedAccount, nil
+}
+
+func (h *Handler) publishAccountGroupChangedEvent(ctx context.Context, userID uint, account *models.EmailAccount, previousGroupID *uint) {
+	if h.sseService == nil || account == nil {
+		return
+	}
+	if err := h.sseService.PublishEvent(ctx, sse.NewAccountGroupEvent(account, previousGroupID, userID)); err != nil {
+		log.Printf("Failed to publish oauth account group changed event: %v", err)
+	}
 }
 
 // CreateOAuth2Account 使用OAuth2 token创建邮件账户

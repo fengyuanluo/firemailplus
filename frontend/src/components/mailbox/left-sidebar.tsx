@@ -6,32 +6,25 @@ import { AccountItem } from './account-item';
 import { ContextMenu } from './context-menu';
 import { AccountSettingsModal } from './account-settings-modal';
 import { EmailGroupCard } from './email-group-card';
-import { apiClient } from '@/lib/api';
+import { EmailGroupDialog } from './email-group-dialog';
 import { toast } from 'sonner';
 import { useContextMenuStore, useMailboxStore } from '@/lib/store';
-import type { EmailAccount, EmailGroup } from '@/types/email';
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+  canDeleteEmailGroup,
+  canEditEmailGroup,
+  canReorderEmailGroup,
+  canSetDefaultEmailGroup,
+  isHiddenSystemEmailGroup,
+  type EmailAccount,
+  type EmailGroup,
+} from '@/types/email';
+import { useEmailGroupActions } from '@/hooks/use-email-group-actions';
 import { Button } from '@/components/ui/button';
 import { Plus, RefreshCw, Trash2, X, CheckSquare } from 'lucide-react';
 
 export function LeftSidebar() {
   const {
     accounts,
-    setAccounts,
-    removeAccount,
-    updateAccount,
-    folders,
-    setFolders,
-    emails,
-    setEmails,
-    selectedAccount,
     groups,
     setGroups,
     selectionMode,
@@ -42,54 +35,52 @@ export function LeftSidebar() {
     setSelectedAccountIds,
   } = useMailboxStore();
   const { openMenu, closeMenu } = useContextMenuStore();
+  const {
+    loadAccounts,
+    loadGroups,
+    createGroup,
+    renameGroup,
+    deleteGroup,
+    setDefaultGroup,
+    moveAccountToGroup,
+    persistGroupOrder,
+    deleteAccount,
+    batchSyncAccounts,
+    batchMarkAccountsRead,
+    batchDeleteAccounts,
+    getErrorMessage,
+  } = useEmailGroupActions();
   const [settingsAccount, setSettingsAccount] = useState<EmailAccount | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [groupModalOpen, setGroupModalOpen] = useState(false);
   const [groupModalMode, setGroupModalMode] = useState<'create' | 'edit'>('create');
   const [editingGroup, setEditingGroup] = useState<EmailGroup | null>(null);
-  const [groupName, setGroupName] = useState('');
   const [loadingGroups, setLoadingGroups] = useState(false);
   const [draggingAccountId, setDraggingAccountId] = useState<number | null>(null);
   const [draggingGroupId, setDraggingGroupId] = useState<number | null>(null);
   const [dragOverGroupId, setDragOverGroupId] = useState<number | null>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<number>>(new Set());
-  const getErrorMessage = (error: unknown, fallback: string) =>
-    error instanceof Error && error.message ? error.message : fallback;
 
-  const loadAccounts = useCallback(async () => {
-    try {
-      const response = await apiClient.getEmailAccounts();
-      if (response.success && response.data) {
-        setAccounts(response.data);
-      }
-    } catch (error) {
-      console.error('Failed to load accounts:', error);
-    }
-  }, [setAccounts]);
-
-  const loadGroups = useCallback(async () => {
+  const loadGroupsWithState = useCallback(async () => {
     setLoadingGroups(true);
     try {
-      const response = await apiClient.getEmailGroups();
-      if (response.success && response.data) {
-        setGroups(response.data);
-      }
+      await loadGroups();
     } catch (error) {
       console.error('Failed to load groups:', error);
     } finally {
       setLoadingGroups(false);
     }
-  }, [setGroups]);
+  }, [loadGroups]);
 
   useEffect(() => {
     if (groups.length === 0) {
-      loadGroups();
+      loadGroupsWithState();
     }
-  }, [groups.length, loadGroups]);
+  }, [groups.length, loadGroupsWithState]);
 
   useEffect(() => {
     if (accounts.length === 0) {
-      loadAccounts();
+      void loadAccounts();
     }
   }, [accounts.length, loadAccounts]);
 
@@ -97,7 +88,9 @@ export function LeftSidebar() {
   const defaultGroupName = useMemo(() => defaultGroup?.name ?? '默认分组', [defaultGroup]);
 
   const orderedGroups = useMemo(() => {
-    const sorted = [...groups].sort((a, b) => a.sort_order - b.sort_order);
+    const sorted = [...groups]
+      .filter((group) => !isHiddenSystemEmailGroup(group))
+      .sort((a, b) => a.sort_order - b.sort_order);
     if (!defaultGroup) return sorted;
     const others = sorted.filter((g) => !g.is_default);
     return [defaultGroup, ...others];
@@ -121,6 +114,7 @@ export function LeftSidebar() {
   );
 
   const displayGroups = orderedGroups.filter((g) => {
+    if (isHiddenSystemEmailGroup(g)) return false;
     if (g.is_default) return shouldShowDefault || draggingGroupId !== null;
     return true;
   });
@@ -152,14 +146,7 @@ export function LeftSidebar() {
     if (!confirmed) return;
 
     try {
-      const response = await apiClient.deleteEmailAccount(targetId);
-      if (response.success) {
-        removeAccount(targetId);
-        toast.success('账户已删除');
-        loadGroups();
-      } else {
-        throw new Error(response.message || '删除失败');
-      }
+      await deleteAccount(account);
     } catch (error: unknown) {
       console.error('Delete account failed:', error);
       toast.error(getErrorMessage(error, '删除账户失败'));
@@ -169,33 +156,16 @@ export function LeftSidebar() {
   const openGroupDialog = (mode: 'create' | 'edit', group?: EmailGroup) => {
     setGroupModalMode(mode);
     setEditingGroup(group || null);
-    setGroupName(group?.name ?? '');
     setGroupModalOpen(true);
   };
 
-  const handleSubmitGroupDialog = async () => {
-    const name = groupName.trim();
-    if (!name) {
-      toast.error('请填写分组名称');
-      return;
-    }
-
+  const handleSubmitGroupDialog = async (name: string) => {
     try {
       if (groupModalMode === 'create') {
-        const response = await apiClient.createEmailGroup({ name });
-        if (response.success) {
-          toast.success('分组已创建');
-          await Promise.all([loadGroups(), loadAccounts()]);
-        }
+        await createGroup(name);
       } else if (editingGroup) {
-        const response = await apiClient.updateEmailGroup(editingGroup.id, { name });
-        if (response.success) {
-          toast.success('分组已更新');
-          await loadGroups();
-        }
+        await renameGroup(editingGroup, name);
       }
-      setGroupModalOpen(false);
-      setGroupName('');
       setEditingGroup(null);
     } catch (error: unknown) {
       console.error('Group save failed:', error);
@@ -204,8 +174,8 @@ export function LeftSidebar() {
   };
 
   const handleDeleteGroup = async (group: EmailGroup) => {
-    if (group.is_default) {
-      toast.error('默认分组不可删除');
+    if (!canDeleteEmailGroup(group)) {
+      toast.error(group.is_default ? '默认分组不可删除' : '系统分组不可删除');
       return;
     }
     const confirmed = confirm(
@@ -213,13 +183,7 @@ export function LeftSidebar() {
     );
     if (!confirmed) return;
     try {
-      const resp = await apiClient.deleteEmailGroup(group.id);
-      if (resp.success) {
-        toast.success(`分组已删除，相关邮箱已移动到默认分组“${defaultGroupName}”`);
-        await Promise.all([loadGroups(), loadAccounts()]);
-      } else {
-        throw new Error(resp.message || '删除失败');
-      }
+      await deleteGroup(group, defaultGroupName);
     } catch (error: unknown) {
       console.error('Delete group failed:', error);
       toast.error(getErrorMessage(error, '删除分组失败'));
@@ -228,13 +192,7 @@ export function LeftSidebar() {
 
   const handleMoveAccountToGroup = async (accountId: number, targetGroupId: number | null) => {
     try {
-      const response = await apiClient.updateEmailAccount(accountId, {
-        group_id: targetGroupId,
-      });
-      if (response.success && response.data) {
-        updateAccount(response.data);
-        await loadGroups();
-      }
+      await moveAccountToGroup(accountId, targetGroupId);
     } catch (error: unknown) {
       console.error('Move account failed:', error);
       toast.error(getErrorMessage(error, '移动邮箱到分组失败'));
@@ -242,7 +200,7 @@ export function LeftSidebar() {
   };
 
   const reorderGroupsLocal = (sourceId: number, targetId: number): EmailGroup[] => {
-    const nonDefault = orderedGroups.filter((g) => !g.is_default);
+    const nonDefault = orderedGroups.filter((group) => canReorderEmailGroup(group));
     const sourceIndex = nonDefault.findIndex((g) => g.id === sourceId);
     const targetIndex = nonDefault.findIndex((g) => g.id === targetId);
     if (sourceIndex < 0 || targetIndex < 0) return orderedGroups;
@@ -255,20 +213,20 @@ export function LeftSidebar() {
 
   const handlePersistReorder = async (ordered: EmailGroup[]) => {
     setGroups(ordered);
-    const ids = ordered.filter((g) => !g.is_default).map((g) => g.id);
     try {
-      await apiClient.reorderEmailGroups(ids);
+      const ids = ordered.filter((group) => canReorderEmailGroup(group)).map((group) => group.id);
+      await persistGroupOrder(ids);
     } catch (error: unknown) {
       console.error('Reorder groups failed:', error);
       toast.error(getErrorMessage(error, '分组排序保存失败'));
-      loadGroups();
+      void loadGroupsWithState();
     }
   };
 
   const handleGroupDrop = async (group: EmailGroup) => {
     if (draggingAccountId !== null) {
       await handleMoveAccountToGroup(draggingAccountId, group.is_default ? null : group.id);
-    } else if (draggingGroupId && draggingGroupId !== group.id) {
+    } else if (draggingGroupId && draggingGroupId !== group.id && canReorderEmailGroup(group)) {
       const updatedOrder = reorderGroupsLocal(draggingGroupId, group.id);
       await handlePersistReorder(updatedOrder);
     }
@@ -284,12 +242,7 @@ export function LeftSidebar() {
       return;
     }
     try {
-      const resp = await apiClient.batchSyncEmailAccounts(ids);
-      if (resp.success) {
-        toast.success('已开始批量同步');
-      } else {
-        throw new Error(resp.message || '批量同步失败');
-      }
+      await batchSyncAccounts(ids);
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, '批量同步失败'));
     }
@@ -303,32 +256,7 @@ export function LeftSidebar() {
     }
 
     try {
-      const resp = await apiClient.batchMarkAccountsAsRead(ids);
-      if (resp.success) {
-        toast.success(`已标记 ${ids.length} 个邮箱的邮件为已读`);
-
-        // 更新账户未读计数
-        ids.forEach((id) => {
-          const acc = accounts.find((a) => a.id === id);
-          if (acc) {
-            updateAccount({ ...acc, unread_emails: 0 });
-          }
-        });
-
-        // 更新已加载的文件夹未读计数
-        if (folders.length > 0) {
-          setFolders(
-            folders.map((f) => (ids.includes(f.account_id) ? { ...f, unread_emails: 0 } : f))
-          );
-        }
-
-        // 如果当前列表属于其中一个账户，乐观置为已读
-        if (emails.length > 0 && selectedAccount && ids.includes(selectedAccount.id)) {
-          setEmails(emails.map((mail) => ({ ...mail, is_read: true })));
-        }
-      } else {
-        throw new Error(resp.message || '批量标记已读失败');
-      }
+      await batchMarkAccountsRead(ids);
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, '批量标记已读失败'));
     }
@@ -343,14 +271,7 @@ export function LeftSidebar() {
     const confirmed = confirm(`确定删除选中的 ${ids.length} 个邮箱账户吗？操作不可撤销。`);
     if (!confirmed) return;
     try {
-      const resp = await apiClient.batchDeleteEmailAccounts(ids);
-      if (resp.success) {
-        toast.success('已删除所选邮箱');
-        clearAccountSelection();
-        await Promise.all([loadAccounts(), loadGroups()]);
-      } else {
-        throw new Error(resp.message || '批量删除失败');
-      }
+      await batchDeleteAccounts(ids);
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, '批量删除失败'));
     }
@@ -371,17 +292,11 @@ export function LeftSidebar() {
   };
 
   const handleSetDefaultGroup = async (group: EmailGroup) => {
-    if (group.is_default) return;
+    if (!canSetDefaultEmailGroup(group)) return;
     const confirmed = confirm(`是否将分组“${group.name}”设为默认分组？`);
     if (!confirmed) return;
     try {
-      const resp = await apiClient.setDefaultEmailGroup(group.id);
-      if (resp.success) {
-        toast.success(`已将“${group.name}”设为默认分组`);
-        await Promise.all([loadGroups(), loadAccounts()]);
-      } else {
-        throw new Error(resp.message || '设置默认分组失败');
-      }
+      await setDefaultGroup(group);
     } catch (error: unknown) {
       console.error('Set default group failed:', error);
       toast.error(getErrorMessage(error, '设置默认分组失败'));
@@ -403,7 +318,11 @@ export function LeftSidebar() {
   const handleGroupContextMenu = (e: React.MouseEvent, group: EmailGroup) => {
     e.preventDefault();
     e.stopPropagation();
-    if (group.is_default) {
+    if (
+      !canDeleteEmailGroup(group) &&
+      !canSetDefaultEmailGroup(group) &&
+      !canEditEmailGroup(group)
+    ) {
       closeMenu();
       return;
     }
@@ -418,7 +337,7 @@ export function LeftSidebar() {
   };
 
   const handleGroupDragStart = (e: React.DragEvent, group: EmailGroup) => {
-    if (group.is_default) return;
+    if (!canReorderEmailGroup(group)) return;
     setDraggingGroupId(group.id);
     setDragOverGroupId(group.id);
     e.dataTransfer.setData('text/plain', String(group.id));
@@ -449,7 +368,7 @@ export function LeftSidebar() {
           setDragOverGroupId(null);
         }}
         onContextMenu={(e) => handleGroupContextMenu(e, group)}
-        draggable={!group.is_default}
+        draggable={canReorderEmailGroup(group)}
         onDragStart={(e) => handleGroupDragStart(e, group)}
       >
         {accountsInGroup.length === 0 ? (
@@ -633,27 +552,18 @@ export function LeftSidebar() {
         account={settingsAccount}
       />
 
-      <Dialog open={groupModalOpen} onOpenChange={setGroupModalOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{groupModalMode === 'create' ? '新建分组' : '编辑分组'}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <Input
-              value={groupName}
-              onChange={(e) => setGroupName(e.target.value)}
-              placeholder="输入分组名称"
-              className="h-10"
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setGroupModalOpen(false)}>
-              取消
-            </Button>
-            <Button onClick={handleSubmitGroupDialog}>保存</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <EmailGroupDialog
+        open={groupModalOpen}
+        mode={groupModalMode}
+        initialName={editingGroup?.name}
+        onOpenChange={(open) => {
+          setGroupModalOpen(open);
+          if (!open) {
+            setEditingGroup(null);
+          }
+        }}
+        onSubmit={handleSubmitGroupDialog}
+      />
     </div>
   );
 }

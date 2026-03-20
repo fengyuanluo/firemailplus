@@ -25,7 +25,7 @@ func (h *Handler) GetEmailGroups(c *gin.Context) {
 
 	groups, err := h.emailService.GetEmailGroups(c.Request.Context(), userID)
 	if err != nil {
-		h.respondWithError(c, http.StatusInternalServerError, "Failed to load groups: "+err.Error())
+		h.respondWithEmailGroupError(c, http.StatusInternalServerError, "Failed to load groups: ", err)
 		return
 	}
 
@@ -46,7 +46,7 @@ func (h *Handler) CreateEmailGroup(c *gin.Context) {
 
 	group, err := h.emailService.CreateEmailGroup(c.Request.Context(), userID, &req)
 	if err != nil {
-		h.respondWithError(c, http.StatusBadRequest, "Failed to create group: "+err.Error())
+		h.respondWithEmailGroupError(c, http.StatusBadRequest, "Failed to create group: ", err)
 		return
 	}
 
@@ -72,7 +72,7 @@ func (h *Handler) UpdateEmailGroup(c *gin.Context) {
 
 	group, err := h.emailService.UpdateEmailGroup(c.Request.Context(), userID, groupID, &req)
 	if err != nil {
-		h.respondWithError(c, http.StatusBadRequest, "Failed to update group: "+err.Error())
+		h.respondWithEmailGroupError(c, http.StatusBadRequest, "Failed to update group: ", err)
 		return
 	}
 
@@ -92,7 +92,7 @@ func (h *Handler) DeleteEmailGroup(c *gin.Context) {
 	}
 
 	if err := h.emailService.DeleteEmailGroup(c.Request.Context(), userID, groupID); err != nil {
-		h.respondWithError(c, http.StatusBadRequest, "Failed to delete group: "+err.Error())
+		h.respondWithEmailGroupError(c, http.StatusBadRequest, "Failed to delete group: ", err)
 		return
 	}
 
@@ -113,7 +113,7 @@ func (h *Handler) SetDefaultEmailGroup(c *gin.Context) {
 
 	group, err := h.emailService.SetDefaultEmailGroup(c.Request.Context(), userID, groupID)
 	if err != nil {
-		h.respondWithError(c, http.StatusBadRequest, "Failed to set default group: "+err.Error())
+		h.respondWithEmailGroupError(c, http.StatusBadRequest, "Failed to set default group: ", err)
 		return
 	}
 
@@ -139,7 +139,7 @@ func (h *Handler) ReorderEmailGroups(c *gin.Context) {
 
 	groups, err := h.emailService.ReorderEmailGroups(c.Request.Context(), userID, req.GroupIDs)
 	if err != nil {
-		h.respondWithError(c, http.StatusBadRequest, "Failed to reorder groups: "+err.Error())
+		h.respondWithEmailGroupError(c, http.StatusBadRequest, "Failed to reorder groups: ", err)
 		return
 	}
 

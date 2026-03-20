@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -19,14 +20,14 @@ import (
 
 // Handler HTTP处理器
 type Handler struct {
-	db                *gorm.DB
-	config            *config.Config
-	authService       *auth.Service
-	emailService      services.EmailService
-	syncService       *services.SyncService
-	providerFactory   *providers.ProviderFactory
-	sseService        sse.SSEService
-	oauthStateService services.OAuth2StateService
+	db                    *gorm.DB
+	config                *config.Config
+	authService           *auth.Service
+	emailService          services.EmailService
+	syncService           *services.SyncService
+	providerFactory       *providers.ProviderFactory
+	sseService            sse.SSEService
+	oauthStateService     services.OAuth2StateService
 	backupService         services.BackupService
 	softDeleteService     services.SoftDeleteService
 	attachmentService     services.AttachmentDownloader
@@ -196,6 +197,21 @@ func (h *Handler) respondWithCreated(c *gin.Context, data interface{}, message .
 	}
 
 	c.JSON(http.StatusCreated, response)
+}
+
+// respondWithEmailGroupError 返回邮箱分组相关错误响应。
+// 对 strict invariant 场景使用 409，其余保持调用方提供的兜底状态码。
+func (h *Handler) respondWithEmailGroupError(c *gin.Context, fallbackStatus int, prefix string, err error) {
+	if err == nil {
+		return
+	}
+
+	statusCode := fallbackStatus
+	if errors.Is(err, services.ErrEmailGroupInvariantViolation) {
+		statusCode = http.StatusConflict
+	}
+
+	h.respondWithError(c, statusCode, prefix+err.Error())
 }
 
 // bindJSON 绑定JSON请求体

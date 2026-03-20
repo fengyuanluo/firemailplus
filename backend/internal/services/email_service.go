@@ -346,6 +346,8 @@ func (s *EmailServiceImpl) CreateEmailAccount(ctx context.Context, userID uint, 
 		return nil, fmt.Errorf("failed to create email account: %w", err)
 	}
 
+	s.publishAccountGroupChangedEvent(ctx, userID, account, nil)
+
 	// 测试连接
 	if err := s.TestEmailAccount(ctx, userID, account.ID); err != nil {
 		// 如果测试失败，标记为错误状态但不删除账户
@@ -369,6 +371,10 @@ func (s *EmailServiceImpl) CreateEmailAccount(ctx context.Context, userID uint, 
 
 // GetEmailAccounts 获取用户的邮件账户列表
 func (s *EmailServiceImpl) GetEmailAccounts(ctx context.Context, userID uint) ([]*models.EmailAccount, error) {
+	if err := ValidateEmailGroupInvariantsForUser(ctx, s.db, userID); err != nil {
+		return nil, err
+	}
+
 	var accounts []*models.EmailAccount
 
 	err := s.db.Where("user_id = ?", userID).
@@ -377,21 +383,6 @@ func (s *EmailServiceImpl) GetEmailAccounts(ctx context.Context, userID uint) ([
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get email accounts: %w", err)
-	}
-
-	// 确保存在默认分组并回填缺失的分组信息
-	defaultGroup, err := s.ensureDefaultGroup(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to ensure default group: %w", err)
-	}
-
-	for _, account := range accounts {
-		if account.GroupID == nil && defaultGroup != nil {
-			account.GroupID = &defaultGroup.ID
-			_ = s.db.Model(&models.EmailAccount{}).
-				Where("id = ?", account.ID).
-				Update("group_id", defaultGroup.ID).Error
-		}
 	}
 
 	return accounts, nil
@@ -417,6 +408,7 @@ func (s *EmailServiceImpl) UpdateEmailAccount(ctx context.Context, userID, accou
 	if err != nil {
 		return nil, err
 	}
+	previousGroupID := cloneUintPointer(account.GroupID)
 
 	// 更新字段
 	if req.Name != nil {
@@ -462,6 +454,10 @@ func (s *EmailServiceImpl) UpdateEmailAccount(ctx context.Context, userID, accou
 	// 保存更新
 	if err := s.db.Save(account).Error; err != nil {
 		return nil, fmt.Errorf("failed to update email account: %w", err)
+	}
+
+	if req.GroupID.Set && !sameUintPointerValue(previousGroupID, account.GroupID) {
+		s.publishAccountGroupChangedEvent(ctx, userID, account, previousGroupID)
 	}
 
 	// 如果更新了连接相关的配置，测试连接
@@ -662,29 +658,74 @@ func (s *EmailServiceImpl) syncFoldersForAccount(ctx context.Context, accountID 
 
 // ensureDefaultGroup 确保存在默认分组
 func (s *EmailServiceImpl) ensureDefaultGroup(ctx context.Context, userID uint) (*models.EmailGroup, error) {
+	if err := RepairEmailGroupInvariantsForUser(ctx, s.db, userID); err != nil {
+		return nil, err
+	}
+
 	var group models.EmailGroup
 	err := s.db.WithContext(ctx).
 		Where("user_id = ? AND is_default = ?", userID, true).
 		First(&group).Error
-
-	if err == gorm.ErrRecordNotFound {
-		group = models.EmailGroup{
-			UserID:    userID,
-			Name:      "未分组",
-			SortOrder: 0,
-			IsDefault: true,
-		}
-		if createErr := s.db.WithContext(ctx).Create(&group).Error; createErr != nil {
-			return nil, fmt.Errorf("failed to create default group: %w", createErr)
-		}
-		return &group, nil
-	}
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to load default group: %w", err)
 	}
 
 	return &group, nil
+}
+
+func cloneUintPointer(value *uint) *uint {
+	if value == nil {
+		return nil
+	}
+	copied := *value
+	return &copied
+}
+
+func sameUintPointerValue(left, right *uint) bool {
+	if left == nil && right == nil {
+		return true
+	}
+	if left == nil || right == nil {
+		return false
+	}
+	return *left == *right
+}
+
+func (s *EmailServiceImpl) publishGroupEvent(ctx context.Context, userID uint, eventType sse.EventType, group *models.EmailGroup) {
+	if s.eventPublisher == nil {
+		return
+	}
+	if err := s.eventPublisher.PublishToUser(ctx, userID, sse.NewGroupEvent(eventType, group, userID)); err != nil {
+		log.Printf("Failed to publish %s event: %v", eventType, err)
+	}
+}
+
+func (s *EmailServiceImpl) publishGroupReorderedEvent(ctx context.Context, userID uint, groupIDs []uint) {
+	if s.eventPublisher == nil {
+		return
+	}
+	if err := s.eventPublisher.PublishToUser(ctx, userID, sse.NewGroupReorderedEvent(groupIDs, userID)); err != nil {
+		log.Printf("Failed to publish group reordered event: %v", err)
+	}
+}
+
+func (s *EmailServiceImpl) publishDefaultGroupChangedEvent(ctx context.Context, userID uint, group *models.EmailGroup, previousDefaultGroupID *uint) {
+	if s.eventPublisher == nil {
+		return
+	}
+	if err := s.eventPublisher.PublishToUser(ctx, userID, sse.NewDefaultGroupChangedEvent(group, previousDefaultGroupID, userID)); err != nil {
+		log.Printf("Failed to publish default group changed event: %v", err)
+	}
+}
+
+func (s *EmailServiceImpl) publishAccountGroupChangedEvent(ctx context.Context, userID uint, account *models.EmailAccount, previousGroupID *uint) {
+	if s.eventPublisher == nil || account == nil {
+		return
+	}
+	if err := s.eventPublisher.PublishToUser(ctx, userID, sse.NewAccountGroupEvent(account, previousGroupID, userID)); err != nil {
+		log.Printf("Failed to publish account group changed event: %v", err)
+	}
 }
 
 // resolveAccountGroup 解析账户分组（为空时返回默认分组）
@@ -708,6 +749,9 @@ func (s *EmailServiceImpl) resolveAccountGroup(ctx context.Context, userID uint,
 		}
 		return nil, err
 	}
+	if group.IsSystemGroup() && !group.IsDefault {
+		return nil, fmt.Errorf("系统占位分组不可直接分配邮箱")
+	}
 
 	return &group, nil
 }
@@ -719,7 +763,7 @@ func (s *EmailServiceImpl) ResolveEmailGroup(ctx context.Context, userID uint, g
 
 // GetEmailGroups 获取分组列表（包含账户数量）
 func (s *EmailServiceImpl) GetEmailGroups(ctx context.Context, userID uint) ([]*models.EmailGroup, error) {
-	if _, err := s.ensureDefaultGroup(ctx, userID); err != nil {
+	if err := ValidateEmailGroupInvariantsForUser(ctx, s.db, userID); err != nil {
 		return nil, err
 	}
 
@@ -745,10 +789,8 @@ func (s *EmailServiceImpl) GetEmailGroups(ctx context.Context, userID uint) ([]*
 	}
 
 	countMap := make(map[uint]int64)
-	var ungroupedCount int64
 	for _, c := range counts {
 		if c.GroupID == nil {
-			ungroupedCount += c.Count
 			continue
 		}
 		countMap[*c.GroupID] = c.Count
@@ -756,9 +798,6 @@ func (s *EmailServiceImpl) GetEmailGroups(ctx context.Context, userID uint) ([]*
 
 	for _, group := range groups {
 		group.AccountCnt = countMap[group.ID]
-		if group.IsDefault {
-			group.AccountCnt += ungroupedCount
-		}
 	}
 
 	return groups, nil
@@ -794,6 +833,8 @@ func (s *EmailServiceImpl) CreateEmailGroup(ctx context.Context, userID uint, re
 		return nil, fmt.Errorf("failed to create group: %w", err)
 	}
 
+	resultGroup := group
+
 	// 如果这是用户创建的第一个自定义分组，则将其设为默认分组
 	var nonDefaultCount int64
 	if err := s.db.WithContext(ctx).Model(&models.EmailGroup{}).
@@ -803,11 +844,13 @@ func (s *EmailServiceImpl) CreateEmailGroup(ctx context.Context, userID uint, re
 		if err != nil {
 			log.Printf("Warning: failed to set first group as default: %v", err)
 		} else {
-			return defaultGroup, nil
+			resultGroup = defaultGroup
 		}
 	}
 
-	return group, nil
+	s.publishGroupEvent(ctx, userID, sse.EventGroupCreated, resultGroup)
+
+	return resultGroup, nil
 }
 
 // UpdateEmailGroup 更新分组
@@ -819,6 +862,9 @@ func (s *EmailServiceImpl) UpdateEmailGroup(ctx context.Context, userID, groupID
 		return nil, fmt.Errorf("group not found: %w", err)
 	}
 
+	if group.IsSystemGroup() {
+		return nil, fmt.Errorf("系统分组不可编辑")
+	}
 	if group.IsDefault {
 		return nil, fmt.Errorf("默认分组不可编辑")
 	}
@@ -835,6 +881,8 @@ func (s *EmailServiceImpl) UpdateEmailGroup(ctx context.Context, userID, groupID
 		return nil, fmt.Errorf("failed to update group: %w", err)
 	}
 
+	s.publishGroupEvent(ctx, userID, sse.EventGroupUpdated, &group)
+
 	return &group, nil
 }
 
@@ -847,6 +895,9 @@ func (s *EmailServiceImpl) DeleteEmailGroup(ctx context.Context, userID, groupID
 		return fmt.Errorf("group not found: %w", err)
 	}
 
+	if group.IsSystemGroup() {
+		return fmt.Errorf("系统分组不可删除")
+	}
 	if group.IsDefault {
 		return fmt.Errorf("默认分组不可删除")
 	}
@@ -856,7 +907,7 @@ func (s *EmailServiceImpl) DeleteEmailGroup(ctx context.Context, userID, groupID
 		return err
 	}
 
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&models.EmailAccount{}).
 			Where("user_id = ? AND group_id = ?", userID, groupID).
 			Update("group_id", defaultGroup.ID).Error; err != nil {
@@ -868,7 +919,12 @@ func (s *EmailServiceImpl) DeleteEmailGroup(ctx context.Context, userID, groupID
 		}
 
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+
+	s.publishGroupEvent(ctx, userID, sse.EventGroupDeleted, &group)
+	return nil
 }
 
 // ReorderEmailGroups 调整分组排序
@@ -892,6 +948,8 @@ func (s *EmailServiceImpl) ReorderEmailGroups(ctx context.Context, userID uint, 
 	for _, id := range order {
 		if g, ok := groupMap[id]; !ok || g.UserID != userID {
 			return nil, fmt.Errorf("invalid group id: %d", id)
+		} else if g.IsSystemGroup() && !g.IsDefault {
+			return nil, fmt.Errorf("系统分组不可参与排序")
 		}
 	}
 
@@ -915,7 +973,7 @@ func (s *EmailServiceImpl) ReorderEmailGroups(ctx context.Context, userID uint, 
 	}
 
 	for _, g := range groups {
-		if g.IsDefault || listed[g.ID] {
+		if g.IsDefault || g.IsSystemGroup() || listed[g.ID] {
 			continue
 		}
 		if err := tx.Model(&models.EmailGroup{}).
@@ -931,7 +989,21 @@ func (s *EmailServiceImpl) ReorderEmailGroups(ctx context.Context, userID uint, 
 		return nil, fmt.Errorf("failed to commit sort order: %w", err)
 	}
 
-	return s.GetEmailGroups(ctx, userID)
+	updatedGroups, err := s.GetEmailGroups(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	orderedIDs := make([]uint, 0, len(updatedGroups))
+	for _, group := range updatedGroups {
+		if group.IsDefault || group.IsSystemGroup() {
+			continue
+		}
+		orderedIDs = append(orderedIDs, group.ID)
+	}
+	s.publishGroupReorderedEvent(ctx, userID, orderedIDs)
+
+	return updatedGroups, nil
 }
 
 // MoveAccountToGroup 将账户移动到指定分组
@@ -940,6 +1012,7 @@ func (s *EmailServiceImpl) MoveAccountToGroup(ctx context.Context, userID, accou
 	if err != nil {
 		return err
 	}
+	previousGroupID := cloneUintPointer(account.GroupID)
 
 	targetGroup, err := s.resolveAccountGroup(ctx, userID, groupID)
 	if err != nil {
@@ -947,7 +1020,14 @@ func (s *EmailServiceImpl) MoveAccountToGroup(ctx context.Context, userID, accou
 	}
 
 	account.GroupID = &targetGroup.ID
-	return s.db.WithContext(ctx).Save(account).Error
+	if err := s.db.WithContext(ctx).Save(account).Error; err != nil {
+		return err
+	}
+
+	if !sameUintPointerValue(previousGroupID, account.GroupID) {
+		s.publishAccountGroupChangedEvent(ctx, userID, account, previousGroupID)
+	}
+	return nil
 }
 
 // SetDefaultEmailGroup 设置默认分组
@@ -965,11 +1045,18 @@ func (s *EmailServiceImpl) SetDefaultEmailGroup(ctx context.Context, userID, gro
 	if target.IsDefault {
 		return &target, nil
 	}
+	if target.IsSystemGroup() {
+		return nil, fmt.Errorf("系统占位分组不可设为默认分组")
+	}
 
 	var prevDefault models.EmailGroup
 	_ = s.db.WithContext(ctx).
 		Where("user_id = ? AND is_default = 1", userID).
 		First(&prevDefault).Error
+	previousDefaultGroupID := cloneUintPointer(nil)
+	if prevDefault.ID != 0 {
+		previousDefaultGroupID = &prevDefault.ID
+	}
 
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// 取消其他默认
@@ -1024,6 +1111,8 @@ func (s *EmailServiceImpl) SetDefaultEmailGroup(ctx context.Context, userID, gro
 		First(&target).Error; err != nil {
 		return nil, err
 	}
+
+	s.publishDefaultGroupChangedEvent(ctx, userID, &target, previousDefaultGroupID)
 
 	return &target, nil
 }

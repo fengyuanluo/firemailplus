@@ -243,12 +243,16 @@ export const useMailboxStore = create<MailboxState>((set) => ({
       groups: state.groups.map((g) => (g.id === group.id ? group : g)),
     })),
   removeGroup: (groupId) =>
-    set((state) => ({
-      groups: state.groups.filter((g) => g.id !== groupId),
-      accounts: state.accounts.map((acc) =>
-        acc.group_id === groupId ? { ...acc, group_id: undefined } : acc
-      ),
-    })),
+    set((state) => {
+      const nextGroups = state.groups.filter((g) => g.id !== groupId);
+      const defaultGroupId = nextGroups.find((g) => g.is_default)?.id;
+      return {
+        groups: nextGroups,
+        accounts: state.accounts.map((acc) =>
+          acc.group_id === groupId ? { ...acc, group_id: defaultGroupId } : acc
+        ),
+      };
+    }),
 
   // 文件夹操作
   setFolders: (folders) => set({ folders }),

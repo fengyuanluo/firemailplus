@@ -264,9 +264,40 @@ export interface EmailGroup {
   name: string;
   sort_order: number;
   is_default: boolean;
+  system_key?: string | null;
   account_count: number;
   created_at: string;
   updated_at: string;
+}
+
+export const EmailGroupSystemKey = {
+  DEFAULT_PLACEHOLDER: 'default_placeholder',
+} as const;
+
+export type EmailGroupSystemKeyValue = (typeof EmailGroupSystemKey)[keyof typeof EmailGroupSystemKey];
+
+export function isSystemEmailGroup(group: Pick<EmailGroup, 'system_key'>): boolean {
+  return Boolean(group.system_key);
+}
+
+export function isHiddenSystemEmailGroup(group: Pick<EmailGroup, 'system_key' | 'is_default'>): boolean {
+  return isSystemEmailGroup(group) && !group.is_default;
+}
+
+export function canEditEmailGroup(group: Pick<EmailGroup, 'system_key' | 'is_default'>): boolean {
+  return !group.is_default && !isSystemEmailGroup(group);
+}
+
+export function canDeleteEmailGroup(group: Pick<EmailGroup, 'system_key' | 'is_default'>): boolean {
+  return !group.is_default && !isSystemEmailGroup(group);
+}
+
+export function canSetDefaultEmailGroup(group: Pick<EmailGroup, 'system_key' | 'is_default'>): boolean {
+  return !group.is_default && !isSystemEmailGroup(group);
+}
+
+export function canReorderEmailGroup(group: Pick<EmailGroup, 'system_key' | 'is_default'>): boolean {
+  return !group.is_default && !isSystemEmailGroup(group);
 }
 
 // 工具函数：解析邮件地址JSON字符串

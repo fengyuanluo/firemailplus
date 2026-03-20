@@ -26,6 +26,7 @@ interface EmailGroupCardProps {
   className?: string;
   children?: ReactNode;
   subtitleSuffix?: string;
+  headerActions?: ReactNode;
 }
 
 export function EmailGroupCard({
@@ -49,6 +50,7 @@ export function EmailGroupCard({
   className = '',
   children,
   subtitleSuffix,
+  headerActions,
 }: EmailGroupCardProps) {
   const resolvedHandleText = handleText ?? (group.is_default ? '默认分组' : '拖动排序');
   const resolvedSubtitle = subtitleSuffix ?? (group.is_default ? '默认' : '可拖动排序');
@@ -120,6 +122,7 @@ export function EmailGroupCard({
               {resolvedHandleText}
             </div>
           )}
+          {headerActions}
         </div>
       </div>
 
