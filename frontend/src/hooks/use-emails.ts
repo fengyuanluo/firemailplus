@@ -29,6 +29,7 @@ export function useEmails(params?: UseEmailsParams) {
     searchQuery,
     isLoading,
     setEmails,
+    patchEmail,
     updateEmail,
     removeEmail,
     selectEmail,
@@ -38,10 +39,7 @@ export function useEmails(params?: UseEmailsParams) {
   const queryClient = useQueryClient();
 
   // 获取邮件列表
-  const {
-    isLoading: isQueryLoading,
-    error,
-  } = useQuery({
+  const { isLoading: isQueryLoading, error } = useQuery({
     queryKey: ['emails', params],
     queryFn: async () => {
       setLoading(true);
@@ -98,7 +96,7 @@ export function useEmails(params?: UseEmailsParams) {
   const markAsReadMutation = useMutation({
     mutationFn: (id: number) => apiClient.markEmailAsRead(id),
     onSuccess: (_, id) => {
-      updateEmail(id, { is_read: true });
+      patchEmail(id, { is_read: true });
       toast.success('已标记为已读');
     },
     onError: (error: unknown) => {
@@ -110,7 +108,7 @@ export function useEmails(params?: UseEmailsParams) {
   const markAsUnreadMutation = useMutation({
     mutationFn: (id: number) => apiClient.markEmailAsUnread(id),
     onSuccess: (_, id) => {
-      updateEmail(id, { is_read: false });
+      patchEmail(id, { is_read: false });
       toast.success('已标记为未读');
     },
     onError: (error: unknown) => {

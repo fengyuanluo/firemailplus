@@ -493,7 +493,7 @@ class ApiClient {
   }
 
   async markAllAsRead(folderId: number): Promise<ApiResponse> {
-    return this.request(`/folders/${folderId}/mark-all-read`, {
+    return this.request(`/folders/${folderId}/mark-read`, {
       method: 'PUT',
     });
   }

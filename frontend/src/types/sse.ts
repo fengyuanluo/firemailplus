@@ -12,6 +12,9 @@ export const ALL_SSE_EVENT_TYPES = [
   'email_important',
   'email_unimportant',
   'email_deleted',
+  'email_moved',
+  'folder_read_state_changed',
+  'account_read_state_changed',
   'sync_started',
   'sync_progress',
   'sync_completed',
@@ -64,10 +67,34 @@ export interface NewEmailEventData {
 export interface EmailStatusEventData {
   email_id: number;
   account_id: number;
+  folder_id?: number;
   is_read?: boolean;
   is_starred?: boolean;
   is_important?: boolean;
   is_deleted?: boolean;
+  unread_delta?: number;
+}
+
+// 邮件移动事件数据
+export interface EmailMovedEventData {
+  email_id: number;
+  account_id: number;
+  source_folder_id?: number;
+  target_folder_id: number;
+  is_read: boolean;
+}
+
+// 文件夹批量读状态变更事件数据
+export interface FolderReadStateEventData {
+  account_id: number;
+  folder_id: number;
+  affected_count: number;
+}
+
+// 账户批量读状态变更事件数据
+export interface AccountReadStateEventData {
+  account_id: number;
+  affected_count: number;
 }
 
 // 同步事件数据
@@ -127,6 +154,9 @@ export interface HeartbeatEventData {
 // 具体的 SSE 事件类型
 export type NewEmailEvent = SSEEvent<NewEmailEventData>;
 export type EmailStatusEvent = SSEEvent<EmailStatusEventData>;
+export type EmailMovedEvent = SSEEvent<EmailMovedEventData>;
+export type FolderReadStateEvent = SSEEvent<FolderReadStateEventData>;
+export type AccountReadStateEvent = SSEEvent<AccountReadStateEventData>;
 export type SyncEvent = SSEEvent<SyncEventData>;
 export type AccountEvent = SSEEvent<AccountEventData>;
 export type GroupEvent = SSEEvent<GroupEventData>;
@@ -138,6 +168,9 @@ export type HeartbeatEvent = SSEEvent<HeartbeatEventData>;
 export type AnySSEEvent =
   | NewEmailEvent
   | EmailStatusEvent
+  | EmailMovedEvent
+  | FolderReadStateEvent
+  | AccountReadStateEvent
   | SyncEvent
   | AccountEvent
   | GroupEvent

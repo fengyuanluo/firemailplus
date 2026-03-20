@@ -14,7 +14,8 @@ interface BulkActionsProps {
 export function BulkActions({ selectedCount }: BulkActionsProps) {
   const [isOperating, setIsOperating] = useState(false);
 
-  const { selectedEmails, clearSelection, updateEmail, removeEmail } = useMailboxStore();
+  const { selectedEmails, clearSelection, patchEmail, updateEmail, removeEmail } =
+    useMailboxStore();
 
   // 执行批量操作
   const executeBulkOperation = async (operation: string) => {
@@ -34,11 +35,11 @@ export function BulkActions({ selectedCount }: BulkActionsProps) {
         // 乐观更新本地状态
         switch (operation) {
           case 'read':
-            emailIds.forEach((id) => updateEmail(id, { is_read: true }));
+            emailIds.forEach((id) => patchEmail(id, { is_read: true }));
             toast.success(`已标记 ${selectedCount} 封邮件为已读`);
             break;
           case 'unread':
-            emailIds.forEach((id) => updateEmail(id, { is_read: false }));
+            emailIds.forEach((id) => patchEmail(id, { is_read: false }));
             toast.success(`已标记 ${selectedCount} 封邮件为未读`);
             break;
           case 'star':
@@ -60,8 +61,7 @@ export function BulkActions({ selectedCount }: BulkActionsProps) {
         toast.error(response.message || '批量操作失败');
       }
     } catch (error: unknown) {
-      const message =
-        error instanceof Error && error.message ? error.message : '批量操作失败';
+      const message = error instanceof Error && error.message ? error.message : '批量操作失败';
       toast.error(message);
     } finally {
       setIsOperating(false);

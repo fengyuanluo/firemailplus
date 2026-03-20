@@ -48,6 +48,8 @@ type EmailService interface {
 	DeleteEmail(ctx context.Context, userID, emailID uint) error
 	MarkEmailAsRead(ctx context.Context, userID, emailID uint) error
 	MarkEmailAsUnread(ctx context.Context, userID, emailID uint) error
+	MarkEmailAsStarred(ctx context.Context, userID, emailID uint) error
+	MarkEmailAsUnstarred(ctx context.Context, userID, emailID uint) error
 	MarkAccountAsRead(ctx context.Context, userID, accountID uint) error
 	MarkAccountsAsRead(ctx context.Context, userID uint, accountIDs []uint) error
 	ToggleEmailStar(ctx context.Context, userID, emailID uint) error
@@ -1239,7 +1241,8 @@ func (s *EmailServiceImpl) GetEmails(ctx context.Context, userID uint, req *GetE
 	// 构建查询
 	query := s.db.Model(&models.Email{}).
 		Joins("JOIN email_accounts ON emails.account_id = email_accounts.id").
-		Where("email_accounts.user_id = ?", userID)
+		Where("email_accounts.user_id = ?", userID).
+		Where("emails.is_deleted = ?", false)
 
 	// 添加过滤条件
 	if req.AccountID != nil {
@@ -1347,7 +1350,7 @@ func (s *EmailServiceImpl) GetEmail(ctx context.Context, userID, emailID uint) (
 	// 查询邮件，确保用户只能访问自己的邮件
 	err := s.db.WithContext(ctx).
 		Joins("JOIN email_accounts ON emails.account_id = email_accounts.id").
-		Where("emails.id = ? AND email_accounts.user_id = ?", emailID, userID).
+		Where("emails.id = ? AND email_accounts.user_id = ? AND emails.is_deleted = ?", emailID, userID, false).
 		Preload("Account").
 		Preload("Folder").
 		Preload("Attachments").
@@ -1450,6 +1453,190 @@ func (s *EmailServiceImpl) SendEmail(ctx context.Context, userID uint, req *Send
 	return nil
 }
 
+func (s *EmailServiceImpl) getEmailForUser(ctx context.Context, userID, emailID uint, includeDeleted bool, preloads ...string) (*models.Email, error) {
+	query := s.db.WithContext(ctx).
+		Joins("JOIN email_accounts ON emails.account_id = email_accounts.id").
+		Where("emails.id = ? AND email_accounts.user_id = ?", emailID, userID)
+
+	if !includeDeleted {
+		query = query.Where("emails.is_deleted = ?", false)
+	}
+
+	for _, preload := range preloads {
+		query = query.Preload(preload)
+	}
+
+	var email models.Email
+	if err := query.First(&email).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("email not found")
+		}
+		return nil, fmt.Errorf("failed to find email: %w", err)
+	}
+
+	return &email, nil
+}
+
+func (s *EmailServiceImpl) setEmailReadState(ctx context.Context, userID, emailID uint, isRead bool) error {
+	email, err := s.getEmailForUser(ctx, userID, emailID, false, "Account", "Folder")
+	if err != nil {
+		return err
+	}
+
+	if email.IsRead == isRead {
+		return nil
+	}
+
+	unreadDeltaValue := -1
+	if !isRead {
+		unreadDeltaValue = 1
+	}
+
+	if email.UID == 0 {
+		return fmt.Errorf("email cannot sync read state to server: missing UID")
+	}
+
+	if email.Folder == nil || email.Folder.GetFullPath() == "" {
+		return fmt.Errorf("email cannot sync read state to server: missing folder path")
+	}
+
+	provider, err := s.providerFactory.CreateProviderForAccount(&email.Account)
+	if err != nil {
+		return fmt.Errorf("failed to create provider: %w", err)
+	}
+
+	s.setupProviderTokenCallback(provider)
+
+	if err := provider.Connect(ctx, &email.Account); err != nil {
+		return fmt.Errorf("failed to connect to email server: %w", err)
+	}
+	defer provider.Disconnect()
+
+	imapClient := provider.IMAPClient()
+	if imapClient == nil {
+		return fmt.Errorf("IMAP client not available")
+	}
+
+	if _, err := imapClient.SelectFolder(ctx, email.Folder.GetFullPath()); err != nil {
+		return fmt.Errorf("failed to select folder: %w", err)
+	}
+
+	uids := []uint32{email.UID}
+	if isRead {
+		if err := imapClient.MarkAsRead(ctx, uids); err != nil {
+			return fmt.Errorf("failed to mark email as read on server: %w", err)
+		}
+		email.MarkAsRead()
+	} else {
+		if err := imapClient.MarkAsUnread(ctx, uids); err != nil {
+			return fmt.Errorf("failed to mark email as unread on server: %w", err)
+		}
+		email.MarkAsUnread()
+	}
+
+	if err := s.db.WithContext(ctx).Save(email).Error; err != nil {
+		return fmt.Errorf("failed to update email status: %w", err)
+	}
+
+	if err := s.updateUnreadCounters(ctx, userID, email.AccountID, email.FolderID); err != nil {
+		return err
+	}
+
+	if s.eventPublisher != nil {
+		event := sse.NewEmailStatusEvent(
+			email.ID,
+			email.AccountID,
+			userID,
+			email.FolderID,
+			&email.IsRead,
+			nil,
+			nil,
+			nil,
+			&unreadDeltaValue,
+		)
+		if err := s.eventPublisher.PublishToUser(ctx, userID, event); err != nil {
+			fmt.Printf("Failed to publish email read status event: %v\n", err)
+		}
+	}
+
+	return nil
+}
+
+func (s *EmailServiceImpl) setEmailStarState(ctx context.Context, userID, emailID uint, isStarred bool) error {
+	email, err := s.getEmailForUser(ctx, userID, emailID, false)
+	if err != nil {
+		return err
+	}
+
+	if email.IsStarred == isStarred {
+		return nil
+	}
+
+	email.IsStarred = isStarred
+	if err := s.db.WithContext(ctx).Save(email).Error; err != nil {
+		return fmt.Errorf("failed to update email star status: %w", err)
+	}
+
+	s.invalidateEmailListCache(userID)
+
+	if s.eventPublisher != nil {
+		event := sse.NewEmailStatusEvent(email.ID, email.AccountID, userID, nil, nil, &email.IsStarred, nil, nil, nil)
+		if err := s.eventPublisher.PublishToUser(ctx, userID, event); err != nil {
+			fmt.Printf("Failed to publish email star event: %v\n", err)
+		}
+	}
+
+	return nil
+}
+
+func (s *EmailServiceImpl) markEmailsAsReadOnServer(ctx context.Context, account *models.EmailAccount, emails []models.Email) error {
+	folderUIDs := make(map[string][]uint32)
+
+	for _, email := range emails {
+		if email.UID == 0 {
+			return fmt.Errorf("email %d cannot sync read state to server: missing UID", email.ID)
+		}
+		if email.Folder == nil || email.Folder.GetFullPath() == "" {
+			return fmt.Errorf("email %d cannot sync read state to server: missing folder path", email.ID)
+		}
+
+		folderPath := email.Folder.GetFullPath()
+		folderUIDs[folderPath] = append(folderUIDs[folderPath], email.UID)
+	}
+
+	if len(folderUIDs) == 0 {
+		return nil
+	}
+
+	provider, err := s.providerFactory.CreateProviderForAccount(account)
+	if err != nil {
+		return fmt.Errorf("failed to create provider: %w", err)
+	}
+
+	s.setupProviderTokenCallback(provider)
+
+	if err := provider.Connect(ctx, account); err != nil {
+		return fmt.Errorf("failed to connect to email server: %w", err)
+	}
+	defer provider.Disconnect()
+
+	imapClient := provider.IMAPClient()
+	if imapClient == nil {
+		return fmt.Errorf("IMAP client not available")
+	}
+
+	for folderPath, uids := range folderUIDs {
+		if _, err := imapClient.SelectFolder(ctx, folderPath); err != nil {
+			return fmt.Errorf("failed to select folder %s: %w", folderPath, err)
+		}
+		if err := imapClient.MarkAsRead(ctx, uids); err != nil {
+			return fmt.Errorf("failed to mark folder %s emails as read on server: %w", folderPath, err)
+		}
+	}
+
+	return nil
+}
+
 // DeleteEmail 删除邮件
 func (s *EmailServiceImpl) DeleteEmail(ctx context.Context, userID, emailID uint) error {
 	// 查找邮件并验证权限，同时预加载账户和文件夹信息
@@ -1505,15 +1692,34 @@ func (s *EmailServiceImpl) DeleteEmail(ctx context.Context, userID, emailID uint
 	}
 
 	// 标记为删除（软删除）
+	unreadDeltaValue := 0
+	if !email.IsRead {
+		unreadDeltaValue = -1
+	}
+	folderID := email.FolderID
 	email.IsDeleted = true
-	if err := s.db.Save(&email).Error; err != nil {
+	if err := s.db.WithContext(ctx).Save(&email).Error; err != nil {
 		return fmt.Errorf("failed to delete email: %w", err)
+	}
+
+	if err := s.updateUnreadCounters(ctx, userID, email.AccountID, email.FolderID); err != nil {
+		return err
 	}
 
 	// 发布邮件删除事件
 	if s.eventPublisher != nil {
 		isDeleted := true
-		event := sse.NewEmailStatusEvent(emailID, email.AccountID, userID, nil, nil, nil, &isDeleted)
+		event := sse.NewEmailStatusEvent(
+			emailID,
+			email.AccountID,
+			userID,
+			folderID,
+			nil,
+			nil,
+			nil,
+			&isDeleted,
+			&unreadDeltaValue,
+		)
 		if err := s.eventPublisher.PublishToUser(ctx, userID, event); err != nil {
 			// 记录错误但不影响主要操作
 			fmt.Printf("Failed to publish email delete event: %v\n", err)
@@ -1525,90 +1731,22 @@ func (s *EmailServiceImpl) DeleteEmail(ctx context.Context, userID, emailID uint
 
 // MarkEmailAsRead 标记邮件为已读
 func (s *EmailServiceImpl) MarkEmailAsRead(ctx context.Context, userID, emailID uint) error {
-	// 查找邮件并验证权限
-	var email models.Email
-	err := s.db.Joins("JOIN email_accounts ON emails.account_id = email_accounts.id").
-		Where("emails.id = ? AND email_accounts.user_id = ?", emailID, userID).
-		First(&email).Error
-
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return fmt.Errorf("email not found")
-		}
-		return fmt.Errorf("failed to find email: %w", err)
-	}
-
-	// 如果已经是已读状态，直接返回
-	if email.IsRead {
-		return nil
-	}
-
-	// 更新邮件状态
-	email.MarkAsRead()
-	if err := s.db.Save(&email).Error; err != nil {
-		return fmt.Errorf("failed to update email status: %w", err)
-	}
-
-	// 更新未读计数并清理缓存
-	if err := s.updateUnreadCounters(ctx, userID, email.AccountID, email.FolderID); err != nil {
-		return err
-	}
-
-	// 发布邮件状态变更事件
-	if s.eventPublisher != nil {
-		isRead := true
-		event := sse.NewEmailStatusEvent(emailID, email.AccountID, userID, &isRead, nil, nil, nil)
-		if err := s.eventPublisher.PublishToUser(ctx, userID, event); err != nil {
-			// 记录错误但不影响主要操作
-			fmt.Printf("Failed to publish email read event: %v\n", err)
-		}
-	}
-
-	return nil
+	return s.setEmailReadState(ctx, userID, emailID, true)
 }
 
 // MarkEmailAsUnread 标记邮件为未读
 func (s *EmailServiceImpl) MarkEmailAsUnread(ctx context.Context, userID, emailID uint) error {
-	// 查找邮件并验证权限
-	var email models.Email
-	err := s.db.Joins("JOIN email_accounts ON emails.account_id = email_accounts.id").
-		Where("emails.id = ? AND email_accounts.user_id = ?", emailID, userID).
-		First(&email).Error
+	return s.setEmailReadState(ctx, userID, emailID, false)
+}
 
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return fmt.Errorf("email not found")
-		}
-		return fmt.Errorf("failed to find email: %w", err)
-	}
+// MarkEmailAsStarred 标记邮件为星标
+func (s *EmailServiceImpl) MarkEmailAsStarred(ctx context.Context, userID, emailID uint) error {
+	return s.setEmailStarState(ctx, userID, emailID, true)
+}
 
-	// 如果已经是未读状态，直接返回
-	if !email.IsRead {
-		return nil
-	}
-
-	// 更新邮件状态
-	email.MarkAsUnread()
-	if err := s.db.Save(&email).Error; err != nil {
-		return fmt.Errorf("failed to update email status: %w", err)
-	}
-
-	// 更新未读计数并清理缓存
-	if err := s.updateUnreadCounters(ctx, userID, email.AccountID, email.FolderID); err != nil {
-		return err
-	}
-
-	// 发布邮件状态变更事件
-	if s.eventPublisher != nil {
-		isRead := false
-		event := sse.NewEmailStatusEvent(emailID, email.AccountID, userID, &isRead, nil, nil, nil)
-		if err := s.eventPublisher.PublishToUser(ctx, userID, event); err != nil {
-			// 记录错误但不影响主要操作
-			fmt.Printf("Failed to publish email unread event: %v\n", err)
-		}
-	}
-
-	return nil
+// MarkEmailAsUnstarred 取消邮件星标
+func (s *EmailServiceImpl) MarkEmailAsUnstarred(ctx context.Context, userID, emailID uint) error {
+	return s.setEmailStarState(ctx, userID, emailID, false)
 }
 
 // ToggleEmailStar 切换邮件星标状态
@@ -1616,7 +1754,7 @@ func (s *EmailServiceImpl) ToggleEmailStar(ctx context.Context, userID, emailID 
 	// 查找邮件并验证权限
 	var email models.Email
 	err := s.db.Joins("JOIN email_accounts ON emails.account_id = email_accounts.id").
-		Where("emails.id = ? AND email_accounts.user_id = ?", emailID, userID).
+		Where("emails.id = ? AND email_accounts.user_id = ? AND emails.is_deleted = ?", emailID, userID, false).
 		First(&email).Error
 
 	if err != nil {
@@ -1629,30 +1767,7 @@ func (s *EmailServiceImpl) ToggleEmailStar(ctx context.Context, userID, emailID 
 	// 切换星标状态
 	email.ToggleStar()
 
-	if err := s.db.Save(&email).Error; err != nil {
-		return fmt.Errorf("failed to update email star status: %w", err)
-	}
-
-	// 发布邮件星标变更事件
-	if s.eventPublisher != nil {
-		isStarred := email.IsStarred
-		var event *sse.Event
-
-		if isStarred {
-			event = sse.NewEmailStatusEvent(emailID, email.AccountID, userID, nil, &isStarred, nil, nil)
-			event.Type = sse.EventEmailStarred
-		} else {
-			event = sse.NewEmailStatusEvent(emailID, email.AccountID, userID, nil, &isStarred, nil, nil)
-			event.Type = sse.EventEmailUnstarred
-		}
-
-		if err := s.eventPublisher.PublishToUser(ctx, userID, event); err != nil {
-			// 记录错误但不影响主要操作
-			fmt.Printf("Failed to publish email star event: %v\n", err)
-		}
-	}
-
-	return nil
+	return s.setEmailStarState(ctx, userID, emailID, email.IsStarred)
 }
 
 // ToggleEmailImportant 切换邮件重要状态
@@ -1660,7 +1775,7 @@ func (s *EmailServiceImpl) ToggleEmailImportant(ctx context.Context, userID, ema
 	// 查找邮件并验证权限
 	var email models.Email
 	err := s.db.Joins("JOIN email_accounts ON emails.account_id = email_accounts.id").
-		Where("emails.id = ? AND email_accounts.user_id = ?", emailID, userID).
+		Where("emails.id = ? AND email_accounts.user_id = ? AND emails.is_deleted = ?", emailID, userID, false).
 		First(&email).Error
 
 	if err != nil {
@@ -1677,16 +1792,18 @@ func (s *EmailServiceImpl) ToggleEmailImportant(ctx context.Context, userID, ema
 		return fmt.Errorf("failed to update email important status: %w", err)
 	}
 
+	s.invalidateEmailListCache(userID)
+
 	// 发布邮件重要状态变更事件
 	if s.eventPublisher != nil {
 		isImportant := email.IsImportant
 		var event *sse.Event
 
 		if isImportant {
-			event = sse.NewEmailStatusEvent(emailID, email.AccountID, userID, nil, nil, &isImportant, nil)
+			event = sse.NewEmailStatusEvent(emailID, email.AccountID, userID, nil, nil, nil, &isImportant, nil, nil)
 			event.Type = sse.EventEmailImportant
 		} else {
-			event = sse.NewEmailStatusEvent(emailID, email.AccountID, userID, nil, nil, &isImportant, nil)
+			event = sse.NewEmailStatusEvent(emailID, email.AccountID, userID, nil, nil, nil, &isImportant, nil, nil)
 			event.Type = sse.EventEmailUnimportant
 		}
 
@@ -1704,7 +1821,7 @@ func (s *EmailServiceImpl) MoveEmail(ctx context.Context, userID, emailID uint, 
 	// 查找邮件并验证权限
 	var email models.Email
 	err := s.db.Joins("JOIN email_accounts ON emails.account_id = email_accounts.id").
-		Where("emails.id = ? AND email_accounts.user_id = ?", emailID, userID).
+		Where("emails.id = ? AND email_accounts.user_id = ? AND emails.is_deleted = ?", emailID, userID, false).
 		First(&email).Error
 
 	if err != nil {
@@ -1777,13 +1894,29 @@ func (s *EmailServiceImpl) MoveEmail(ctx context.Context, userID, emailID uint, 
 	}
 
 	// 更新数据库中的邮件文件夹
+	sourceFolderID := email.FolderID
 	email.FolderID = &targetFolderID
 	if err := s.db.Save(&email).Error; err != nil {
 		return fmt.Errorf("failed to update email folder in database: %w", err)
 	}
 
-	// 发布邮件移动通知事件
+	if err := s.updateUnreadCounters(ctx, userID, email.AccountID, sourceFolderID); err != nil {
+		return err
+	}
+
+	if sourceFolderID == nil || *sourceFolderID != targetFolderID {
+		if err := s.updateUnreadCounters(ctx, userID, email.AccountID, &targetFolderID); err != nil {
+			return err
+		}
+	}
+
+	// 发布邮件移动事件
 	if s.eventPublisher != nil {
+		moveEvent := sse.NewEmailMovedEvent(email.ID, email.AccountID, userID, sourceFolderID, targetFolderID, email.IsRead)
+		if err := s.eventPublisher.PublishToUser(ctx, userID, moveEvent); err != nil {
+			fmt.Printf("Failed to publish email move event: %v\n", err)
+		}
+
 		event := sse.NewNotificationEvent(
 			"邮件已移动",
 			fmt.Sprintf("邮件已移动到文件夹: %s", targetFolder.Name),
@@ -2189,10 +2322,16 @@ func (s *EmailServiceImpl) MarkFolderAsRead(ctx context.Context, userID, folderI
 		return err
 	}
 
+	account, err := s.GetEmailAccount(ctx, userID, folder.AccountID)
+	if err != nil {
+		return err
+	}
+
 	// 查找文件夹内所有未读邮件
 	var emails []models.Email
 	err = s.db.WithContext(ctx).
-		Where("folder_id = ? AND is_read = ?", folderID, false).
+		Preload("Folder").
+		Where("folder_id = ? AND is_read = ? AND is_deleted = ?", folderID, false, false).
 		Find(&emails).Error
 
 	if err != nil {
@@ -2204,10 +2343,14 @@ func (s *EmailServiceImpl) MarkFolderAsRead(ctx context.Context, userID, folderI
 		return nil
 	}
 
+	if err := s.markEmailsAsReadOnServer(ctx, account, emails); err != nil {
+		return err
+	}
+
 	// 批量更新邮件为已读状态
 	err = s.db.WithContext(ctx).
 		Model(&models.Email{}).
-		Where("folder_id = ? AND is_read = ?", folderID, false).
+		Where("folder_id = ? AND is_read = ? AND is_deleted = ?", folderID, false, false).
 		Update("is_read", true).Error
 
 	if err != nil {
@@ -2221,13 +2364,18 @@ func (s *EmailServiceImpl) MarkFolderAsRead(ctx context.Context, userID, folderI
 
 	// 发布文件夹标记已读事件
 	if s.eventPublisher != nil {
-		event := sse.NewNotificationEvent(
+		event := sse.NewFolderReadStateChangedEvent(folder.AccountID, folderID, userID, len(emails))
+		if err := s.eventPublisher.PublishToUser(ctx, userID, event); err != nil {
+			log.Printf("Failed to publish folder read state event: %v", err)
+		}
+
+		notificationEvent := sse.NewNotificationEvent(
 			"文件夹已标记为已读",
 			fmt.Sprintf("文件夹 '%s' 内的 %d 封邮件已标记为已读", folder.DisplayName, len(emails)),
 			"success",
 			userID,
 		)
-		if err := s.eventPublisher.PublishToUser(ctx, userID, event); err != nil {
+		if err := s.eventPublisher.PublishToUser(ctx, userID, notificationEvent); err != nil {
 			log.Printf("Failed to publish folder mark as read event: %v", err)
 		}
 	}
@@ -2243,10 +2391,26 @@ func (s *EmailServiceImpl) MarkAccountAsRead(ctx context.Context, userID, accoun
 		return err
 	}
 
+	var emails []models.Email
+	if err := s.db.WithContext(ctx).
+		Preload("Folder").
+		Where("account_id = ? AND is_read = ? AND is_deleted = ?", accountID, false, false).
+		Find(&emails).Error; err != nil {
+		return fmt.Errorf("failed to find account unread emails: %w", err)
+	}
+
+	if len(emails) == 0 {
+		return nil
+	}
+
+	if err := s.markEmailsAsReadOnServer(ctx, account, emails); err != nil {
+		return err
+	}
+
 	// 批量更新邮件为已读状态
 	if err := s.db.WithContext(ctx).
 		Model(&models.Email{}).
-		Where("account_id = ? AND is_read = ?", accountID, false).
+		Where("account_id = ? AND is_read = ? AND is_deleted = ?", accountID, false, false).
 		Update("is_read", true).Error; err != nil {
 		return fmt.Errorf("failed to mark account emails as read: %w", err)
 	}
@@ -2266,13 +2430,18 @@ func (s *EmailServiceImpl) MarkAccountAsRead(ctx context.Context, userID, accoun
 
 	// 发布通知事件（非关键路径，失败不阻断）
 	if s.eventPublisher != nil {
-		event := sse.NewNotificationEvent(
+		event := sse.NewAccountReadStateChangedEvent(accountID, userID, len(emails))
+		if err := s.eventPublisher.PublishToUser(ctx, userID, event); err != nil {
+			log.Printf("Failed to publish account read state event: %v", err)
+		}
+
+		notificationEvent := sse.NewNotificationEvent(
 			"邮箱已标记为已读",
 			fmt.Sprintf("账户 %s 的所有邮件已标记为已读", account.Email),
 			"success",
 			userID,
 		)
-		if err := s.eventPublisher.PublishToUser(ctx, userID, event); err != nil {
+		if err := s.eventPublisher.PublishToUser(ctx, userID, notificationEvent); err != nil {
 			log.Printf("Failed to publish account mark as read event: %v", err)
 		}
 	}
@@ -2355,7 +2524,8 @@ func (s *EmailServiceImpl) SearchEmails(ctx context.Context, userID uint, req *S
 	// 构建基础查询
 	query := s.db.WithContext(ctx).Model(&models.Email{}).
 		Joins("JOIN email_accounts ON emails.account_id = email_accounts.id").
-		Where("email_accounts.user_id = ?", userID)
+		Where("email_accounts.user_id = ?", userID).
+		Where("emails.is_deleted = ?", false)
 
 	parsedQuery := parseSearchQueryTokens(req.Query)
 	if parsedQuery.HasTokens {

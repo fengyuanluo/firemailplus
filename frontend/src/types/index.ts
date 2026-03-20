@@ -56,6 +56,9 @@ export type {
   SSEEvent,
   NewEmailEventData,
   EmailStatusEventData,
+  EmailMovedEventData,
+  FolderReadStateEventData,
+  AccountReadStateEventData,
   SyncEventData,
   AccountEventData,
   NotificationEventData,
@@ -312,7 +315,9 @@ export type LastOf<T> =
   UnionToIntersection<T extends unknown ? () => T : never> extends () => infer R ? R : never;
 
 // 函数类型工具
-export type AsyncFunction<T extends unknown[] = unknown[], R = unknown> = (...args: T) => Promise<R>;
+export type AsyncFunction<T extends unknown[] = unknown[], R = unknown> = (
+  ...args: T
+) => Promise<R>;
 export type EventHandler<T = unknown> = (event: T) => void;
 export type Callback<T = void> = () => T;
 

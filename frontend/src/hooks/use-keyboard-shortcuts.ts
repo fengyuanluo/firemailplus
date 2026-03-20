@@ -5,6 +5,8 @@
 import { useEffect, useCallback } from 'react';
 import { useMailboxStore } from '@/lib/store';
 import { useComposeStore } from '@/lib/store';
+import { apiClient } from '@/lib/api';
+import { toast } from 'sonner';
 
 // 快捷键配置
 const SHORTCUTS = {
@@ -22,8 +24,8 @@ const SHORTCUTS = {
   e: 'archive', // 归档
   s: 'star', // 星标
   i: 'important', // 重要
-  m: 'mark_read', // 标记已读
-  'shift+m': 'mark_unread', // 标记未读
+  m: 'read', // 标记已读
+  'shift+m': 'unread', // 标记未读
 
   // 选择快捷键
   x: 'toggle_select', // 切换选择
@@ -93,12 +95,40 @@ export function useKeyboardShortcuts() {
         case 'delete':
         case 'archive':
         case 'star':
-        case 'mark_read':
-        case 'mark_unread':
         case 'toggle_select':
         case 'select_all':
         case 'select_none':
           console.log('快捷键功能开发中:', action);
+          break;
+
+        case 'read':
+          if (selectedEmail && !selectedEmail.is_read) {
+            void apiClient
+              .markEmailAsRead(selectedEmail.id)
+              .then(() => {
+                mailboxState.patchEmail(selectedEmail.id, { is_read: true });
+                toast.success('已标记为已读');
+              })
+              .catch((error: unknown) => {
+                const message = error instanceof Error ? error.message : '标记失败';
+                toast.error(message);
+              });
+          }
+          break;
+
+        case 'unread':
+          if (selectedEmail && selectedEmail.is_read) {
+            void apiClient
+              .markEmailAsUnread(selectedEmail.id)
+              .then(() => {
+                mailboxState.patchEmail(selectedEmail.id, { is_read: false });
+                toast.success('已标记为未读');
+              })
+              .catch((error: unknown) => {
+                const message = error instanceof Error ? error.message : '标记失败';
+                toast.error(message);
+              });
+          }
           break;
 
         case 'search':
@@ -222,8 +252,8 @@ function getShortcutDescription(action: string): string {
     archive: '归档',
     star: '星标',
     important: '重要',
-    mark_read: '标记已读',
-    mark_unread: '标记未读',
+    read: '标记已读',
+    unread: '标记未读',
     toggle_select: '切换选择',
     select_all: '全选',
     select_none: '取消全选',

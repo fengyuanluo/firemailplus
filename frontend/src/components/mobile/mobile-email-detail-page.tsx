@@ -30,7 +30,8 @@ interface MobileEmailDetailPageProps {
 }
 
 export function MobileEmailDetailPage({ emailId }: MobileEmailDetailPageProps) {
-  const { emails, selectEmail, removeEmail, updateEmail, upsertEmail } = useMailboxStore();
+  const { emails, selectEmail, removeEmail, patchEmail, updateEmail, upsertEmail } =
+    useMailboxStore();
 
   const [isLoading, setIsLoading] = useState(true);
   const [emailDetail, setEmailDetail] = useState<Email | null>(null);
@@ -70,6 +71,13 @@ export function MobileEmailDetailPage({ emailId }: MobileEmailDetailPageProps) {
 
     loadEmailDetail();
   }, [emailId, emails, selectEmail, upsertEmail]);
+
+  useEffect(() => {
+    const storeEmail = emails.find((email) => email.id === emailId);
+    if (storeEmail) {
+      setEmailDetail((prev) => (prev ? { ...prev, ...storeEmail } : storeEmail));
+    }
+  }, [emailId, emails]);
 
   // 处理回复
   const handleReply = () => {
@@ -147,7 +155,7 @@ export function MobileEmailDetailPage({ emailId }: MobileEmailDetailPageProps) {
 
       const newReadStatus = !emailDetail.is_read;
       setEmailDetail((prev) => (prev ? { ...prev, is_read: newReadStatus } : null));
-      updateEmail(emailDetail.id, { is_read: newReadStatus });
+      patchEmail(emailDetail.id, { is_read: newReadStatus });
       toast.success(newReadStatus ? '已标记为已读' : '已标记为未读');
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, '操作失败'));
@@ -324,7 +332,9 @@ function MobileEmailMetadata({ email }: { email: Email }) {
 
         <div className="text-right flex-shrink-0">
           <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">时间</div>
-          <div className="text-sm text-gray-700 dark:text-gray-300">{formatDateTime(email.date)}</div>
+          <div className="text-sm text-gray-700 dark:text-gray-300">
+            {formatDateTime(email.date)}
+          </div>
         </div>
       </div>
 
@@ -334,7 +344,9 @@ function MobileEmailMetadata({ email }: { email: Email }) {
             <div className="min-w-0 flex-1">
               <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">收件人</div>
               <div className="text-sm text-gray-700 dark:text-gray-300 break-words">
-                {showRecipients ? formatAddressList(toAddresses) : formatAddressList(toAddresses, 1)}
+                {showRecipients
+                  ? formatAddressList(toAddresses)
+                  : formatAddressList(toAddresses, 1)}
               </div>
             </div>
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { NotificationCenter } from '@/components/mailbox/notification-center';
+import { MailboxSSEBridge } from '@/hooks/use-sse';
 import { useNotificationStore } from '@/lib/store';
 
 interface MobileLayoutProps {
@@ -15,6 +16,7 @@ export function MobileLayout({ children, className = '' }: MobileLayoutProps) {
 
   return (
     <div className={`min-h-screen bg-gray-50 dark:bg-gray-900 ${className}`}>
+      <MailboxSSEBridge />
       {children}
 
       {/* 通知中心 */}

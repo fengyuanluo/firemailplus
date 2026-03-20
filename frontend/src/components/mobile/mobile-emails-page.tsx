@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Mail, Star, Paperclip, Reply, Archive, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -16,10 +16,16 @@ import {
 } from './mobile-layout';
 import { EmailsHeader } from './mobile-header';
 import { apiClient } from '@/lib/api';
-import { parseEmailAddress, getEmailPreview, type Email, type Folder as MailFolder } from '@/types/email';
+import {
+  parseEmailAddress,
+  getEmailPreview,
+  type Email,
+  type Folder as MailFolder,
+} from '@/types/email';
 import { toast } from 'sonner';
 import { useMobileNavigation } from '@/hooks/use-mobile-navigation';
 import { useSwipeActions } from '@/hooks/use-swipe-actions';
+import { useMailboxSSE } from '@/hooks/use-sse';
 import { formatMobileEmailListTime } from '@/lib/date-utils';
 
 interface MobileEmailsPageProps {
@@ -28,22 +34,25 @@ interface MobileEmailsPageProps {
 
 export function MobileEmailsPage({ folderId }: MobileEmailsPageProps) {
   const {
+    emails,
     accounts,
     folders,
     selectedEmail,
     selectEmail,
     selectFolder,
     setEmails,
+    appendEmails,
     upsertAccount,
     upsertFolder,
   } = useMailboxStore();
 
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [emailList, setEmailList] = useState<Email[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [openSwipeEmailId, setOpenSwipeEmailId] = useState<number | null>(null);
+  const { newEmailCount, clearNewEmailCount, mailboxRefreshToken } = useMailboxSSE();
+  const lastRefreshTokenRef = useRef(mailboxRefreshToken);
   const router = useRouter();
 
   // 获取当前文件夹
@@ -57,39 +66,43 @@ export function MobileEmailsPage({ folderId }: MobileEmailsPageProps) {
   }, [storeFolder]);
 
   // 加载邮件列表
-  const loadEmails = useCallback(async (page: number = 1, append: boolean = false) => {
-    if (page === 1) {
-      setIsLoading(true);
-    } else {
-      setIsLoadingMore(true);
-    }
-
-    try {
-      const response = await apiClient.getEmails({
-        folder_id: folderId,
-        page: page,
-        page_size: 50,
-      });
-      if (response.success && response.data) {
-        const newEmails = response.data.emails;
-        if (append) {
-          setEmailList((prev) => [...prev, ...newEmails]);
-        } else {
-          setEmailList(newEmails);
-          setEmails(newEmails);
-        }
-
-        // 检查是否还有更多数据
-        const totalPages = Math.ceil(response.data.total / response.data.page_size);
-        setHasMore(page < totalPages);
+  const loadEmails = useCallback(
+    async (page: number = 1, append: boolean = false) => {
+      if (page === 1) {
+        setIsLoading(true);
+      } else {
+        setIsLoadingMore(true);
       }
-    } catch (error) {
-      console.error('Failed to load emails:', error);
-    } finally {
-      setIsLoading(false);
-      setIsLoadingMore(false);
-    }
-  }, [folderId, setEmails]);
+
+      try {
+        const response = await apiClient.getEmails({
+          folder_id: folderId,
+          page: page,
+          page_size: 50,
+        });
+        if (response.success && response.data) {
+          const newEmails = response.data.emails;
+          if (append) {
+            appendEmails(newEmails);
+          } else {
+            setCurrentPage(1);
+            setOpenSwipeEmailId(null);
+            setEmails(newEmails);
+          }
+
+          // 检查是否还有更多数据
+          const totalPages = Math.ceil(response.data.total / response.data.page_size);
+          setHasMore(page < totalPages);
+        }
+      } catch (error) {
+        console.error('Failed to load emails:', error);
+      } finally {
+        setIsLoading(false);
+        setIsLoadingMore(false);
+      }
+    },
+    [appendEmails, folderId, setEmails]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -143,6 +156,22 @@ export function MobileEmailsPage({ folderId }: MobileEmailsPageProps) {
     };
   }, [accounts, folderId, loadEmails, selectFolder, storeFolder, upsertAccount, upsertFolder]);
 
+  useEffect(() => {
+    if (newEmailCount > 0) {
+      void loadEmails(1, false);
+      clearNewEmailCount();
+    }
+  }, [clearNewEmailCount, loadEmails, newEmailCount]);
+
+  useEffect(() => {
+    if (mailboxRefreshToken === lastRefreshTokenRef.current) {
+      return;
+    }
+
+    lastRefreshTokenRef.current = mailboxRefreshToken;
+    void loadEmails(1, false);
+  }, [loadEmails, mailboxRefreshToken]);
+
   // 处理邮件选择
   const handleEmailSelect = (email: Email) => {
     selectEmail(email);
@@ -175,7 +204,9 @@ export function MobileEmailsPage({ folderId }: MobileEmailsPageProps) {
     return (
       <MobileLayout>
         <MobilePage>
-          <EmailsHeader folderName={currentFolder?.display_name || currentFolder?.name || '加载中...'} />
+          <EmailsHeader
+            folderName={currentFolder?.display_name || currentFolder?.name || '加载中...'}
+          />
           <MobileContent>
             <MobileLoading message="加载邮件列表..." />
           </MobileContent>
@@ -207,10 +238,10 @@ export function MobileEmailsPage({ folderId }: MobileEmailsPageProps) {
         <EmailsHeader folderName={currentFolder.display_name || currentFolder.name} />
 
         <MobileContent padding={false}>
-          {emailList.length > 0 ? (
+          {emails.length > 0 ? (
             <div>
               <MobileList>
-                {emailList.map((email: Email) => (
+                {emails.map((email: Email) => (
                   <MobileEmailItem
                     key={email.id}
                     email={email}

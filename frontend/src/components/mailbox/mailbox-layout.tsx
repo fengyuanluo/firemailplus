@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect, useCallback, type ReactNode } from 'react';
-import { useUIStore, useMailboxStore } from '@/lib/store';
+import { useUIStore, useMailboxStore, useNotificationStore } from '@/lib/store';
 import { useRouteSync, useRouteStatePersist } from '@/hooks/use-route-sync';
 import { useResponsive } from '@/hooks/use-responsive';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
-import { useMailboxSSE } from '@/hooks/use-sse';
+import { MailboxSSEBridge, useMailboxSSE } from '@/hooks/use-sse';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { SearchBar } from './search-bar';
 import { LeftSidebar } from './left-sidebar';
@@ -34,6 +34,7 @@ export function MailboxLayout({ header, children, showSidebar = true }: MailboxL
     selectAccount,
     selectFolder,
   } = useMailboxStore();
+  const { notifications, removeNotification, markAsRead } = useNotificationStore();
 
   // 启用键盘快捷键
   useKeyboardShortcuts();
@@ -121,6 +122,7 @@ export function MailboxLayout({ header, children, showSidebar = true }: MailboxL
 
   return (
     <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
+      <MailboxSSEBridge />
       {/* 顶部搜索框 */}
       {headerNode &&
         (shouldWrapHeader ? (
@@ -217,8 +219,11 @@ export function MailboxLayout({ header, children, showSidebar = true }: MailboxL
       {/* 写信弹窗 */}
       <ComposeModal />
 
-      {/* 通知中心 - 暂时简化 */}
-      <NotificationCenter notifications={[]} onRemove={() => {}} onMarkAsRead={() => {}} />
+      <NotificationCenter
+        notifications={notifications}
+        onRemove={removeNotification}
+        onMarkAsRead={markAsRead}
+      />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useCallback, useState, useMemo } from 'react';
+import { useEffect, useCallback, useState, useMemo, useRef } from 'react';
 import { useMailboxStore } from '@/lib/store';
 import { useMailboxSSE } from '@/hooks/use-sse';
 import { EmailListHeader } from './email-list-header';
@@ -57,7 +57,8 @@ export function EmailList({
   } = useMailboxStore();
 
   // SSE 连接，监听新邮件事件
-  const { newEmailCount, clearNewEmailCount } = useMailboxSSE();
+  const { newEmailCount, clearNewEmailCount, mailboxRefreshToken } = useMailboxSSE();
+  const lastRefreshTokenRef = useRef(mailboxRefreshToken);
 
   // 无限滚动状态
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -194,6 +195,20 @@ export function EmailList({
       clearNewEmailCount();
     }
   }, [newEmailCount, externalEmails, loadEmails, clearNewEmailCount]);
+
+  useEffect(() => {
+    if (externalEmails) {
+      lastRefreshTokenRef.current = mailboxRefreshToken;
+      return;
+    }
+
+    if (mailboxRefreshToken === lastRefreshTokenRef.current) {
+      return;
+    }
+
+    lastRefreshTokenRef.current = mailboxRefreshToken;
+    void loadEmails(1, false);
+  }, [externalEmails, loadEmails, mailboxRefreshToken]);
 
   // 获取当前显示的标题
   const getTitle = () => {

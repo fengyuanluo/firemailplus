@@ -1,6 +1,6 @@
 import { apiClient } from '@/lib/api';
 import { useMailboxStore } from '@/lib/store';
-import type { EmailAccount, EmailGroup } from '@/types/email';
+import type { EmailAccount, EmailGroup, Folder } from '@/types/email';
 
 function resolveApiErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
@@ -26,6 +26,16 @@ export async function loadEmailGroupsIntoStore(): Promise<EmailGroup[]> {
   return response.data;
 }
 
+export async function loadFoldersIntoStore(accountId: number): Promise<Folder[]> {
+  const response = await apiClient.getFolders(accountId);
+  if (!response.success || !response.data) {
+    throw new Error(response.message || '加载文件夹失败');
+  }
+
+  useMailboxStore.getState().setFolders(response.data);
+  return response.data;
+}
+
 export async function refreshEmailAccountsAndGroupsIntoStore(): Promise<{
   accounts: EmailAccount[];
   groups: EmailGroup[];
@@ -40,4 +50,29 @@ export async function refreshEmailAccountsAndGroupsIntoStore(): Promise<{
   } catch (error) {
     throw new Error(resolveApiErrorMessage(error, '刷新邮箱账户与分组失败'));
   }
+}
+
+export async function refreshSelectedAccountFoldersIntoStore(): Promise<Folder[] | null> {
+  const { selectedAccount, selectedFolder } = useMailboxStore.getState();
+  const accountId = selectedAccount?.id ?? selectedFolder?.account_id;
+
+  if (!accountId) {
+    return null;
+  }
+
+  try {
+    return await loadFoldersIntoStore(accountId);
+  } catch (error) {
+    throw new Error(resolveApiErrorMessage(error, '刷新当前账户文件夹失败'));
+  }
+}
+
+export async function refreshMailboxSidebarIntoStore(): Promise<{
+  accounts: EmailAccount[];
+  groups: EmailGroup[];
+  folders: Folder[] | null;
+}> {
+  const { accounts, groups } = await refreshEmailAccountsAndGroupsIntoStore();
+  const folders = await refreshSelectedAccountFoldersIntoStore();
+  return { accounts, groups, folders };
 }

@@ -3,9 +3,11 @@
  */
 
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
-import { useAuthStore, useMailboxStore } from '@/lib/store';
+import { useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { useAuthStore, useMailboxStore, useNotificationStore } from '@/lib/store';
 import { FireMailSSEClient } from '@/lib/sse-client';
-import { refreshEmailAccountsAndGroupsIntoStore } from '@/lib/mailbox-group-data';
+import { useMailboxRealtimeStore } from '@/lib/mailbox-realtime-store';
+import { refreshMailboxSidebarIntoStore } from '@/lib/mailbox-group-data';
 import type {
   SSEClientState,
   SSEConnectionStats,
@@ -13,6 +15,9 @@ import type {
   SSEEventHandler,
   NewEmailEventData,
   EmailStatusEventData,
+  EmailMovedEventData,
+  FolderReadStateEventData,
+  AccountReadStateEventData,
   SyncEventData,
   NotificationEventData,
   GroupEventData,
@@ -28,6 +33,9 @@ interface UseSSEOptions {
   onNotification?: (data: NotificationEventData) => void;
   onGroupEvent?: (eventType: SSEEventType, data: GroupEventData) => void;
   onAccountGroupEvent?: (data: AccountGroupEventData) => void;
+  onEmailMoved?: (data: EmailMovedEventData) => void;
+  onFolderReadStateChange?: (data: FolderReadStateEventData) => void;
+  onAccountReadStateChange?: (data: AccountReadStateEventData) => void;
 }
 
 interface UseSSEReturn {
@@ -55,6 +63,9 @@ export function useSSE(options: UseSSEOptions = {}): UseSSEReturn {
     onNotification,
     onGroupEvent,
     onAccountGroupEvent,
+    onEmailMoved,
+    onFolderReadStateChange,
+    onAccountReadStateChange,
   } = options;
   const { token, isAuthenticated } = useAuthStore();
 
@@ -67,8 +78,21 @@ export function useSSE(options: UseSSEOptions = {}): UseSSEReturn {
       onNotification,
       onGroupEvent,
       onAccountGroupEvent,
+      onEmailMoved,
+      onFolderReadStateChange,
+      onAccountReadStateChange,
     }),
-    [onNewEmail, onEmailStatusChange, onSyncEvent, onNotification, onGroupEvent, onAccountGroupEvent]
+    [
+      onNewEmail,
+      onEmailStatusChange,
+      onSyncEvent,
+      onNotification,
+      onGroupEvent,
+      onAccountGroupEvent,
+      onEmailMoved,
+      onFolderReadStateChange,
+      onAccountReadStateChange,
+    ]
   );
 
   const clientRef = useRef<FireMailSSEClient | null>(null);
@@ -150,6 +174,12 @@ export function useSSE(options: UseSSEOptions = {}): UseSSEReturn {
       });
     }
 
+    if (stableOptions.onEmailMoved) {
+      client.on('email_moved', (event) => {
+        stableOptions.onEmailMoved!(event.data as EmailMovedEventData);
+      });
+    }
+
     if (stableOptions.onSyncEvent) {
       client.on('sync_started', (event) => {
         stableOptions.onSyncEvent!(event.data as SyncEventData);
@@ -168,6 +198,18 @@ export function useSSE(options: UseSSEOptions = {}): UseSSEReturn {
     if (stableOptions.onNotification) {
       client.on('notification', (event) => {
         stableOptions.onNotification!(event.data as NotificationEventData);
+      });
+    }
+
+    if (stableOptions.onFolderReadStateChange) {
+      client.on('folder_read_state_changed', (event) => {
+        stableOptions.onFolderReadStateChange!(event.data as FolderReadStateEventData);
+      });
+    }
+
+    if (stableOptions.onAccountReadStateChange) {
+      client.on('account_read_state_changed', (event) => {
+        stableOptions.onAccountReadStateChange!(event.data as AccountReadStateEventData);
       });
     }
 
@@ -302,74 +344,40 @@ export function useSSE(options: UseSSEOptions = {}): UseSSEReturn {
   };
 }
 
-// 专用的邮箱 SSE Hook
-export function useMailboxSSE() {
-  const [newEmailCount, setNewEmailCount] = useState(0);
-  const [syncStatus, setSyncStatus] = useState<Record<number, SyncEventData>>({});
-  const updateEmail = useMailboxStore((state) => state.updateEmail);
-  const removeEmail = useMailboxStore((state) => state.removeEmail);
+function invalidateMailboxQueries(queryClient: QueryClient) {
+  void queryClient.invalidateQueries({ queryKey: ['searchEmails'] });
+  void queryClient.invalidateQueries({ queryKey: ['emails'] });
+}
+
+function findEmailSnapshot(emailId: number) {
+  const mailboxStore = useMailboxStore.getState();
+  return (
+    mailboxStore.emails.find((item) => item.id === emailId) ??
+    (mailboxStore.selectedEmail?.id === emailId ? mailboxStore.selectedEmail : undefined)
+  );
+}
+
+function showDesktopNotification(title: string, body: string, tag: string) {
+  if (typeof window === 'undefined' || !('Notification' in window)) {
+    return;
+  }
+
+  if (Notification.permission !== 'granted') {
+    return;
+  }
+
+  new Notification(title, {
+    body,
+    icon: '/favicon.ico',
+    tag,
+  });
+}
+
+function useMailboxSSEBridgeImpl() {
+  const queryClient = useQueryClient();
   const groupRefreshTimerRef = useRef<NodeJS.Timeout | null>(null);
   const groupRefreshInFlightRef = useRef(false);
   const groupRefreshPendingRef = useRef(false);
-
-  // 稳定化事件处理器，避免每次渲染都创建新的函数
-  const handleNewEmail = useCallback((data: NewEmailEventData) => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('📧 [useMailboxSSE] 收到新邮件:', data);
-    }
-    setNewEmailCount((prev) => prev + 1);
-
-    // 显示桌面通知
-    if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification(`新邮件: ${data.subject}`, {
-        body: `来自: ${data.from}`,
-        icon: '/favicon.ico',
-        tag: `email-${data.email_id}`,
-      });
-    }
-  }, []);
-
-  const handleEmailStatusChange = useCallback((data: EmailStatusEventData) => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('📝 [useMailboxSSE] 邮件状态变更:', data);
-    }
-    if (data.is_deleted) {
-      removeEmail(data.email_id);
-      return;
-    }
-
-    const updates: Partial<Email> = {};
-    if (typeof data.is_read === 'boolean') {
-      updates.is_read = data.is_read;
-    }
-    if (typeof data.is_starred === 'boolean') {
-      updates.is_starred = data.is_starred;
-    }
-    if (typeof data.is_important === 'boolean') {
-      updates.is_important = data.is_important;
-    }
-
-    if (Object.keys(updates).length > 0) {
-      updateEmail(data.email_id, updates);
-    }
-  }, [removeEmail, updateEmail]);
-
-  const handleSyncEvent = useCallback((data: SyncEventData) => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('🔄 [useMailboxSSE] 同步事件:', data);
-    }
-    setSyncStatus((prev) => ({
-      ...prev,
-      [data.account_id]: data,
-    }));
-  }, []);
-
-  const handleNotification = useCallback((data: NotificationEventData) => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('🔔 [useMailboxSSE] 系统通知:', data);
-    }
-    // 这里可以显示应用内通知
-  }, []);
 
   const runMailboxStructureRefresh = useCallback(async () => {
     if (groupRefreshInFlightRef.current) {
@@ -379,15 +387,15 @@ export function useMailboxSSE() {
 
     groupRefreshInFlightRef.current = true;
     try {
-      await refreshEmailAccountsAndGroupsIntoStore();
+      await refreshMailboxSidebarIntoStore();
     } catch (error) {
-      console.error('❌ [useMailboxSSE] 刷新邮箱分组结构失败:', error);
+      console.error('❌ [useMailboxSSEBridge] 刷新邮箱侧边结构失败:', error);
     } finally {
       groupRefreshInFlightRef.current = false;
 
       if (groupRefreshPendingRef.current) {
         groupRefreshPendingRef.current = false;
-        void runMailboxStructureRefresh()
+        void runMailboxStructureRefresh();
       }
     }
   }, []);
@@ -402,10 +410,117 @@ export function useMailboxSSE() {
     }, 250);
   }, [runMailboxStructureRefresh]);
 
+  const handleNewEmail = useCallback(
+    (data: NewEmailEventData) => {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('📧 [useMailboxSSEBridge] 收到新邮件:', data);
+      }
+
+      useMailboxRealtimeStore.getState().incrementNewEmailCount();
+      invalidateMailboxQueries(queryClient);
+
+      showDesktopNotification(
+        `新邮件: ${data.subject}`,
+        `来自: ${data.from}`,
+        `email-${data.email_id}`
+      );
+    },
+    [queryClient]
+  );
+
+  const handleEmailStatusChange = useCallback(
+    (data: EmailStatusEventData) => {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('📝 [useMailboxSSEBridge] 邮件状态变更:', data);
+      }
+
+      const mailboxStore = useMailboxStore.getState();
+      const existingEmail = findEmailSnapshot(data.email_id);
+      let requiresSidebarRefresh = false;
+
+      if (data.is_deleted) {
+        mailboxStore.removeEmail(data.email_id);
+        if (typeof data.unread_delta !== 'number') {
+          requiresSidebarRefresh = true;
+        }
+        if (typeof data.unread_delta === 'number' && data.unread_delta !== 0) {
+          if (typeof data.folder_id === 'number') {
+            mailboxStore.applyUnreadDelta(data.account_id, data.folder_id, data.unread_delta);
+          } else {
+            requiresSidebarRefresh = true;
+          }
+        }
+        if (requiresSidebarRefresh) {
+          scheduleMailboxStructureRefresh();
+        }
+        invalidateMailboxQueries(queryClient);
+        return;
+      }
+
+      if (typeof data.is_read === 'boolean') {
+        if (existingEmail && existingEmail.is_read !== data.is_read) {
+          mailboxStore.patchEmail(data.email_id, { is_read: data.is_read });
+        }
+
+        if (typeof data.unread_delta !== 'number') {
+          requiresSidebarRefresh = true;
+        }
+        if (typeof data.unread_delta === 'number' && data.unread_delta !== 0) {
+          if (typeof data.folder_id === 'number') {
+            mailboxStore.applyUnreadDelta(data.account_id, data.folder_id, data.unread_delta);
+          } else {
+            requiresSidebarRefresh = true;
+          }
+        }
+      }
+
+      const updates: Partial<Email> = {};
+      if (typeof data.is_starred === 'boolean') {
+        updates.is_starred = data.is_starred;
+      }
+      if (typeof data.is_important === 'boolean') {
+        updates.is_important = data.is_important;
+      }
+
+      if (Object.keys(updates).length > 0) {
+        mailboxStore.patchEmail(data.email_id, updates);
+      }
+
+      if (requiresSidebarRefresh) {
+        scheduleMailboxStructureRefresh();
+      }
+
+      invalidateMailboxQueries(queryClient);
+    },
+    [queryClient, scheduleMailboxStructureRefresh]
+  );
+
+  const handleSyncEvent = useCallback((data: SyncEventData) => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔄 [useMailboxSSEBridge] 同步事件:', data);
+    }
+
+    useMailboxRealtimeStore.getState().upsertSyncStatus(data);
+  }, []);
+
+  const handleNotification = useCallback((data: NotificationEventData) => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔔 [useMailboxSSEBridge] 系统通知:', data);
+    }
+
+    useNotificationStore.getState().addNotification({
+      type: data.type,
+      title: data.title,
+      message: data.message,
+      autoClose: true,
+      duration: data.duration ?? 5000,
+    });
+  }, []);
+
   const handleGroupEvent = useCallback(
     (eventType: SSEEventType, data: GroupEventData) => {
       if (process.env.NODE_ENV === 'development') {
-        console.log('🗂️ [useMailboxSSE] 分组事件:', eventType, data);
+        console.log('🗂️ [useMailboxSSEBridge] 分组事件:', eventType, data);
       }
       scheduleMailboxStructureRefresh();
     },
@@ -415,22 +530,83 @@ export function useMailboxSSE() {
   const handleAccountGroupEvent = useCallback(
     (data: AccountGroupEventData) => {
       if (process.env.NODE_ENV === 'development') {
-        console.log('📮 [useMailboxSSE] 账户分组事件:', data);
+        console.log('📮 [useMailboxSSEBridge] 账户分组事件:', data);
       }
       scheduleMailboxStructureRefresh();
     },
     [scheduleMailboxStructureRefresh]
   );
 
+  const handleFolderReadStateChange = useCallback(
+    (data: FolderReadStateEventData) => {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('📂 [useMailboxSSEBridge] 文件夹批量已读事件:', data);
+      }
+
+      scheduleMailboxStructureRefresh();
+      useMailboxRealtimeStore.getState().bumpMailboxRefreshToken();
+      invalidateMailboxQueries(queryClient);
+    },
+    [queryClient, scheduleMailboxStructureRefresh]
+  );
+
+  const handleAccountReadStateChange = useCallback(
+    (data: AccountReadStateEventData) => {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('📬 [useMailboxSSEBridge] 账户批量已读事件:', data);
+      }
+
+      scheduleMailboxStructureRefresh();
+      useMailboxRealtimeStore.getState().bumpMailboxRefreshToken();
+      invalidateMailboxQueries(queryClient);
+    },
+    [queryClient, scheduleMailboxStructureRefresh]
+  );
+
+  const handleEmailMoved = useCallback(
+    (data: EmailMovedEventData) => {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('📦 [useMailboxSSEBridge] 邮件移动事件:', data);
+      }
+
+      const mailboxStore = useMailboxStore.getState();
+      const currentFolderID = mailboxStore.selectedFolder?.id;
+      const isSourceContext =
+        typeof data.source_folder_id === 'number' && currentFolderID === data.source_folder_id;
+
+      mailboxStore.patchEmail(data.email_id, { folder_id: data.target_folder_id });
+
+      if (isSourceContext) {
+        mailboxStore.removeEmail(data.email_id);
+      }
+
+      if (mailboxStore.selectedEmail?.id === data.email_id && isSourceContext) {
+        mailboxStore.selectEmail(null);
+      }
+
+      scheduleMailboxStructureRefresh();
+      useMailboxRealtimeStore.getState().bumpMailboxRefreshToken();
+      invalidateMailboxQueries(queryClient);
+    },
+    [queryClient, scheduleMailboxStructureRefresh]
+  );
+
   const sse = useSSE({
     autoConnect: true,
     onNewEmail: handleNewEmail,
     onEmailStatusChange: handleEmailStatusChange,
+    onEmailMoved: handleEmailMoved,
     onSyncEvent: handleSyncEvent,
     onNotification: handleNotification,
     onGroupEvent: handleGroupEvent,
     onAccountGroupEvent: handleAccountGroupEvent,
+    onFolderReadStateChange: handleFolderReadStateChange,
+    onAccountReadStateChange: handleAccountReadStateChange,
   });
+
+  useEffect(() => {
+    useMailboxRealtimeStore.getState().setConnectionState(sse.state);
+  }, [sse.state]);
 
   useEffect(() => {
     return () => {
@@ -440,13 +616,22 @@ export function useMailboxSSE() {
       groupRefreshPendingRef.current = false;
     };
   }, []);
+}
 
-  // 清除新邮件计数
-  const clearNewEmailCount = useCallback(() => {
-    setNewEmailCount(0);
-  }, []);
+export function MailboxSSEBridge() {
+  useMailboxSSEBridgeImpl();
+  return null;
+}
 
-  // 获取账户同步状态
+// 专用的邮箱 SSE 状态读取 Hook
+export function useMailboxSSE() {
+  const connectionState = useMailboxRealtimeStore((state) => state.connectionState);
+  const isConnected = useMailboxRealtimeStore((state) => state.isConnected);
+  const newEmailCount = useMailboxRealtimeStore((state) => state.newEmailCount);
+  const syncStatus = useMailboxRealtimeStore((state) => state.syncStatus);
+  const mailboxRefreshToken = useMailboxRealtimeStore((state) => state.mailboxRefreshToken);
+  const clearNewEmailCount = useMailboxRealtimeStore((state) => state.clearNewEmailCount);
+
   const getAccountSyncStatus = useCallback(
     (accountId: number) => {
       return syncStatus[accountId];
@@ -455,9 +640,11 @@ export function useMailboxSSE() {
   );
 
   return {
-    ...sse,
+    state: connectionState,
+    isConnected,
     newEmailCount,
     syncStatus,
+    mailboxRefreshToken,
     clearNewEmailCount,
     getAccountSyncStatus,
   };

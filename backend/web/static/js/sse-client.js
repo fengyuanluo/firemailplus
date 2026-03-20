@@ -138,6 +138,11 @@ class FireMailSSEClient {
             this.handleEmailStatusChange(data);
         });
 
+        this.eventSource.addEventListener('email_moved', (event) => {
+            const data = JSON.parse(event.data);
+            this.handleEmailMoved(data);
+        });
+
         // 同步事件
         this.eventSource.addEventListener('sync_started', (event) => {
             const data = JSON.parse(event.data);
@@ -192,6 +197,14 @@ class FireMailSSEClient {
     handleEmailStatusChange(data) {
         console.log('Email status changed:', data);
         this.emit('emailStatusChanged', data.data);
+    }
+
+    /**
+     * 处理邮件移动事件
+     */
+    handleEmailMoved(data) {
+        console.log('Email moved:', data);
+        this.emit('emailMoved', data.data);
     }
 
     /**

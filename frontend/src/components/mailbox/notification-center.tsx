@@ -28,15 +28,17 @@ export function NotificationCenter({
 }: NotificationCenterProps) {
   // 自动关闭通知
   useEffect(() => {
-    notifications.forEach((notification) => {
-      if (notification.autoClose && notification.duration) {
-        const timer = setTimeout(() => {
+    const timers = notifications
+      .filter((notification) => notification.autoClose && notification.duration)
+      .map((notification) =>
+        setTimeout(() => {
           onRemove(notification.id);
-        }, notification.duration);
+        }, notification.duration)
+      );
 
-        return () => clearTimeout(timer);
-      }
-    });
+    return () => {
+      timers.forEach((timer) => clearTimeout(timer));
+    };
   }, [notifications, onRemove]);
 
   // 获取图标

@@ -15,14 +15,17 @@ type EventType string
 
 const (
 	// 邮件相关事件
-	EventNewEmail         EventType = "new_email"
-	EventEmailRead        EventType = "email_read"
-	EventEmailUnread      EventType = "email_unread"
-	EventEmailDeleted     EventType = "email_deleted"
-	EventEmailStarred     EventType = "email_starred"
-	EventEmailUnstarred   EventType = "email_unstarred"
-	EventEmailImportant   EventType = "email_important"
-	EventEmailUnimportant EventType = "email_unimportant"
+	EventNewEmail                EventType = "new_email"
+	EventEmailRead               EventType = "email_read"
+	EventEmailUnread             EventType = "email_unread"
+	EventEmailDeleted            EventType = "email_deleted"
+	EventEmailStarred            EventType = "email_starred"
+	EventEmailUnstarred          EventType = "email_unstarred"
+	EventEmailImportant          EventType = "email_important"
+	EventEmailUnimportant        EventType = "email_unimportant"
+	EventEmailMoved              EventType = "email_moved"
+	EventFolderReadStateChanged  EventType = "folder_read_state_changed"
+	EventAccountReadStateChanged EventType = "account_read_state_changed"
 
 	// 邮件发送事件
 	EventEmailSendStarted   EventType = "email_send_started"
@@ -93,10 +96,34 @@ type NewEmailEventData struct {
 type EmailStatusEventData struct {
 	EmailID     uint  `json:"email_id"`
 	AccountID   uint  `json:"account_id"`
+	FolderID    *uint `json:"folder_id,omitempty"`
 	IsRead      *bool `json:"is_read,omitempty"`
 	IsStarred   *bool `json:"is_starred,omitempty"`
 	IsImportant *bool `json:"is_important,omitempty"`
 	IsDeleted   *bool `json:"is_deleted,omitempty"`
+	UnreadDelta *int  `json:"unread_delta,omitempty"`
+}
+
+// EmailMovedEventData 邮件移动事件数据
+type EmailMovedEventData struct {
+	EmailID        uint  `json:"email_id"`
+	AccountID      uint  `json:"account_id"`
+	SourceFolderID *uint `json:"source_folder_id,omitempty"`
+	TargetFolderID uint  `json:"target_folder_id"`
+	IsRead         bool  `json:"is_read"`
+}
+
+// FolderReadStateEventData 文件夹读状态批量变更事件数据
+type FolderReadStateEventData struct {
+	AccountID     uint `json:"account_id"`
+	FolderID      uint `json:"folder_id"`
+	AffectedCount int  `json:"affected_count"`
+}
+
+// AccountReadStateEventData 账户读状态批量变更事件数据
+type AccountReadStateEventData struct {
+	AccountID     uint `json:"account_id"`
+	AffectedCount int  `json:"affected_count"`
 }
 
 // SyncEventData 同步事件数据
@@ -224,14 +251,16 @@ func NewNewEmailEvent(email *models.Email, userID uint) *Event {
 }
 
 // NewEmailStatusEvent 创建邮件状态变更事件
-func NewEmailStatusEvent(emailID, accountID, userID uint, isRead, isStarred, isImportant, isDeleted *bool) *Event {
+func NewEmailStatusEvent(emailID, accountID, userID uint, folderID *uint, isRead, isStarred, isImportant, isDeleted *bool, unreadDelta *int) *Event {
 	data := &EmailStatusEventData{
 		EmailID:     emailID,
 		AccountID:   accountID,
+		FolderID:    folderID,
 		IsRead:      isRead,
 		IsStarred:   isStarred,
 		IsImportant: isImportant,
 		IsDeleted:   isDeleted,
+		UnreadDelta: unreadDelta,
 	}
 
 	event := NewEvent(EventEmailRead, data, userID)
@@ -252,6 +281,52 @@ func NewEmailStatusEvent(emailID, accountID, userID uint, isRead, isStarred, isI
 	}
 
 	event.AccountID = &accountID
+
+	return event
+}
+
+// NewEmailMovedEvent 创建邮件移动事件
+func NewEmailMovedEvent(emailID, accountID, userID uint, sourceFolderID *uint, targetFolderID uint, isRead bool) *Event {
+	data := &EmailMovedEventData{
+		EmailID:        emailID,
+		AccountID:      accountID,
+		SourceFolderID: sourceFolderID,
+		TargetFolderID: targetFolderID,
+		IsRead:         isRead,
+	}
+
+	event := NewEvent(EventEmailMoved, data, userID)
+	event.AccountID = &accountID
+	event.Priority = PriorityHigh
+
+	return event
+}
+
+// NewFolderReadStateChangedEvent 创建文件夹批量已读事件
+func NewFolderReadStateChangedEvent(accountID, folderID, userID uint, affectedCount int) *Event {
+	data := &FolderReadStateEventData{
+		AccountID:     accountID,
+		FolderID:      folderID,
+		AffectedCount: affectedCount,
+	}
+
+	event := NewEvent(EventFolderReadStateChanged, data, userID)
+	event.AccountID = &accountID
+	event.Priority = PriorityHigh
+
+	return event
+}
+
+// NewAccountReadStateChangedEvent 创建账户批量已读事件
+func NewAccountReadStateChangedEvent(accountID, userID uint, affectedCount int) *Event {
+	data := &AccountReadStateEventData{
+		AccountID:     accountID,
+		AffectedCount: affectedCount,
+	}
+
+	event := NewEvent(EventAccountReadStateChanged, data, userID)
+	event.AccountID = &accountID
+	event.Priority = PriorityHigh
 
 	return event
 }

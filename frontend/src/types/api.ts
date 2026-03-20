@@ -234,8 +234,8 @@ export interface ForwardEmailRequest {
 
 // 邮件操作类型
 export type EmailAction =
-  | 'mark_read'
-  | 'mark_unread'
+  | 'read'
+  | 'unread'
   | 'star'
   | 'unstar'
   | 'delete'
@@ -246,7 +246,7 @@ export type EmailAction =
 // 批量操作请求类型
 export interface BulkEmailActionRequest {
   email_ids: number[];
-  action: EmailAction;
+  operation: EmailAction;
   target_folder_id?: number;
   label_ids?: number[];
 }

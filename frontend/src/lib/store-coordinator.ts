@@ -117,15 +117,15 @@ export class StoreCoordinator {
 
       // 根据操作类型更新本地状态
       switch (operation) {
-        case 'mark_read':
+        case 'read':
           emailIds.forEach((id) => {
-            mailboxStore.updateEmail(id, { is_read: true });
+            mailboxStore.patchEmail(id, { is_read: true });
           });
           break;
 
-        case 'mark_unread':
+        case 'unread':
           emailIds.forEach((id) => {
-            mailboxStore.updateEmail(id, { is_read: false });
+            mailboxStore.patchEmail(id, { is_read: false });
           });
           break;
 

@@ -17,6 +17,7 @@ import { SearchFilters } from './search-filters';
 import { EmailList } from './email-list';
 import { EmailDetail } from './email-detail';
 import { LoadingSkeleton } from './loading-skeleton';
+import { MailboxSSEBridge } from '@/hooks/use-sse';
 import { useSearchEmails, type SearchParams } from '@/hooks/use-search-emails';
 import { useIsMobile, useResponsive } from '@/hooks/use-responsive';
 
@@ -372,6 +373,7 @@ export function SearchResultsPage() {
   return (
     <SearchResultsProvider>
       <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
+        <MailboxSSEBridge />
         <SearchResultsHeader />
 
         {/* 主要内容区域 */}

@@ -99,7 +99,9 @@ interface MailboxState {
   upsertEmail: (email: Email) => void;
   appendEmails: (emails: Email[]) => void;
   addEmail: (email: Email) => void;
+  patchEmail: (id: number, updates: Partial<Email>) => void;
   updateEmail: (id: number, updates: Partial<Email>) => void;
+  applyUnreadDelta: (accountId: number, folderId: number | undefined, delta: number) => void;
   removeEmail: (id: number) => void;
   selectEmail: (email: Email | null) => void;
   toggleEmailSelection: (emailId: number) => void;
@@ -199,8 +201,7 @@ export const useMailboxStore = create<MailboxState>((set) => ({
         accounts: existingAccount
           ? state.accounts.map((acc) => (acc.id === account.id ? account : acc))
           : [...state.accounts, account],
-        selectedAccount:
-          state.selectedAccount?.id === account.id ? account : state.selectedAccount,
+        selectedAccount: state.selectedAccount?.id === account.id ? account : state.selectedAccount,
       };
     }),
   addAccount: (account) =>
@@ -327,7 +328,19 @@ export const useMailboxStore = create<MailboxState>((set) => ({
     }),
 
   // 邮件操作
-  setEmails: (emails) => set({ emails }),
+  setEmails: (emails) =>
+    set((state) => {
+      const emailIds = new Set(emails.map((email) => email.id));
+      return {
+        emails,
+        selectedEmail: state.selectedEmail
+          ? emails.find((email) => email.id === state.selectedEmail?.id) || state.selectedEmail
+          : state.selectedEmail,
+        selectedEmails: new Set(
+          Array.from(state.selectedEmails).filter((emailId) => emailIds.has(emailId))
+        ),
+      };
+    }),
   upsertEmail: (email) =>
     set((state) => {
       const existingEmail = state.emails.find((item) => item.id === email.id);
@@ -352,6 +365,14 @@ export const useMailboxStore = create<MailboxState>((set) => ({
     set((state) => ({
       emails: [email, ...state.emails],
       total: state.total + 1,
+    })),
+  patchEmail: (id, updates) =>
+    set((state) => ({
+      emails: state.emails.map((email) => (email.id === id ? { ...email, ...updates } : email)),
+      selectedEmail:
+        state.selectedEmail?.id === id
+          ? { ...state.selectedEmail, ...updates }
+          : state.selectedEmail,
     })),
   updateEmail: (id, updates) =>
     set((state) => {
@@ -407,6 +428,34 @@ export const useMailboxStore = create<MailboxState>((set) => ({
         selectedEmail: updatedSelectedEmail,
         accounts: updatedAccounts,
         folders: updatedFolders,
+      };
+    }),
+  applyUnreadDelta: (accountId, folderId, delta) =>
+    set((state) => {
+      if (delta === 0) {
+        return state;
+      }
+
+      return {
+        accounts: state.accounts.map((account) =>
+          account.id === accountId
+            ? {
+                ...account,
+                unread_emails: Math.max(0, account.unread_emails + delta),
+              }
+            : account
+        ),
+        folders:
+          typeof folderId === 'number'
+            ? state.folders.map((folder) =>
+                folder.id === folderId
+                  ? {
+                      ...folder,
+                      unread_emails: Math.max(0, folder.unread_emails + delta),
+                    }
+                  : folder
+              )
+            : state.folders,
       };
     }),
   removeEmail: (id) =>

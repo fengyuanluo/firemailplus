@@ -21,8 +21,14 @@ export const EmailItem = forwardRef<HTMLDivElement, EmailItemProps>(function Ema
 ) {
   const [isHovered, setIsHovered] = useState(false);
 
-  const { selectedEmail, selectedEmails, selectEmail, toggleEmailSelection, updateEmail } =
-    useMailboxStore();
+  const {
+    selectedEmail,
+    selectedEmails,
+    selectEmail,
+    toggleEmailSelection,
+    patchEmail,
+    updateEmail,
+  } = useMailboxStore();
 
   const isEmailSelected = (emailId: number) => selectedEmails.has(emailId);
 
@@ -119,11 +125,10 @@ export const EmailItem = forwardRef<HTMLDivElement, EmailItemProps>(function Ema
     try {
       const response = await apiClient.markEmailAsRead(email.id);
       if (response.success) {
-        updateEmail(email.id, { is_read: true });
+        patchEmail(email.id, { is_read: true });
       }
     } catch (error: unknown) {
-      const message =
-        error instanceof Error && error.message ? error.message : '标记已读失败';
+      const message = error instanceof Error && error.message ? error.message : '标记已读失败';
       toast.error(message);
     }
   };

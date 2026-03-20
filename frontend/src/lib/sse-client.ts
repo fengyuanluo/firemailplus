@@ -16,6 +16,7 @@ import type {
 } from '@/types/sse';
 
 export class FireMailSSEClient {
+  private static readonly MAX_TRACKED_EVENT_IDS = 500;
   private config: Required<SSEClientConfig>;
   private eventSource: EventSource | null = null;
   private state: SSEClientState = 'disconnected';
@@ -28,6 +29,8 @@ export class FireMailSSEClient {
   private eventHandlers = new Map<SSEEventType, Set<SSEEventHandler>>();
   private errorHandlers = new Set<SSEErrorHandler>();
   private stateChangeHandlers = new Set<SSEStateChangeHandler>();
+  private processedEventIds = new Set<string>();
+  private processedEventOrder: string[] = [];
 
   constructor(config: SSEClientConfig) {
     this.config = {
@@ -241,6 +244,12 @@ export class FireMailSSEClient {
   }
 
   private processEvent(event: AnySSEEvent): void {
+    if (this.hasProcessedEvent(event.id)) {
+      console.log(`↩️ [SSEClient] 忽略重复事件:`, event.type, event.id);
+      return;
+    }
+
+    this.trackProcessedEvent(event.id);
     console.log(`📨 [SSEClient] 收到事件:`, event.type, event);
 
     // 更新统计信息
@@ -359,5 +368,29 @@ export class FireMailSSEClient {
     ALL_SSE_EVENT_TYPES.forEach((type) => {
       this.stats.eventsByType[type] = 0;
     });
+  }
+
+  private hasProcessedEvent(eventId: string | undefined): boolean {
+    if (!eventId) {
+      return false;
+    }
+
+    return this.processedEventIds.has(eventId);
+  }
+
+  private trackProcessedEvent(eventId: string | undefined): void {
+    if (!eventId || this.processedEventIds.has(eventId)) {
+      return;
+    }
+
+    this.processedEventIds.add(eventId);
+    this.processedEventOrder.push(eventId);
+
+    if (this.processedEventOrder.length > FireMailSSEClient.MAX_TRACKED_EVENT_IDS) {
+      const oldestEventId = this.processedEventOrder.shift();
+      if (oldestEventId) {
+        this.processedEventIds.delete(oldestEventId);
+      }
+    }
   }
 }

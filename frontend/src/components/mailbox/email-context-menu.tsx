@@ -20,7 +20,7 @@ import { toast } from 'sonner';
 
 export function EmailContextMenu() {
   const { isOpen, position, target, closeMenu } = useContextMenuStore();
-  const { updateEmail, removeEmail, folders } = useMailboxStore();
+  const { patchEmail, updateEmail, removeEmail, folders } = useMailboxStore();
   const { initializeReply, initializeReplyAll, initializeForward } = useComposeStore();
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -82,7 +82,7 @@ export function EmailContextMenu() {
         case 'markAsRead':
           if (!email.is_read) {
             await apiClient.markEmailAsRead(email.id);
-            updateEmail(email.id, { is_read: true });
+            patchEmail(email.id, { is_read: true });
             toast.success('已标记为已读');
           }
           break;
@@ -90,7 +90,7 @@ export function EmailContextMenu() {
         case 'markAsUnread':
           if (email.is_read) {
             await apiClient.markEmailAsUnread(email.id);
-            updateEmail(email.id, { is_read: false });
+            patchEmail(email.id, { is_read: false });
             toast.success('已标记为未读');
           }
           break;

@@ -32,7 +32,6 @@ import {
 } from './mobile-layout';
 import { MobileAccountItem } from './mobile-account-item';
 import { MobileHeader } from './mobile-header';
-import { useMailboxSSE } from '@/hooks/use-sse';
 import { useEmailGroupActions } from '@/hooks/use-email-group-actions';
 import {
   DropdownMenu,
@@ -82,8 +81,6 @@ export function MobileAccountsPage() {
     batchDeleteAccounts,
     getErrorMessage,
   } = useEmailGroupActions();
-
-  useMailboxSSE();
 
   const [loadingData, setLoadingData] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<number>>(new Set());

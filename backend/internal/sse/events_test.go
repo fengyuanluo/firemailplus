@@ -22,6 +22,7 @@ func TestEventTypes(t *testing.T) {
 		{"邮件删除事件", EventEmailDeleted, "email_deleted"},
 		{"邮件星标事件", EventEmailStarred, "email_starred"},
 		{"邮件取消星标事件", EventEmailUnstarred, "email_unstarred"},
+		{"邮件移动事件", EventEmailMoved, "email_moved"},
 		{"同步开始事件", EventSyncStarted, "sync_started"},
 		{"同步完成事件", EventSyncCompleted, "sync_completed"},
 		{"同步错误事件", EventSyncError, "sync_error"},
@@ -99,19 +100,25 @@ func TestNewEmailStatusEvent(t *testing.T) {
 
 	tests := []struct {
 		name         string
+		folderID     *uint
 		isRead       *bool
 		isStarred    *bool
 		isDeleted    *bool
+		unreadDelta  *int
 		expectedType EventType
 	}{
 		{
 			name:         "标记为已读",
+			folderID:     func() *uint { id := uint(4); return &id }(),
 			isRead:       func() *bool { b := true; return &b }(),
+			unreadDelta:  func() *int { value := -1; return &value }(),
 			expectedType: EventEmailRead,
 		},
 		{
 			name:         "标记为未读",
+			folderID:     func() *uint { id := uint(5); return &id }(),
 			isRead:       func() *bool { b := false; return &b }(),
+			unreadDelta:  func() *int { value := 1; return &value }(),
 			expectedType: EventEmailUnread,
 		},
 		{
@@ -133,7 +140,7 @@ func TestNewEmailStatusEvent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			event := NewEmailStatusEvent(emailID, accountID, userID, tt.isRead, tt.isStarred, nil, tt.isDeleted)
+			event := NewEmailStatusEvent(emailID, accountID, userID, tt.folderID, tt.isRead, tt.isStarred, nil, tt.isDeleted, tt.unreadDelta)
 
 			assert.Equal(t, tt.expectedType, event.Type)
 			assert.Equal(t, userID, event.UserID)
@@ -144,11 +151,37 @@ func TestNewEmailStatusEvent(t *testing.T) {
 			require.True(t, ok)
 			assert.Equal(t, emailID, data.EmailID)
 			assert.Equal(t, accountID, data.AccountID)
+			assert.Equal(t, tt.folderID, data.FolderID)
 			assert.Equal(t, tt.isRead, data.IsRead)
 			assert.Equal(t, tt.isStarred, data.IsStarred)
 			assert.Equal(t, tt.isDeleted, data.IsDeleted)
+			assert.Equal(t, tt.unreadDelta, data.UnreadDelta)
 		})
 	}
+}
+
+func TestNewEmailMovedEvent(t *testing.T) {
+	emailID := uint(11)
+	accountID := uint(22)
+	userID := uint(33)
+	sourceFolderID := uint(44)
+	targetFolderID := uint(55)
+
+	event := NewEmailMovedEvent(emailID, accountID, userID, &sourceFolderID, targetFolderID, false)
+
+	assert.Equal(t, EventEmailMoved, event.Type)
+	assert.Equal(t, userID, event.UserID)
+	require.NotNil(t, event.AccountID)
+	assert.Equal(t, accountID, *event.AccountID)
+
+	data, ok := event.Data.(*EmailMovedEventData)
+	require.True(t, ok)
+	assert.Equal(t, emailID, data.EmailID)
+	assert.Equal(t, accountID, data.AccountID)
+	require.NotNil(t, data.SourceFolderID)
+	assert.Equal(t, sourceFolderID, *data.SourceFolderID)
+	assert.Equal(t, targetFolderID, data.TargetFolderID)
+	assert.False(t, data.IsRead)
 }
 
 func TestNewSyncEvent(t *testing.T) {

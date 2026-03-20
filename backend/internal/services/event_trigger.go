@@ -23,7 +23,7 @@ type EventTrigger interface {
 
 	// 邮件相关事件
 	TriggerNewEmail(ctx context.Context, email *models.Email, userID uint)
-	TriggerEmailStatusChanged(ctx context.Context, emailID, accountID, userID uint, isRead, isStarred, isDeleted *bool)
+	TriggerEmailStatusChanged(ctx context.Context, emailID, accountID, userID uint, folderID *uint, isRead, isStarred, isDeleted *bool, unreadDelta *int)
 
 	// 邮件发送事件
 	TriggerEmailSendStarted(ctx context.Context, sendID, emailID string, userID uint)
@@ -165,12 +165,12 @@ func (t *StandardEventTrigger) TriggerNewEmail(ctx context.Context, email *model
 }
 
 // TriggerEmailStatusChanged 触发邮件状态变更事件
-func (t *StandardEventTrigger) TriggerEmailStatusChanged(ctx context.Context, emailID, accountID, userID uint, isRead, isStarred, isDeleted *bool) {
+func (t *StandardEventTrigger) TriggerEmailStatusChanged(ctx context.Context, emailID, accountID, userID uint, folderID *uint, isRead, isStarred, isDeleted *bool, unreadDelta *int) {
 	if t.eventPublisher == nil {
 		return
 	}
 
-	event := sse.NewEmailStatusEvent(emailID, accountID, userID, isRead, isStarred, nil, isDeleted)
+	event := sse.NewEmailStatusEvent(emailID, accountID, userID, folderID, isRead, isStarred, nil, isDeleted, unreadDelta)
 	if err := t.eventPublisher.PublishToUser(ctx, userID, event); err != nil {
 		log.Printf("Failed to publish email status event: %v", err)
 	}

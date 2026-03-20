@@ -363,12 +363,11 @@ func (h *Handler) SearchEmails(c *gin.Context) {
 
 // BatchEmailOperation 批量邮件操作请求
 type BatchEmailOperation struct {
-	EmailIDs  []uint `json:"email_ids" binding:"required"`
-	Operation string `json:"operation" binding:"required,oneof=read unread delete star unstar"`
-	FolderID  *uint  `json:"folder_id"` // 用于移动操作
+	EmailIDs       []uint `json:"email_ids" binding:"required"`
+	Operation      string `json:"operation" binding:"required,oneof=read unread delete star unstar move"`
+	FolderID       *uint  `json:"folder_id"`        // 兼容旧字段
+	TargetFolderID *uint  `json:"target_folder_id"` // 用于move操作
 }
-
-
 
 // ReplyEmail 回复邮件
 func (h *Handler) ReplyEmail(c *gin.Context) {
@@ -421,8 +420,6 @@ func (h *Handler) ReplyAllEmail(c *gin.Context) {
 
 	h.respondWithSuccess(c, nil, "Email reply all sent successfully")
 }
-
-
 
 // ForwardEmail 转发邮件
 func (h *Handler) ForwardEmail(c *gin.Context) {
@@ -506,13 +503,19 @@ func (h *Handler) BatchEmailOperations(c *gin.Context) {
 			err = h.emailService.MarkEmailAsUnread(c.Request.Context(), userID, emailID)
 		case "delete":
 			err = h.emailService.DeleteEmail(c.Request.Context(), userID, emailID)
-		case "star", "unstar":
-			err = h.emailService.ToggleEmailStar(c.Request.Context(), userID, emailID)
+		case "star":
+			err = h.emailService.MarkEmailAsStarred(c.Request.Context(), userID, emailID)
+		case "unstar":
+			err = h.emailService.MarkEmailAsUnstarred(c.Request.Context(), userID, emailID)
 		case "move":
-			if req.FolderID == nil {
-				err = fmt.Errorf("folder_id is required for move operation")
+			targetFolderID := req.TargetFolderID
+			if targetFolderID == nil {
+				targetFolderID = req.FolderID
+			}
+			if targetFolderID == nil {
+				err = fmt.Errorf("target_folder_id is required for move operation")
 			} else {
-				err = h.emailService.MoveEmail(c.Request.Context(), userID, emailID, *req.FolderID)
+				err = h.emailService.MoveEmail(c.Request.Context(), userID, emailID, *targetFolderID)
 			}
 		default:
 			err = fmt.Errorf("unsupported operation: %s", req.Operation)
