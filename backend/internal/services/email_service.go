@@ -76,6 +76,7 @@ type EmailService interface {
 	ReorderEmailGroups(ctx context.Context, userID uint, order []uint) ([]*models.EmailGroup, error)
 	MoveAccountToGroup(ctx context.Context, userID, accountID uint, groupID *uint) error
 	SetDefaultEmailGroup(ctx context.Context, userID, groupID uint) (*models.EmailGroup, error)
+	ResolveEmailGroup(ctx context.Context, userID uint, groupID *uint) (*models.EmailGroup, error)
 
 	// 搜索
 	SearchEmails(ctx context.Context, userID uint, req *SearchEmailsRequest) (*GetEmailsResponse, error)
@@ -130,18 +131,46 @@ type CreateEmailAccountRequest struct {
 	GroupID      *uint  `json:"group_id"`
 }
 
+// OptionalGroupID 支持区分 group_id 的三态语义：
+// - 字段缺省：Set=false，表示不修改
+// - 显式传 null：Set=true, Value=nil，表示移回默认分组
+// - 显式传 number：Set=true, Value!=nil，表示移动到指定分组
+type OptionalGroupID struct {
+	Set   bool
+	Value *uint
+}
+
+// UnmarshalJSON 自定义解析 group_id 三态值
+func (o *OptionalGroupID) UnmarshalJSON(data []byte) error {
+	o.Set = true
+
+	trimmed := bytes.TrimSpace(data)
+	if bytes.Equal(trimmed, []byte("null")) {
+		o.Value = nil
+		return nil
+	}
+
+	var value uint
+	if err := json.Unmarshal(trimmed, &value); err != nil {
+		return err
+	}
+
+	o.Value = &value
+	return nil
+}
+
 // UpdateEmailAccountRequest 更新邮件账户请求
 type UpdateEmailAccountRequest struct {
-	Name         *string `json:"name"`
-	Password     *string `json:"password"`
-	IMAPHost     *string `json:"imap_host"`
-	IMAPPort     *int    `json:"imap_port"`
-	IMAPSecurity *string `json:"imap_security"`
-	SMTPHost     *string `json:"smtp_host"`
-	SMTPPort     *int    `json:"smtp_port"`
-	SMTPSecurity *string `json:"smtp_security"`
-	IsActive     *bool   `json:"is_active"`
-	GroupID      *uint   `json:"group_id"`
+	Name         *string         `json:"name"`
+	Password     *string         `json:"password"`
+	IMAPHost     *string         `json:"imap_host"`
+	IMAPPort     *int            `json:"imap_port"`
+	IMAPSecurity *string         `json:"imap_security"`
+	SMTPHost     *string         `json:"smtp_host"`
+	SMTPPort     *int            `json:"smtp_port"`
+	SMTPSecurity *string         `json:"smtp_security"`
+	IsActive     *bool           `json:"is_active"`
+	GroupID      OptionalGroupID `json:"group_id"`
 }
 
 // GetEmailsRequest 获取邮件列表请求
@@ -417,8 +446,8 @@ func (s *EmailServiceImpl) UpdateEmailAccount(ctx context.Context, userID, accou
 	if req.IsActive != nil {
 		account.IsActive = *req.IsActive
 	}
-	if req.GroupID != nil {
-		targetGroup, err := s.resolveAccountGroup(ctx, userID, req.GroupID)
+	if req.GroupID.Set {
+		targetGroup, err := s.resolveAccountGroup(ctx, userID, req.GroupID.Value)
 		if err != nil {
 			return nil, fmt.Errorf("invalid group: %w", err)
 		}
@@ -683,6 +712,11 @@ func (s *EmailServiceImpl) resolveAccountGroup(ctx context.Context, userID uint,
 	return &group, nil
 }
 
+// ResolveEmailGroup 为 handler 等外部调用者暴露统一的邮箱分组解析语义
+func (s *EmailServiceImpl) ResolveEmailGroup(ctx context.Context, userID uint, groupID *uint) (*models.EmailGroup, error) {
+	return s.resolveAccountGroup(ctx, userID, groupID)
+}
+
 // GetEmailGroups 获取分组列表（包含账户数量）
 func (s *EmailServiceImpl) GetEmailGroups(ctx context.Context, userID uint) ([]*models.EmailGroup, error) {
 	if _, err := s.ensureDefaultGroup(ctx, userID); err != nil {
@@ -765,8 +799,11 @@ func (s *EmailServiceImpl) CreateEmailGroup(ctx context.Context, userID uint, re
 	if err := s.db.WithContext(ctx).Model(&models.EmailGroup{}).
 		Where("user_id = ? AND is_default = 0", userID).
 		Count(&nonDefaultCount).Error; err == nil && nonDefaultCount == 1 {
-		if _, err := s.SetDefaultEmailGroup(ctx, userID, group.ID); err != nil {
+		defaultGroup, err := s.SetDefaultEmailGroup(ctx, userID, group.ID)
+		if err != nil {
 			log.Printf("Warning: failed to set first group as default: %v", err)
+		} else {
+			return defaultGroup, nil
 		}
 	}
 

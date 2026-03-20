@@ -10,7 +10,13 @@ import { apiClient } from '@/lib/api';
 import { toast } from 'sonner';
 import { useContextMenuStore, useMailboxStore } from '@/lib/store';
 import type { EmailAccount, EmailGroup } from '@/types/email';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Plus, RefreshCw, Trash2, X, CheckSquare } from 'lucide-react';
@@ -35,7 +41,7 @@ export function LeftSidebar() {
     clearAccountSelection,
     setSelectedAccountIds,
   } = useMailboxStore();
-  const { openMenu } = useContextMenuStore();
+  const { openMenu, closeMenu } = useContextMenuStore();
   const [settingsAccount, setSettingsAccount] = useState<EmailAccount | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [groupModalOpen, setGroupModalOpen] = useState(false);
@@ -116,9 +122,6 @@ export function LeftSidebar() {
 
   const displayGroups = orderedGroups.filter((g) => {
     if (g.is_default) return shouldShowDefault || draggingGroupId !== null;
-    const count = accountsByGroup.get(g.id)?.length ?? 0;
-    if (g.name === '未分组' && count === 0 && draggingAccountId === null && draggingGroupId === null)
-      return false;
     return true;
   });
 
@@ -223,7 +226,7 @@ export function LeftSidebar() {
     }
   };
 
-  const handleMoveAccountToGroup = async (accountId: number, targetGroupId?: number) => {
+  const handleMoveAccountToGroup = async (accountId: number, targetGroupId: number | null) => {
     try {
       const response = await apiClient.updateEmailAccount(accountId, {
         group_id: targetGroupId,
@@ -264,7 +267,7 @@ export function LeftSidebar() {
 
   const handleGroupDrop = async (group: EmailGroup) => {
     if (draggingAccountId !== null) {
-      await handleMoveAccountToGroup(draggingAccountId, group.id);
+      await handleMoveAccountToGroup(draggingAccountId, group.is_default ? null : group.id);
     } else if (draggingGroupId && draggingGroupId !== group.id) {
       const updatedOrder = reorderGroupsLocal(draggingGroupId, group.id);
       await handlePersistReorder(updatedOrder);
@@ -315,9 +318,7 @@ export function LeftSidebar() {
         // 更新已加载的文件夹未读计数
         if (folders.length > 0) {
           setFolders(
-            folders.map((f) =>
-              ids.includes(f.account_id) ? { ...f, unread_emails: 0 } : f
-            )
+            folders.map((f) => (ids.includes(f.account_id) ? { ...f, unread_emails: 0 } : f))
           );
         }
 
@@ -402,6 +403,10 @@ export function LeftSidebar() {
   const handleGroupContextMenu = (e: React.MouseEvent, group: EmailGroup) => {
     e.preventDefault();
     e.stopPropagation();
+    if (group.is_default) {
+      closeMenu();
+      return;
+    }
     openMenu(
       { x: e.clientX, y: e.clientY },
       {
@@ -577,7 +582,7 @@ export function LeftSidebar() {
               onDrop={(e) => {
                 e.preventDefault();
                 if (draggingAccountId !== null) {
-                  handleMoveAccountToGroup(draggingAccountId, defaultGroup.id);
+                  handleMoveAccountToGroup(draggingAccountId, null);
                 }
                 setDragOverGroupId(null);
                 setDraggingAccountId(null);

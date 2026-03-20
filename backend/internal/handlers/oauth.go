@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -17,6 +18,27 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
+
+var errInvalidOAuthAccountGroup = errors.New("invalid oauth account group")
+
+type invalidOAuthAccountGroupError struct {
+	cause error
+}
+
+func (e invalidOAuthAccountGroupError) Error() string {
+	if e.cause == nil {
+		return "invalid oauth account group"
+	}
+	return e.cause.Error()
+}
+
+func (e invalidOAuthAccountGroupError) Unwrap() error {
+	return e.cause
+}
+
+func (e invalidOAuthAccountGroupError) Is(target error) bool {
+	return target == errInvalidOAuthAccountGroup
+}
 
 // InitOAuth 通用OAuth2认证初始化
 func (h *Handler) InitOAuth(c *gin.Context) {
@@ -266,6 +288,29 @@ type CreateManualOAuth2AccountRequest struct {
 	GroupID  *uint  `json:"group_id"`
 }
 
+func (h *Handler) createOAuthAccountWithGroup(ctx context.Context, userID uint, account *models.EmailAccount, groupID *uint) (*models.EmailAccount, error) {
+	targetGroup, err := h.emailService.ResolveEmailGroup(ctx, userID, groupID)
+	if err != nil {
+		return nil, invalidOAuthAccountGroupError{cause: err}
+	}
+
+	account.GroupID = &targetGroup.ID
+
+	if err := h.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return tx.Create(account).Error
+	}); err != nil {
+		return nil, fmt.Errorf("failed to create email account: %w", err)
+	}
+
+	persistedAccount, err := h.emailService.GetEmailAccount(ctx, userID, account.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to reload email account: %w", err)
+	}
+
+	persistedAccount.OAuth2Token = ""
+	return persistedAccount, nil
+}
+
 // CreateOAuth2Account 使用OAuth2 token创建邮件账户
 func (h *Handler) CreateOAuth2Account(c *gin.Context) {
 	userID, exists := h.getCurrentUserID(c)
@@ -385,16 +430,13 @@ func (h *Handler) CreateOAuth2Account(c *gin.Context) {
 		return
 	}
 
-	// 保存到数据库（使用事务确保原子性）
-	if err := h.db.Transaction(func(tx *gorm.DB) error {
-		return tx.Create(account).Error
-	}); err != nil {
+	persistedAccount, err := h.createOAuthAccountWithGroup(ctx, userID, account, req.GroupID)
+	if err != nil {
+		if errors.Is(err, errInvalidOAuthAccountGroup) {
+			h.respondWithError(c, http.StatusBadRequest, "Failed to apply group: "+err.Error())
+			return
+		}
 		h.respondWithError(c, http.StatusInternalServerError, "Failed to create email account: "+err.Error())
-		return
-	}
-
-	if err := h.emailService.MoveAccountToGroup(ctx, userID, account.ID, req.GroupID); err != nil {
-		h.respondWithError(c, http.StatusBadRequest, "Failed to apply group: "+err.Error())
 		return
 	}
 
@@ -417,9 +459,9 @@ func (h *Handler) CreateOAuth2Account(c *gin.Context) {
 				})
 			}
 		}
-	}(account.ID)
+	}(persistedAccount.ID)
 
-	h.respondWithCreated(c, account, "OAuth2 email account created successfully")
+	h.respondWithCreated(c, persistedAccount, "OAuth2 email account created successfully")
 }
 
 // CreateManualOAuth2Account 使用手动配置创建OAuth2邮件账户
@@ -543,6 +585,7 @@ func (h *Handler) CreateManualOAuth2Account(c *gin.Context) {
 		Email:        req.Email,
 		Provider:     req.Provider,
 		AuthMethod:   "oauth2",
+		Username:     req.Email,
 		IMAPHost:     imapHost,
 		IMAPPort:     imapPort,
 		IMAPSecurity: "SSL", // Outlook使用SSL
@@ -559,21 +602,15 @@ func (h *Handler) CreateManualOAuth2Account(c *gin.Context) {
 		return
 	}
 
-	// 保存到数据库（使用事务确保原子性）
-	if err := h.db.Transaction(func(tx *gorm.DB) error {
-		return tx.Create(account).Error
-	}); err != nil {
+	persistedAccount, err := h.createOAuthAccountWithGroup(ctx, userID, account, req.GroupID)
+	if err != nil {
+		if errors.Is(err, errInvalidOAuthAccountGroup) {
+			h.respondWithError(c, http.StatusBadRequest, "Failed to apply group: "+err.Error())
+			return
+		}
 		h.respondWithError(c, http.StatusInternalServerError, "Failed to create email account: "+err.Error())
 		return
 	}
-
-	if err := h.emailService.MoveAccountToGroup(c.Request.Context(), userID, account.ID, req.GroupID); err != nil {
-		h.respondWithError(c, http.StatusBadRequest, "Failed to apply group: "+err.Error())
-		return
-	}
-
-	// 清除敏感信息
-	account.OAuth2Token = ""
 
 	// 异步测试连接和同步
 	go func(accountID uint) {
@@ -609,9 +646,9 @@ func (h *Handler) CreateManualOAuth2Account(c *gin.Context) {
 				})
 			}
 		}
-	}(account.ID)
+	}(persistedAccount.ID)
 
-	h.respondWithCreated(c, account, "Manual OAuth2 email account created successfully")
+	h.respondWithCreated(c, persistedAccount, "Manual OAuth2 email account created successfully")
 }
 
 // generateRandomString 生成指定长度的随机字符串

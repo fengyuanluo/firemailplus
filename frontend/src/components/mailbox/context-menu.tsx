@@ -80,9 +80,7 @@ export function ContextMenu({
 
             // 将该账户的文件夹未读清零
             setFolders(
-              folders.map((f) =>
-                f.account_id === target.id ? { ...f, unread_emails: 0 } : f
-              )
+              folders.map((f) => (f.account_id === target.id ? { ...f, unread_emails: 0 } : f))
             );
 
             // 将当前列表中属于该账户的邮件标记为已读
@@ -233,25 +231,25 @@ export function ContextMenu({
       );
     } else if (target.type === 'group') {
       if (!target.data?.is_default) {
-        items.push({
-          icon: Star,
-          label: '设为默认',
-          action: 'setDefaultGroup',
-        });
+        items.push(
+          {
+            icon: Star,
+            label: '设为默认',
+            action: 'setDefaultGroup',
+          },
+          {
+            icon: Edit,
+            label: '重命名分组',
+            action: 'editGroup',
+          },
+          {
+            icon: Trash2,
+            label: '删除分组',
+            action: 'deleteGroup',
+            danger: true,
+          }
+        );
       }
-      items.push(
-        {
-          icon: Edit,
-          label: '重命名分组',
-          action: 'editGroup',
-        },
-        {
-          icon: Trash2,
-          label: '删除分组',
-          action: 'deleteGroup',
-          danger: true,
-        }
-      );
     } else if (target.type === 'group-blank') {
       items.push({
         icon: FolderPlus,
@@ -294,6 +292,7 @@ export function ContextMenu({
   };
 
   const menuItems = getMenuItems();
+  if (menuItems.length === 0) return null;
 
   return (
     <div

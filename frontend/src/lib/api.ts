@@ -2,7 +2,14 @@
  * API 配置和基础请求函数
  */
 
-import type { EmailAccount, Email, EmailAddress, EmailStats, Folder, EmailGroup } from '@/types/email';
+import type {
+  EmailAccount,
+  Email,
+  EmailAddress,
+  EmailStats,
+  Folder,
+  EmailGroup,
+} from '@/types/email';
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080/api/v1';
 
@@ -190,12 +197,12 @@ class ApiClient {
       imap_host?: string;
       imap_port?: number;
       imap_security?: string;
-    smtp_host?: string;
-    smtp_port?: number;
-    smtp_security?: string;
-    is_active?: boolean;
-    group_id?: number;
-  }
+      smtp_host?: string;
+      smtp_port?: number;
+      smtp_security?: string;
+      is_active?: boolean;
+      group_id?: number | null;
+    }
   ): Promise<ApiResponse<EmailAccount>> {
     return this.request<EmailAccount>(`/accounts/${id}`, {
       method: 'PUT',
