@@ -3,6 +3,8 @@ package models
 import (
 	"encoding/json"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // EmailAccount 邮件账户模型
@@ -27,10 +29,10 @@ type EmailAccount struct {
 
 	// 认证信息（加密存储）
 	Username string `gorm:"size:100" json:"username,omitempty"`
-	Password string `gorm:"size:255" json:"-"` // 密码不在JSON中返回
+	Password string `gorm:"type:text" json:"-"` // 密码/授权码加密存储，不在JSON中返回
 
 	// OAuth2信息
-	OAuth2Token string `gorm:"column:oauth2_token;type:text" json:"-"` // OAuth2 token（JSON格式，加密存储）
+	OAuth2Token string `gorm:"column:oauth2_token;type:text" json:"-"` // OAuth2 token（加密存储）
 
 	// 状态信息
 	IsActive     bool       `gorm:"not null;default:true" json:"is_active"`
@@ -47,6 +49,45 @@ type EmailAccount struct {
 	Emails  []Email     `gorm:"foreignKey:AccountID" json:"emails,omitempty"`
 	Folders []Folder    `gorm:"foreignKey:AccountID" json:"folders,omitempty"`
 	Group   *EmailGroup `gorm:"foreignKey:GroupID" json:"group,omitempty"`
+}
+
+
+// BeforeSave encrypts mailbox credentials before persisting.
+func (ea *EmailAccount) BeforeSave(tx *gorm.DB) error {
+	if ea.Password != "" {
+		encrypted, err := EncryptCredential(ea.Password)
+		if err != nil {
+			return err
+		}
+		ea.Password = encrypted
+	}
+	if ea.OAuth2Token != "" {
+		encrypted, err := EncryptCredential(ea.OAuth2Token)
+		if err != nil {
+			return err
+		}
+		ea.OAuth2Token = encrypted
+	}
+	return nil
+}
+
+// AfterFind decrypts mailbox credentials for in-memory provider use.
+func (ea *EmailAccount) AfterFind(tx *gorm.DB) error {
+	if ea.Password != "" {
+		decrypted, err := DecryptCredential(ea.Password)
+		if err != nil {
+			return err
+		}
+		ea.Password = decrypted
+	}
+	if ea.OAuth2Token != "" {
+		decrypted, err := DecryptCredential(ea.OAuth2Token)
+		if err != nil {
+			return err
+		}
+		ea.OAuth2Token = decrypted
+	}
+	return nil
 }
 
 // TableName 指定表名
@@ -70,8 +111,11 @@ func (ea *EmailAccount) SetOAuth2Token(token *OAuth2TokenData) error {
 	if err != nil {
 		return err
 	}
-	// TODO: 这里应该加密存储
-	ea.OAuth2Token = string(tokenBytes)
+	encrypted, err := EncryptCredential(string(tokenBytes))
+	if err != nil {
+		return err
+	}
+	ea.OAuth2Token = encrypted
 	return nil
 }
 
@@ -81,9 +125,13 @@ func (ea *EmailAccount) GetOAuth2Token() (*OAuth2TokenData, error) {
 		return nil, nil
 	}
 
-	// TODO: 这里应该解密
+	plainToken, err := DecryptCredential(ea.OAuth2Token)
+	if err != nil {
+		return nil, err
+	}
+
 	var token OAuth2TokenData
-	err := json.Unmarshal([]byte(ea.OAuth2Token), &token)
+	err = json.Unmarshal([]byte(plainToken), &token)
 	if err != nil {
 		return nil, err
 	}
